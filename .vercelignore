@@ -1,0 +1,9 @@
+attachments
+artifacts
+screenshots
+data
+.tanstack
+.grok/preview.log
+*.log
+node_modules
+.vercel

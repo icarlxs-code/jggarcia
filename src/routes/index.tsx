@@ -1,0 +1,374 @@
+import { useMemo, useState } from "react";
+import { createFileRoute, Link } from "@tanstack/react-router";
+import {
+  AlertTriangle,
+  ArrowDownToLine,
+  ArrowLeftRight,
+  ArrowUpFromLine,
+  Boxes,
+  ClipboardCheck,
+  PackagePlus,
+  Warehouse,
+} from "lucide-react";
+import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip as ChartTooltip, XAxis, YAxis } from "recharts";
+import { loteStatus, stockAlert } from "@/lib/store";
+import { useDb } from "@/lib/use-db";
+import { formatNumber, formatTime, pad2, todayISO } from "@/lib/format";
+import { useSession } from "@/lib/session";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { PageHeader } from "@/components/page-header";
+import { PageStage } from "@/components/motion/page-stage";
+import { OrbitField } from "@/components/motion/orbit-field";
+import { CountUp } from "@/components/motion/count-up";
+import { SpotlightCard } from "@/components/motion/spotlight-card";
+import { ProductLabel } from "@/components/inventory/product-icon";
+import { StockBadge } from "@/components/inventory/stock-badge";
+import { PavMark } from "@/components/inventory/pav-mark";
+import { destinoDaSaida, lugarDaSaida } from "@/lib/catalog";
+import { tipoMovimentacaoOf } from "@/lib/movement";
+import { MovementDetail } from "@/components/inventory/movement-detail";
+import type { Saida } from "@/lib/types";
+
+export const Route = createFileRoute("/")({ component: Dashboard });
+
+function unitShort(unidade: string) {
+  const n = (unidade || "").trim().toLowerCase();
+  if (n === "kg" || n.startsWith("quilo")) return "kg";
+  if (n.startsWith("caixa")) return "cx";
+  if (n.startsWith("bandeja")) return "bdj";
+  if (n.startsWith("unidade") || n === "un") return "un";
+  if (n.startsWith("saco")) return "sc";
+  if (n.startsWith("pacote")) return "pct";
+  if (n.startsWith("litro") || n === "l") return "L";
+  if (n.startsWith("dúzia") || n.startsWith("duzia")) return "dz";
+  if (n.startsWith("maço") || n.startsWith("maco")) return "maço";
+  return unidade || "un";
+}
+
+function mixByUnit(rows: { unidade?: string; quantidade?: number; estoque?: number }[]) {
+  const map = new Map<string, number>();
+  for (const row of rows) {
+    const q = Number(row.quantidade ?? row.estoque ?? 0);
+    if (!q) continue;
+    const key = row.unidade?.trim() || "Unidade";
+    map.set(key, (map.get(key) || 0) + q);
+  }
+  const parts = [...map.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .map(([u, q]) => `${formatNumber(q)} ${unitShort(u)}`);
+  return parts.length ? parts.join(" · ") : "—";
+}
+
+function greeting() {
+  const h = new Date().getHours();
+  if (h < 12) return "Bom dia";
+  if (h < 18) return "Boa tarde";
+  return "Boa noite";
+}
+
+function Dashboard() {
+  const db = useDb();
+  const { isAdmin } = useSession();
+  const [view, setView] = useState<Saida | null>(null);
+  const produtos = db.listMercadorias();
+  const lotes = db.listLotes();
+  const movs = db.listSaidas();
+  const pavilhoes = db.listPavilhoes();
+  const empty = produtos.length === 0 && movs.length === 0;
+
+  const stats = useMemo(() => {
+    const hoje = todayISO();
+    const entradasHoje = movs.filter((m) => m.data === hoje && m.tipo === "entrada");
+    const saidasHoje = movs.filter((m) => m.data === hoje && (m.tipo ?? "saida") === "saida");
+    const aVencer = lotes.filter((l) => loteStatus(l.validade) !== "ok").length;
+    const comEstoque = produtos.filter((p) => p.estoque > 0);
+    const semana = Array.from({ length: 7 }, (_, i) => {
+      const d = new Date();
+      d.setDate(d.getDate() - (6 - i));
+      const iso = `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+      return {
+        name: `${pad2(d.getDate())}/${pad2(d.getMonth() + 1)}`,
+        entradas: movs.filter((m) => m.data === iso && m.tipo === "entrada").reduce((a, s) => a + s.quantidade, 0),
+        saidas: movs.filter((m) => m.data === iso && (m.tipo ?? "saida") === "saida").reduce((a, s) => a + s.quantidade, 0),
+      };
+    });
+    const baixos = produtos
+      .map((p) => ({ p, alert: stockAlert(p) }))
+      .filter((x) => x.alert !== "ok")
+      .sort((a, b) => a.p.estoque - b.p.estoque)
+      .slice(0, 5);
+    const criticos = produtos.filter((p) => stockAlert(p) === "critico").length;
+    const zerados = produtos.filter((p) => p.estoque <= 0).length;
+    return {
+      entradasN: entradasHoje.length,
+      saidasN: saidasHoje.length,
+      aVencer,
+      estoqueMix: mixByUnit(comEstoque),
+      inMix: mixByUnit(entradasHoje),
+      outMix: mixByUnit(saidasHoje),
+      semana,
+      baixos,
+      criticos,
+      zerados,
+    };
+  }, [produtos, lotes, movs]);
+
+  return (
+    <PageStage className="space-y-6">
+      <div className="relative">
+        <OrbitField names={produtos.map((p) => p.nome)} />
+        <PageHeader
+          icon="home"
+          title={`${greeting()}.`}
+          description={isAdmin ? "Tudo que a equipe lança aparece aqui na hora." : "Estoque, entradas e expedição da JG Garcia no CEASA RJ."}
+        >
+        <Button asChild variant="outline">
+          <Link to="/contagem">
+            <ClipboardCheck /> Contagem
+          </Link>
+        </Button>
+        <Button asChild variant="outline">
+          <Link to="/entradas">
+            <ArrowDownToLine /> Entrada
+          </Link>
+        </Button>
+        <Button asChild>
+          <Link to="/nova-saida">
+            <ArrowUpFromLine /> Nova saída
+          </Link>
+        </Button>
+      </PageHeader>
+      </div>
+
+      {empty ? (
+        <div className="grid gap-3 md:grid-cols-3">
+          <StartCard
+            step="1"
+            title="Cadastre produtos"
+            body="O catálogo é a base do estoque e das movimentações."
+            to="/mercadorias"
+            cta="Abrir produtos"
+            icon={PackagePlus}
+          />
+          <StartCard
+            step="2"
+            title="Registre uma entrada"
+            body="Chegada do Ceasa gera lote, validade e posição de estoque."
+            to="/entradas"
+            cta="Nova entrada"
+            icon={ArrowDownToLine}
+          />
+          <StartCard
+            step="3"
+            title="Expeça uma saída"
+            body="A expedição baixa estoque e fica no log de alterações."
+            to="/nova-saida"
+            cta="Nova saída"
+            icon={ArrowUpFromLine}
+          />
+        </div>
+      ) : null}
+
+      <div className="grid grid-cols-2 gap-3 xl:grid-cols-5">
+        <Kpi label="SKUs ativos" value={produtos.filter((p) => p.status).length} hint="Produtos cadastrados" icon={Boxes} />
+        <Kpi label="Estoque total" mix={stats.estoqueMix} hint="Somado por caixa, saco, unidade, kg…" icon={Warehouse} />
+        <Kpi label="Entradas hoje" mix={stats.inMix} hint={`${stats.entradasN} lançamentos`} icon={ArrowDownToLine} />
+        <Kpi label="Saídas hoje" mix={stats.outMix} hint={`${stats.saidasN} lançamentos`} icon={ArrowUpFromLine} />
+        <Kpi label="Crítico / zerado" value={stats.criticos + stats.zerados} hint={`${stats.aVencer} lotes em risco`} icon={AlertTriangle} warn={stats.criticos + stats.zerados + stats.aVencer > 0} />
+      </div>
+
+      {pavilhoes.length ? (
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-3 xl:grid-cols-5">
+          {pavilhoes.map((p) => {
+            const comSaldo = produtos.filter((m) => db.stockAt(m.id, p.id) > 0);
+            return (
+              <Link key={p.id} to="/contagem" search={{ pav: p.id }} className="block">
+                <Card className="h-full transition-colors hover:bg-muted/40">
+                  <CardContent className="flex items-center gap-3 pt-4">
+                    <PavMark p={p} size="md" />
+                    <div className="min-w-0">
+                      <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                        {p.codigo === "74" ? "Galpão" : "Pavilhão"} {p.codigo}
+                      </p>
+                      <p className="mt-1 text-2xl font-semibold tabular-nums">{formatNumber(comSaldo.length)}</p>
+                      <p className="text-xs text-muted-foreground">produtos com saldo · contar</p>
+                    </div>
+                  </CardContent>
+                </Card>
+              </Link>
+            );
+          })}
+        </div>
+      ) : null}
+
+      <div className="grid gap-4 xl:grid-cols-3">
+        <Card className="xl:col-span-2">
+          <CardHeader className="flex-row items-center justify-between">
+            <CardTitle>Movimentação · 7 dias</CardTitle>
+            <div className="flex gap-3 text-xs text-muted-foreground">
+              <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-sm bg-primary" /> Entradas</span>
+              <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-sm bg-gold" /> Saídas</span>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="h-52">
+              {movs.length === 0 ? (
+                <p className="flex h-full items-center justify-center text-sm text-muted-foreground">Sem movimentação ainda.</p>
+              ) : (
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={stats.semana}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--color-border)" />
+                    <XAxis dataKey="name" tick={{ fontSize: 11 }} />
+                    <YAxis tick={{ fontSize: 11 }} width={36} />
+                    <ChartTooltip />
+                    <Bar dataKey="entradas" fill="var(--color-primary)" radius={[4, 4, 0, 0]} />
+                    <Bar dataKey="saidas" fill="var(--color-gold)" radius={[4, 4, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex-row items-center justify-between">
+            <CardTitle>Estoque baixo</CardTitle>
+            <Link to="/estoque" className="text-xs font-medium text-primary hover:underline">
+              Ver estoque
+            </Link>
+          </CardHeader>
+          <CardContent>
+            {stats.baixos.length === 0 ? (
+              <p className="py-8 text-center text-sm text-muted-foreground">Nenhum alerta de estoque.</p>
+            ) : (
+              <ul className="space-y-3">
+                {stats.baixos.map(({ p, alert }) => (
+                  <li key={p.id} className="flex items-center gap-3">
+                    <ProductLabel nome={p.nome} codigo={p.codigo} extra={`${formatNumber(p.estoque)} ${unitShort(p.unidade)}`} className="flex-1" />
+                    <StockBadge alert={alert} />
+                  </li>
+                ))}
+              </ul>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      <Card>
+        <CardHeader className="flex-row items-center justify-between">
+          <CardTitle>Últimas movimentações</CardTitle>
+          <Link to="/movimentacoes" className="text-xs font-medium text-primary hover:underline">
+            Ver todas
+          </Link>
+        </CardHeader>
+        <CardContent>
+          {movs.length === 0 ? (
+            <p className="py-8 text-center text-sm text-muted-foreground">Nenhuma entrada ou saída registrada.</p>
+          ) : (
+            <ul className="divide-y divide-border">
+              {movs.slice(0, 10).map((s) => {
+                const tipo = tipoMovimentacaoOf(s);
+                return (
+                  <li key={s.id}>
+                    <button type="button" className="flex w-full items-center gap-3 py-2.5 text-left hover:bg-muted/40" onClick={() => setView(s)}>
+                      <span className="flex h-8 w-8 items-center justify-center rounded-full bg-muted text-muted-foreground">
+                        {tipo === "entrada" ? <ArrowDownToLine className="h-4 w-4" /> : tipo === "transferencia" ? <ArrowLeftRight className="h-4 w-4" /> : <ArrowUpFromLine className="h-4 w-4" />}
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-medium">{s.mercadoria?.nome}</p>
+                        <p className="truncate text-[11px] text-muted-foreground">
+                          {tipo === "entrada" ? `↓ ${lugarDaSaida(pavilhoes, s)}` : `${lugarDaSaida(pavilhoes, s)} → ${destinoDaSaida(pavilhoes, s)}`}
+                          {s.usuario?.nome ? ` · ${s.usuario.nome}` : ""}
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-sm font-semibold tabular-nums">
+                          {formatNumber(s.quantidade)} {unitShort(s.unidade)}
+                        </p>
+                        <p className="text-[11px] text-muted-foreground">{s.data.slice(8, 10)}/{s.data.slice(5, 7)} {formatTime(s.hora_saida)}</p>
+                      </div>
+                      <Badge variant={tipo === "entrada" ? "success" : tipo === "transferencia" ? "muted" : "gold"}>
+                        {tipo === "entrada" ? "↓ Entrada" : tipo === "transferencia" ? "⇄ Transferência" : "↑ Saída"}
+                      </Badge>
+                      {s.desconta_estoque === false ? <Badge variant="gold">Somente registro</Badge> : null}
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </CardContent>
+      </Card>
+      <MovementDetail view={view} onClose={() => setView(null)} />
+    </PageStage>
+  );
+}
+
+function StartCard({
+  step,
+  title,
+  body,
+  to,
+  cta,
+  icon: Icon,
+}: {
+  step: string;
+  title: string;
+  body: string;
+  to: "/mercadorias" | "/entradas" | "/nova-saida";
+  cta: string;
+  icon: typeof PackagePlus;
+}) {
+  return (
+    <SpotlightCard>
+      <div className="p-5">
+        <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+          <span className="flex h-6 w-6 items-center justify-center rounded-md bg-secondary text-primary">{step}</span>
+          <Icon className="h-4 w-4" />
+        </div>
+        <h2 className="mt-3 text-base font-semibold">{title}</h2>
+        <p className="mt-1 text-sm text-muted-foreground">{body}</p>
+        <Button asChild variant="outline" className="mt-4">
+          <Link to={to}>{cta}</Link>
+        </Button>
+      </div>
+    </SpotlightCard>
+  );
+}
+
+function Kpi({
+  label,
+  value,
+  suffix = "",
+  mix,
+  hint,
+  icon: Icon,
+  warn,
+}: {
+  label: string;
+  value?: number;
+  suffix?: string;
+  mix?: string;
+  hint: string;
+  icon: typeof Boxes;
+  warn?: boolean;
+}) {
+  return (
+    <SpotlightCard className="p-4">
+      <div className="flex items-start justify-between gap-2">
+        <span className="text-xs font-medium text-muted-foreground">{label}</span>
+        <Icon className={warn ? "h-4 w-4 text-destructive" : "h-4 w-4 text-muted-foreground"} />
+      </div>
+      {mix ? (
+        <div className="mt-2 text-lg font-semibold leading-snug tracking-tight">{mix}</div>
+      ) : (
+        <div className="mt-2 tabular text-2xl font-semibold tracking-tight">
+          <CountUp value={value ?? 0} suffix={suffix} />
+        </div>
+      )}
+      <div className="mt-1 text-xs text-muted-foreground">{hint}</div>
+    </SpotlightCard>
+  );
+}
