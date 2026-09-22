@@ -26,7 +26,7 @@ import { SpotlightCard } from "@/components/motion/spotlight-card";
 import { ProductLabel } from "@/components/inventory/product-icon";
 import { StockBadge } from "@/components/inventory/stock-badge";
 import { PavMark } from "@/components/inventory/pav-mark";
-import { destinoDaSaida, lugarDaSaida } from "@/lib/catalog";
+import { destinoDaSaida, lugarDaSaida, pavTitle } from "@/lib/catalog";
 import { tipoMovimentacaoOf } from "@/lib/movement";
 import { MovementDetail } from "@/components/inventory/movement-detail";
 import type { Saida } from "@/lib/types";
@@ -190,7 +190,7 @@ function Dashboard() {
                     <PavMark p={p} size="md" />
                     <div className="min-w-0">
                       <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                        {p.codigo === "74" ? "Galpão" : "Pavilhão"} {p.codigo}
+                        {pavTitle(p)}
                       </p>
                       <p className="mt-1 text-2xl font-semibold tabular-nums">{formatNumber(comSaldo.length)}</p>
                       <p className="text-xs text-muted-foreground">produtos com saldo · contar</p>
@@ -213,7 +213,7 @@ function Dashboard() {
             </div>
           </CardHeader>
           <CardContent>
-            <div className="aspect-[12/9] max-h-52">
+            <div className="h-36">
               {movs.length === 0 ? (
                 <p className="flex h-full items-center justify-center text-sm text-muted-foreground">Sem movimentação ainda.</p>
               ) : (

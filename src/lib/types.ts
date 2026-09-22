@@ -56,6 +56,7 @@ export interface Pavilhao {
   nome: string;
   ativo: boolean;
   logo?: string;
+  tipo?: string;
 }
 
 export interface Lote {
@@ -223,6 +224,8 @@ export interface FretePagamento {
   cpf: string;
   assinatura_motorista: string;
   forma_pagamento: string;
+  pix_tipo?: string;
+  pix_chave?: string;
   rubrica: string;
   data_autorizacao: string;
   observacoes: string;

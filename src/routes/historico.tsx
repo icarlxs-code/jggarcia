@@ -27,6 +27,7 @@ import { useViewport } from "@/lib/use-viewport";
 import { rowEl, tossAway } from "@/lib/toss";
 import { cn } from "@/lib/utils";
 import { NameRecall } from "@/components/inventory/name-recall";
+import { ProductPicker } from "@/components/inventory/product-picker";
 import { PeriodFilter, periodRange, type PeriodKey } from "@/components/inventory/period-filter";
 
 export const Route = createFileRoute("/historico")({ component: Historico });
@@ -37,6 +38,7 @@ function Historico() {
   const [tick, setTick] = useState(0);
   const saidas = useMemo(() => live.listSaidas().filter((s) => (s.tipo ?? "saida") === "saida"), [tick, live]);
   const pavilhoes = live.listPavilhoes(true);
+  const mercadorias = live.listMercadorias();
   const [q, setQ] = useState("");
   const [period, setPeriod] = useState<PeriodKey>("hoje");
   const [day, setDay] = useState(todayISO());
@@ -48,6 +50,7 @@ function Historico() {
   const [horaChegada, setHoraChegada] = useState("");
   const [desconta, setDesconta] = useState(true);
   const [operador, setOperador] = useState("");
+  const [mercadoriaId, setMercadoriaId] = useState("");
   const [pending, setPending] = useState<Saida | null>(null);
 
   const range = periodRange(period, day);
@@ -83,6 +86,7 @@ function Historico() {
     setDesconta(s.desconta_estoque !== false);
     setOperador(s.operador_nome || "");
     setObs(s.observacao || "");
+    setMercadoriaId(s.mercadoria_id);
   }
 
   function saveEdit() {
@@ -92,13 +96,20 @@ function Historico() {
       notify.error("Quantidade inválida.");
       return;
     }
+    if (!mercadoriaId) {
+      notify.error("Escolha o produto.");
+      return;
+    }
     const hs = completeTime(horaSaida);
     const hc = horaChegada.trim() ? completeTime(horaChegada) : "";
     if (!isValidTime(hs) || (hc && !isValidTime(hc))) {
       notify.error("Informe a hora de saída com 4 dígitos. Chegada pode ficar em branco.");
       return;
     }
+    const merc = mercadorias.find((m) => m.id === mercadoriaId);
     db.updateSaida(edit.id, {
+      mercadoria_id: mercadoriaId,
+      unidade: merc?.unidade || edit.unidade,
       quantidade: n,
       hora_saida: hs,
       hora_chegada: hc || null,
@@ -271,15 +282,34 @@ function Historico() {
       <MovementDetail view={view} onClose={() => setView(null)} onEdit={openEdit} />
 
       <Dialog open={!!edit} onOpenChange={(o) => !o && setEdit(null)}>
-        <DialogContent>
+        <DialogContent className="max-h-[min(92dvh,48rem)]">
           <DialogHeader>
             <DialogTitle>Editar saída</DialogTitle>
           </DialogHeader>
           <div className="space-y-3">
-            <p className="text-sm text-muted-foreground">{edit?.mercadoria?.nome} · {edit ? lugarDaSaida(pavilhoes, edit) : "—"} → {edit ? destinoDaSaida(pavilhoes, edit) : "—"}</p>
+            <div className="space-y-2">
+              <Label htmlFor="eh-prod">Produto</Label>
+              <ProductPicker
+                inputId="eh-prod"
+                listId="eh-prod-lista"
+                inline
+                items={mercadorias}
+                value={mercadoriaId}
+                onChange={(id) => setMercadoriaId(id)}
+                placeholder="Busque o produto certo"
+              />
+              {edit ? (
+                <p className="text-xs text-muted-foreground">
+                  {lugarDaSaida(pavilhoes, edit)} → {destinoDaSaida(pavilhoes, edit)}
+                </p>
+              ) : null}
+            </div>
             <div className="space-y-2">
               <Label htmlFor="eq">Quantidade</Label>
               <Input id="eq" type="number" value={qtd} onChange={(e) => setQtd(e.target.value)} />
+              {mercadorias.find((m) => m.id === mercadoriaId)?.unidade ? (
+                <p className="text-xs text-muted-foreground">{mercadorias.find((m) => m.id === mercadoriaId)?.unidade}</p>
+              ) : null}
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-2">

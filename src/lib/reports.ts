@@ -76,13 +76,7 @@ export function collectReport(opts: ReportOpts): ReportRow[] {
         const destPid = resolvePavilhaoId(pavilhoes, s.destino_pavilhao_id);
         if (pid !== opts.pavilhaoId && destPid !== opts.pavilhaoId) continue;
       }
-      const extras = [
-        s.desconta_estoque === false ? "sem baixa de estoque" : "",
-        s.destino_pavilhao_id ? "transferência" : "",
-        s.operador_nome ? `empilhador ${s.operador_nome}` : "",
-        s.empilhadeira ? `máquina ${s.empilhadeira}` : "",
-        s.observacao ? s.observacao : "",
-      ].filter(Boolean);
+      const extras = movementNotes(s);
       rows.push({
         kind: tipo,
         id: s.id,
@@ -95,7 +89,7 @@ export function collectReport(opts: ReportOpts): ReportRow[] {
         lugar: lugarDaSaida(pavilhoes, s),
         cliente: tipo === "saida" ? destinoDaSaida(pavilhoes, s) : "",
         usuario: s.usuario?.nome ?? "—",
-        extra: extras.join(" · "),
+        extra: extras,
         destinoId: s.destino_id,
         operador: s.operador_nome || "",
         empilhadeira: s.empilhadeira || "",
@@ -130,6 +124,38 @@ export function collectReport(opts: ReportOpts): ReportRow[] {
   }
 
   return rows.sort((a, b) => `${b.data}${b.hora}`.localeCompare(`${a.data}${a.hora}`));
+}
+
+/** Notes that are NOT the empilhador/máquina — those go in the dedicated line. */
+function movementNotes(s: Saida): string {
+  const op = (s.operador_nome || "").trim().toLowerCase();
+  const maq = (s.empilhadeira || "").trim().toLowerCase();
+  return [
+    s.desconta_estoque === false ? "sem baixa de estoque" : "",
+    s.destino_pavilhao_id ? "transferência" : "",
+    (s.observacao || "").trim(),
+  ]
+    .filter(Boolean)
+    .filter((p) => {
+      const t = p.toLowerCase();
+      if (op && (t === op || t === `empilhador ${op}` || t === `empilhador: ${op}`)) return false;
+      if (maq && (t === maq || t === `máquina ${maq}` || t === `maquina ${maq}`)) return false;
+      return true;
+    })
+    .join(" · ");
+}
+
+function empilhadorLine(r: ReportRow): string {
+  const nome = (r.operador || "").trim();
+  const maq = (r.empilhadeira || "").trim();
+  if (!nome && !maq) return "";
+  const label = nome ? (/^empilhador\b/i.test(nome) ? nome : `Empilhador ${nome}`) : `Máquina ${maq}`;
+  const rest = nome && maq ? ` · ${maq}` : "";
+  return `<div class="muted">${esc(label + rest)}</div>`;
+}
+
+function quemLancouHtml(r: ReportRow): string {
+  return `${esc(r.usuario || "—")}${empilhadorLine(r)}${r.extra ? `<div class="muted">${esc(r.extra)}</div>` : ""}`;
 }
 
 export function reportTitle(opts: ReportOpts, pavilhoes: Pavilhao[]) {
@@ -185,7 +211,7 @@ export function exportReportPdf(opts: ReportOpts) {
       <td class="num">${esc(formatNumber(r.quantidade))} ${esc(r.unidade)}</td>
       <td>${esc(r.lugar)}</td>
       ${withClient ? `<td>${esc(r.cliente || "—")}</td>` : ""}
-      <td>${esc(r.usuario)}${r.operador ? `<div class="muted">Empilhador ${esc(r.operador)}${r.empilhadeira ? ` · ${esc(r.empilhadeira)}` : ""}</div>` : ""}${r.extra ? `<div class="muted">${esc(r.extra)}</div>` : ""}</td>
+      <td>${quemLancouHtml(r)}</td>
     </tr>`,
       )
       .join("");
@@ -505,7 +531,7 @@ export function exportDiaCompletoPdf(date: string) {
       <td><div class="muted" style="font-family:IBM Plex Mono,monospace;font-size:10px">${esc(r.codigo)}</div>${esc(r.produto)}</td>
       <td class="num">${esc(formatNumber(r.quantidade))} ${esc(r.unidade)}</td>
       <td>${esc(r.lugar)}${dest ? `<div class="muted">→ ${esc(r.cliente || "—")}</div>` : ""}</td>
-      <td>${esc(r.usuario)}${r.operador ? `<div class="muted">Empilhador ${esc(r.operador)}</div>` : ""}${r.extra ? `<div class="muted">${esc(r.extra)}</div>` : ""}</td>
+      <td>${quemLancouHtml(r)}</td>
     </tr>`,
       )
       .join("");
@@ -629,15 +655,20 @@ export function clientsForProduct(mercadoriaId: string, from: string, to: string
 }
 
 export function readLogoFile(file: File): Promise<string> {
+  return readLogoAsset(file).then((r) => r.dataUrl);
+}
+
+export function readLogoAsset(file: File): Promise<{ dataUrl: string; png: boolean; transparent: boolean }> {
   return new Promise((resolve, reject) => {
-    if (!file.type.startsWith("image/")) {
+    if (!file.type.startsWith("image/") && !/\.(png|jpe?g|webp|gif|svg)$/i.test(file.name)) {
       reject(new Error("Escolha uma imagem."));
       return;
     }
     if (file.size > 3_000_000) {
-      reject(new Error("A logomarca precisa ter até 3 MB."));
+      reject(new Error("A foto precisa ter até 3 MB."));
       return;
     }
+    const isPng = file.type === "image/png" || /\.png$/i.test(file.name);
     const url = URL.createObjectURL(file);
     const img = new Image();
     img.onload = () => {
@@ -646,15 +677,31 @@ export function readLogoFile(file: File): Promise<string> {
       const canvas = document.createElement("canvas");
       canvas.width = Math.max(1, Math.round(img.width * scale));
       canvas.height = Math.max(1, Math.round(img.height * scale));
-      const ctx = canvas.getContext("2d");
+      const ctx = canvas.getContext("2d", { willReadFrequently: true });
       if (!ctx) {
         URL.revokeObjectURL(url);
         reject(new Error("Não foi possível ler a imagem."));
         return;
       }
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      if (!isPng) {
+        ctx.fillStyle = "#ffffff";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+      }
       ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
       URL.revokeObjectURL(url);
-      resolve(canvas.toDataURL("image/jpeg", 0.86));
+      let transparent = false;
+      if (isPng) {
+        const pixels = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
+        for (let i = 3; i < pixels.length; i += 4) {
+          if (pixels[i] < 250) {
+            transparent = true;
+            break;
+          }
+        }
+      }
+      const dataUrl = isPng ? canvas.toDataURL("image/png") : canvas.toDataURL("image/jpeg", 0.86);
+      resolve({ dataUrl, png: isPng, transparent });
     };
     img.onerror = () => {
       URL.revokeObjectURL(url);

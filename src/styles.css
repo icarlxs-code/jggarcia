@@ -1358,6 +1358,11 @@ html.is-phone .orbit-field { display: none; }
   background: transparent;
   object-fit: contain;
 }
+.logo-check {
+  background-color: var(--color-muted);
+  background-image: repeating-conic-gradient(var(--color-card) 0% 25%, var(--color-muted) 0% 50%);
+  background-size: 0.75rem 0.75rem;
+}
 .pav-mark-fallback {
   color: var(--color-gold);
   background: color-mix(in oklab, var(--color-forest) 18%, var(--color-card));

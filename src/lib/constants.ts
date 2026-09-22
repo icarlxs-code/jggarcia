@@ -5,6 +5,89 @@ export const ORIGENS = [
   "PAV 44 RZD",
 ] as const;
 
+export const TIPOS_LUGAR = [
+  "Pavilhão",
+  "Galpão",
+  "Box",
+  "Carreta",
+  "Caminhão",
+  "Caminhão-baú",
+  "Caminhão refrigerado",
+  "Câmara fria",
+  "Câmara de congelados",
+  "Câmara climatizada",
+  "Armazém",
+  "Armazém refrigerado",
+  "Armazém climatizado",
+  "Depósito",
+  "Depósito refrigerado",
+  "Depósito seco",
+  "Pedra",
+  "Doca",
+  "Baia",
+  "Contêiner",
+  "Mezanino",
+  "Silo",
+  "Paleteira",
+  "Pallet",
+  "Estrado",
+  "Corredor",
+  "Prateleira",
+  "Estante",
+  "Porta-paletes",
+  "Plataforma",
+  "Plataforma de carga",
+  "Plataforma de descarga",
+  "Pátio",
+  "Pátio de cargas",
+  "Pátio de estacionamento",
+  "Galpão refrigerado",
+  "Galpão climatizado",
+  "Box refrigerado",
+  "Box de armazenamento",
+  "Loja",
+  "Loja-box",
+  "Módulo",
+  "Unidade de armazenamento",
+  "Área de carga",
+  "Área de descarga",
+  "Área de armazenagem",
+  "Área de expedição",
+  "Área de recebimento",
+  "Área refrigerada",
+  "Área coberta",
+  "Área descoberta",
+  "Área de transbordo",
+  "Área de triagem",
+  "Área de separação",
+  "Área de conferência",
+  "Área de picking",
+  "Área de estoque",
+  "Área de quarentena",
+  "Área de devolução",
+  "Área de mercadoria",
+  "Área de carga temporária",
+  "Estacionamento de carretas",
+  "Estacionamento de caminhões",
+] as const;
+
+export type TipoLugar = (typeof TIPOS_LUGAR)[number];
+
+const TIPOS_LUGAR_POR_TAMANHO = [...TIPOS_LUGAR].sort((a, b) => b.length - a.length);
+
+export function inferTipoLugar(p: { tipo?: string | null; nome?: string | null; codigo?: string | null } | null | undefined): string {
+  const stored = (p?.tipo || "").trim();
+  if (stored) return stored;
+  const nome = (p?.nome || "").trim();
+  if (nome) {
+    const key = nome.toLowerCase();
+    const hit = TIPOS_LUGAR_POR_TAMANHO.find((t) => key === t.toLowerCase() || key.startsWith(`${t.toLowerCase()} `) || key.startsWith(`${t.toLowerCase()}/`));
+    if (hit) return hit;
+  }
+  if (String(p?.codigo || "") === "74") return "Galpão";
+  return "Pavilhão";
+}
+
 export const UNIDADES = [
   { value: "kg", label: "Quilograma (kg)" },
   { value: "g", label: "Grama (g)" },
@@ -53,6 +136,20 @@ export const FORMAS_PAGAMENTO_FRETE = [
   "Boleto",
   "Outro",
 ] as const;
+
+export const PIX_TIPOS = [
+  { id: "cpf", label: "CPF" },
+  { id: "cnpj", label: "CNPJ" },
+  { id: "celular", label: "Celular" },
+  { id: "email", label: "E-mail" },
+  { id: "aleatoria", label: "Chave aleatória" },
+] as const;
+
+export type PixTipo = (typeof PIX_TIPOS)[number]["id"];
+
+export function pixTipoLabel(id?: string | null) {
+  return PIX_TIPOS.find((x) => x.id === id)?.label ?? "";
+}
 
 export const EMPRESA = {
   nomeCurto: "JG GARCIA",

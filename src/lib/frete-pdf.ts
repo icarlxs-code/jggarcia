@@ -1,4 +1,4 @@
-import { EMPRESA } from "./constants";
+import { EMPRESA, pixTipoLabel } from "./constants";
 import { formatBRL, formatDateBR, pad2 } from "./format";
 import { esc, printHtmlDocument } from "./print-pdf";
 import type { FretePagamento } from "./types";
@@ -64,6 +64,16 @@ function section(title: string, ico: string, inner: string) {
     <h2>${ico}<span>${esc(title)}</span></h2>
     ${inner}
   </section>`;
+}
+
+function pagamentoHtml(f: FretePagamento) {
+  const cells = [
+    cell("Forma de Pagamento:", f.forma_pagamento),
+    f.forma_pagamento === "PIX" ? cell("Tipo de chave PIX:", pixTipoLabel(f.pix_tipo)) : "",
+    f.forma_pagamento === "PIX" ? cell("Chave PIX:", f.pix_chave) : "",
+  ].filter(Boolean);
+  if (!cells.length) return "";
+  return section("Pagamento", ICO.card, grid(cells.length, cells.join("")));
 }
 
 export function logoUrl() {
@@ -192,7 +202,7 @@ export function buildFreteHtml(f: FretePagamento, logo = logoUrl()) {
         : ""
     }
     ${transCells.length ? section("Dados do transporte", ICO.van, grid(transCells.length, transCells.join(""))) : ""}
-    ${f.forma_pagamento ? section("Pagamento", ICO.card, grid(1, cell("Forma de Pagamento:", f.forma_pagamento))) : ""}
+    ${pagamentoHtml(f)}
     ${f.observacoes?.trim() ? section("Observações", ICO.note, grid(1, cell("Observações:", f.observacoes))) : ""}
     ${section("Declaração", ICO.shield, `<div class="decl">Declaro que as informações acima correspondem ao transporte realizado e autorizo o pagamento referente ao serviço prestado.</div>`)}
     ${assinaInner ? section("Assinaturas", ICO.pen, `<div class="grid ${assinaTop.length === 2 ? "cols-2" : "cols-1"}">${assinaInner}</div>`) : ""}

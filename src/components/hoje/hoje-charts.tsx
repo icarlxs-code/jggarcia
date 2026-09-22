@@ -250,6 +250,7 @@ export function HojeCharts() {
       {show("comparativo") ? (
         <SpotlightCard className="p-3">
           <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Entrada × saída</p>
+          <p className="text-[10px] text-muted-foreground">Verde entrou · dourado saiu</p>
           {flow.comparativo.length === 0 ? (
             <p className="mt-2 text-xs text-muted-foreground">Sem lançamentos para comparar.</p>
           ) : (
@@ -261,9 +262,9 @@ export function HojeCharts() {
                     <ProductIcon nome={row.nome} codigo={row.codigo} size="xs" />
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-[13px] font-medium leading-tight">{row.nome}</p>
-                      <div className="mt-0.5 space-y-0.5">
-                        <MiniBar value={row.entradas} max={max} className="bg-primary" label={`Entrou ${formatNumber(row.entradas)}`} />
-                        <MiniBar value={row.saidas} max={max} className="bg-gold" label={`Saiu ${formatNumber(row.saidas)}`} />
+                      <div className="mt-0.5 grid grid-cols-2 gap-x-2">
+                        <MiniBar value={row.entradas} max={max} className="bg-primary" label={formatNumber(row.entradas)} />
+                        <MiniBar value={row.saidas} max={max} className="bg-gold" label={formatNumber(row.saidas)} />
                       </div>
                     </div>
                   </li>
@@ -397,7 +398,7 @@ function RankCard({
       {rows.length === 0 ? (
         <p className="mt-2 text-xs text-muted-foreground">{empty}</p>
       ) : (
-        <ol className="mt-2 space-y-1.5">
+        <ol className="mt-2 space-y-1">
           {rows.slice(0, 8).map((r, i) => (
             <li key={r.id} className="flex items-center gap-2">
               <span className="w-3.5 shrink-0 text-center text-[11px] tabular-nums text-muted-foreground">{i + 1}</span>
@@ -426,11 +427,11 @@ function RankCard({
 
 function MiniBar({ value, max, className, label }: { value: number; max: number; className: string; label: string }) {
   return (
-    <div className="flex items-center gap-1.5">
-      <div className="h-1 flex-1 overflow-hidden rounded-full bg-muted">
+    <div className="flex items-center gap-1">
+      <div className="h-1 min-w-0 flex-1 overflow-hidden rounded-full bg-muted">
         <div className={cn("h-full rounded-full", className)} style={{ width: `${Math.max(value ? 6 : 0, Math.round((value / max) * 100))}%` }} />
       </div>
-      <span className="w-[4.6rem] shrink-0 text-right text-[10px] tabular-nums text-muted-foreground">{label}</span>
+      <span className="shrink-0 text-right text-[10px] tabular-nums text-muted-foreground">{label}</span>
     </div>
   );
 }

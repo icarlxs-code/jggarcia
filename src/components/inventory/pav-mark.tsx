@@ -4,7 +4,7 @@ import { formatNumber } from "@/lib/format";
 import type { Pavilhao } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
-type PavLike = Pick<Pavilhao, "id" | "codigo" | "nome"> & { logo?: string };
+type PavLike = Pick<Pavilhao, "id" | "codigo" | "nome"> & { logo?: string; tipo?: string };
 
 export function PavMark({
   p,

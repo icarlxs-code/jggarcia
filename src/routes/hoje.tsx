@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { ArrowDownToLine, ArrowLeftRight, ArrowUpFromLine, Bookmark, BookmarkPlus, FileText, Plus, Trash2 } from "lucide-react";
+import { ArrowDownToLine, ArrowLeftRight, ArrowUpFromLine, Bookmark, FileText, Plus, Trash2 } from "lucide-react";
 import { db } from "@/lib/store";
 import { useDb } from "@/lib/use-db";
 import { useSession } from "@/lib/session";
@@ -18,7 +18,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { PageHeader } from "@/components/page-header";
 import { PageStage } from "@/components/motion/page-stage";
-import { EmptyState } from "@/components/empty-state";
 import { Badge } from "@/components/ui/badge";
 import { ProductLabel } from "@/components/inventory/product-icon";
 import { PavPicker } from "@/components/inventory/pav-mark";
@@ -132,7 +131,7 @@ function Hoje() {
   const weekday = new Date().toLocaleDateString("pt-BR", { weekday: "long" });
 
   return (
-    <PageStage className="space-y-5">
+    <PageStage className="space-y-4">
       <PageHeader
         icon="today"
         title="Hoje"
@@ -154,17 +153,12 @@ function Hoje() {
           </div>
         </div>
         {atalhos.length === 0 ? (
-          <Card>
-            <CardContent>
-              <EmptyState
-                icon={BookmarkPlus}
-                title="Nenhum atalho ainda"
-                description="Crie o caminho que a equipe usa todo dia. Ele entra na lista na hora."
-              >
-                <Button onClick={() => setOpen(true)}>Criar atalho</Button>
-              </EmptyState>
-            </CardContent>
-          </Card>
+          <p className="rounded-xl border border-dashed border-border px-3 py-2.5 text-sm text-muted-foreground">
+            Nenhum atalho ainda.{" "}
+            <button type="button" className="font-medium text-foreground underline-offset-2 hover:underline" onClick={() => setOpen(true)}>
+              Criar atalho
+            </button>
+          </p>
         ) : (
           <div className="grid gap-2 sm:grid-cols-2">
             {atalhos.map((a) => (
@@ -188,7 +182,7 @@ function Hoje() {
         )}
       </section>
 
-      <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+      <section className="grid grid-cols-2 gap-2 lg:grid-cols-5">
         <Kpi label="Entradas hoje" value={entradas.length} />
         <Kpi label="Saídas hoje" value={saidas.length} />
         <Kpi label="Em trânsito" value={transito} />
@@ -358,10 +352,10 @@ function kindLabel(kind: AtalhoKind) {
 function Kpi({ label, value, hint }: { label: string; value: string | number; hint?: string }) {
   return (
     <Card>
-      <CardContent className="p-4">
-        <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{label}</p>
-        <p className="mt-1 text-lg font-semibold leading-tight">{value}</p>
-        {hint ? <p className="mt-1 text-[11px] text-muted-foreground">{hint}</p> : null}
+      <CardContent className="px-3 py-2.5">
+        <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">{label}</p>
+        <p className="mt-0.5 text-base font-semibold tabular-nums leading-tight">{value}</p>
+        {hint ? <p className="mt-0.5 text-[10px] text-muted-foreground">{hint}</p> : null}
       </CardContent>
     </Card>
   );

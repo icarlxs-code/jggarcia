@@ -22,6 +22,7 @@ import type {
 } from "./types";
 import { calcTransportTime, isoDaysAgo, todayISO } from "./format";
 import { CATALOG, logoOfPavilhao, pavilhaoFromCategoria, pavilhaoNome, pavTitle } from "./catalog";
+import { inferTipoLugar } from "./constants";
 import { arrivalStamp, nextMovCodigo } from "./movement";
 
 const KEY = "jg-garcia-db-v3";
@@ -225,6 +226,10 @@ function ensureCatalog(store: LocalDb): boolean {
   return changed;
 }
 
+function isCustomLogo(logo?: string | null) {
+  return Boolean(logo && (logo.startsWith("data:") || logo.startsWith("blob:")));
+}
+
 function ensurePavLogos(store: LocalDb): boolean {
   let changed = false;
   const seeded = seed().pavilhoes;
@@ -236,6 +241,11 @@ function ensurePavLogos(store: LocalDb): boolean {
     }
   }
   for (const p of store.pavilhoes) {
+    if (!p.tipo) {
+      p.tipo = inferTipoLugar(p);
+      changed = true;
+    }
+    if (isCustomLogo(p.logo)) continue;
     const logo = logoOfPavilhao(p);
     if (logo && p.logo !== logo) {
       p.logo = logo;
@@ -243,6 +253,7 @@ function ensurePavLogos(store: LocalDb): boolean {
     }
     if (p.id === "p74" && p.nome === "Pavilhão 74") {
       p.nome = "Galpão 74";
+      p.tipo = "Galpão";
       changed = true;
     }
   }
@@ -273,11 +284,11 @@ function seed(): LocalDb {
     destinos: [],
     fornecedores: [],
     pavilhoes: [
-      { id: "p11", codigo: "11", nome: "Pavilhão 11", ativo: true, logo: "/pavilhoes/p11.png" },
-      { id: "p13", codigo: "13", nome: "Pavilhão 13", ativo: true, logo: "/pavilhoes/p13.png" },
-      { id: "p23", codigo: "23", nome: "Pavilhão 23", ativo: true, logo: "/pavilhoes/p23.png" },
-      { id: "p44", codigo: "44", nome: "Pavilhão 44", ativo: true, logo: "/pavilhoes/p44.png" },
-      { id: "p74", codigo: "74", nome: "Galpão 74", ativo: true, logo: "/pavilhoes/p74.png" },
+      { id: "p11", codigo: "11", nome: "Pavilhão 11", tipo: "Pavilhão", ativo: true, logo: "/pavilhoes/p11.png" },
+      { id: "p13", codigo: "13", nome: "Pavilhão 13", tipo: "Pavilhão", ativo: true, logo: "/pavilhoes/p13.png" },
+      { id: "p23", codigo: "23", nome: "Pavilhão 23", tipo: "Pavilhão", ativo: true, logo: "/pavilhoes/p23.png" },
+      { id: "p44", codigo: "44", nome: "Pavilhão 44", tipo: "Pavilhão", ativo: true, logo: "/pavilhoes/p44.png" },
+      { id: "p74", codigo: "74", nome: "Galpão 74", tipo: "Galpão", ativo: true, logo: "/pavilhoes/p74.png" },
     ],
     lotes: [],
     saidas: [],
@@ -375,25 +386,42 @@ function countsForStock(store: LocalDb, data: string | undefined, createdAt: str
 
 function recomputeStock(data: LocalDb) {
   const qty = new Map<string, number>();
-  const moved = new Set<string>();
+  const movedSaida = new Set<string>();
+  const lastCount = new Map<string, { at: string; contado: number }>();
   for (const s of data.saidas) {
     if (s.deleted_at) continue;
     if (!countsForStock(data, s.data, s.created_at)) continue;
     const sign = companySign(s);
     if (!sign) continue;
     qty.set(s.mercadoria_id, (qty.get(s.mercadoria_id) || 0) + sign * Number(s.quantidade || 0));
-    moved.add(s.mercadoria_id);
+    movedSaida.add(s.mercadoria_id);
   }
   for (const c of data.contagens ?? []) {
     if (c.deleted_at) continue;
     if (!countsForStock(data, c.data, c.created_at)) continue;
     qty.set(c.mercadoria_id, (qty.get(c.mercadoria_id) || 0) + Number(c.delta || 0));
-    moved.add(c.mercadoria_id);
+    const key = `${c.mercadoria_id}\t${c.pavilhao_id}`;
+    const prev = lastCount.get(key);
+    if (!prev || c.created_at > prev.at) lastCount.set(key, { at: c.created_at, contado: Number(c.contado || 0) });
   }
+  const countedTotal = new Map<string, number>();
+  for (const [key, row] of lastCount) {
+    const mercId = key.slice(0, key.indexOf("\t"));
+    countedTotal.set(mercId, (countedTotal.get(mercId) || 0) + row.contado);
+  }
+  const catalogEstoque = new Map(CATALOG.map((p) => [p.codigo, p.estoque]));
   const since = data.stockResetAt || "";
   for (const m of data.mercadorias) {
-    if (moved.has(m.id)) m.estoque = Math.max(0, qty.get(m.id) || 0);
-    else if (since) m.estoque = Math.max(0, qty.get(m.id) || 0);
+    if (movedSaida.has(m.id) || since) {
+      m.estoque = Math.max(0, qty.get(m.id) || 0);
+      continue;
+    }
+    if (qty.has(m.id) && catalogEstoque.has(m.codigo)) {
+      m.estoque = Math.max(0, Number(catalogEstoque.get(m.codigo) || 0) + (qty.get(m.id) || 0));
+      continue;
+    }
+    const counted = countedTotal.get(m.id);
+    if (counted != null && Number(m.estoque || 0) < counted) m.estoque = counted;
   }
   if (since) {
     for (const l of data.lotes) l.quantidade = 0;
@@ -452,8 +480,11 @@ function load(): LocalDb {
   memoryDb = parsed || seed();
   memoryDb.empilhadoresPessoas = memoryDb.empilhadoresPessoas ?? [];
   memoryDb.fretes = memoryDb.fretes ?? [];
+  const before = memoryDb.mercadorias.map((m) => m.estoque).join("\n");
   const changed = ensureCatalog(memoryDb) || ensurePavLogos(memoryDb);
-  if (changed) saveLocal(memoryDb);
+  recomputeStock(memoryDb);
+  const repaired = memoryDb.mercadorias.map((m) => m.estoque).join("\n") !== before;
+  if (changed || repaired) saveLocal(memoryDb);
   return memoryDb;
 }
 
@@ -766,39 +797,49 @@ export const db = {
     const list = all ? rows : rows.filter((p) => p.ativo);
     return list.sort((a, b) => Number(a.codigo) - Number(b.codigo) || a.codigo.localeCompare(b.codigo, "pt-BR"));
   },
-  createPavilhao(input: { codigo: string; nome: string; ativo?: boolean }): Pavilhao {
+  createPavilhao(input: { codigo: string; nome: string; ativo?: boolean; tipo?: string; logo?: string }): Pavilhao {
     let created!: Pavilhao;
     mutate((store) => {
       const codigo = input.codigo.trim();
+      const tipo = (input.tipo || "").trim() || inferTipoLugar({ codigo, nome: input.nome, tipo: input.tipo });
       created = {
-        id: `p${codigo}` || uid(),
+        id: codigo ? `p${codigo}` : uid(),
         codigo,
-        nome: input.nome.trim() || `Pavilhão ${codigo}`,
+        nome: input.nome.trim() || `${tipo} ${codigo}`.trim(),
+        tipo,
         ativo: input.ativo ?? true,
-        logo: logoOfPavilhao({ id: `p${codigo}`, codigo }),
+        logo: input.logo || logoOfPavilhao({ id: codigo ? `p${codigo}` : "", codigo }),
       };
       store.pavilhoes.push(created);
       addLog(store, {
         acao: "cadastrou",
         entidade: "pavilhao",
         entidade_id: created.id,
-        resumo: `Cadastrou o pavilhão ${created.nome}`,
+        resumo: `Cadastrou ${created.tipo || "o lugar"} ${created.nome}`,
       });
     });
     return created;
   },
-  updatePavilhao(id: string, patch: Partial<Pick<Pavilhao, "codigo" | "nome" | "ativo">>) {
+  updatePavilhao(id: string, patch: Partial<Pick<Pavilhao, "codigo" | "nome" | "ativo" | "tipo" | "logo">>) {
     mutate((store) => {
       const row = store.pavilhoes.find((p) => p.id === id);
       if (!row) return;
-      Object.assign(row, patch);
-      const logo = logoOfPavilhao(row);
-      if (logo) row.logo = logo;
+      const next = { ...row, ...patch };
+      row.codigo = next.codigo;
+      row.nome = next.nome;
+      row.ativo = next.ativo;
+      if (patch.tipo !== undefined) row.tipo = patch.tipo.trim() || inferTipoLugar(next);
+      if (patch.logo !== undefined) {
+        row.logo = patch.logo || logoOfPavilhao(row) || "";
+      } else if (!isCustomLogo(row.logo)) {
+        const logo = logoOfPavilhao(row);
+        if (logo) row.logo = logo;
+      }
       addLog(store, {
         acao: patch.ativo === false ? "desativou" : patch.ativo === true ? "ativou" : "editou",
         entidade: "pavilhao",
         entidade_id: id,
-        resumo: `${patch.ativo === false ? "Desativou" : patch.ativo === true ? "Ativou" : "Editou"} o pavilhão ${row.nome}`,
+        resumo: `${patch.ativo === false ? "Desativou" : patch.ativo === true ? "Ativou" : "Editou"} ${row.tipo || "o pavilhão"} ${row.nome}`,
       });
     });
   },
@@ -1075,25 +1116,48 @@ export const db = {
     mutate((store) => {
       const row = store.saidas.find((s) => s.id === id);
       if (!row || row.deleted_at) return;
-      const merc = store.mercadorias.find((m) => m.id === row.mercadoria_id);
       const before = row.quantidade;
       const tipo = row.tipo ?? "saida";
-      const wasMoving = movementSign(row) !== 0;
+      const oldMercId = row.mercadoria_id;
+      const newMercId = patch.mercadoria_id || oldMercId;
+      const productChanged = Boolean(patch.mercadoria_id && patch.mercadoria_id !== oldMercId);
+      const oldMerc = store.mercadorias.find((m) => m.id === oldMercId);
+      const newMerc = store.mercadorias.find((m) => m.id === newMercId);
       const nextDesconta = patch.desconta_estoque ?? row.desconta_estoque;
-      const nextRow: Saida = { ...row, ...patch, desconta_estoque: nextDesconta };
+      const nextQty = patch.quantidade ?? row.quantidade;
+      const nextRow: Saida = { ...row, ...patch, mercadoria_id: newMercId, quantidade: nextQty, desconta_estoque: nextDesconta };
+      const wasMoving = movementSign(row) !== 0;
       const willMove = movementSign(nextRow) !== 0;
       const wasCompany = companySign(row) !== 0;
       const willCompany = companySign(nextRow) !== 0;
       const beforeHs = row.hora_saida;
       const beforeHc = row.hora_chegada;
-      if (merc && tipo === "saida") {
+      if (productChanged) {
+        if (oldMerc && wasCompany) {
+          if (tipo === "saida") oldMerc.estoque += row.quantidade;
+          else oldMerc.estoque = Math.max(0, oldMerc.estoque - row.quantidade);
+        }
+        if (wasMoving && row.lote_codigo) {
+          const lote = store.lotes.find((l) => l.codigo === row.lote_codigo && l.mercadoria_id === oldMercId);
+          if (lote) {
+            if (tipo === "saida") lote.quantidade += row.quantidade;
+            else lote.quantidade = Math.max(0, lote.quantidade - row.quantidade);
+          }
+        }
+        if (newMerc && willCompany) {
+          if (tipo === "saida") newMerc.estoque = Math.max(0, newMerc.estoque - nextQty);
+          else newMerc.estoque += nextQty;
+        }
+        patch.lote_codigo = "";
+        if (newMerc?.unidade) patch.unidade = newMerc.unidade;
+      } else if (oldMerc && tipo === "saida") {
         if (wasCompany && !willCompany) {
-          merc.estoque += row.quantidade;
+          oldMerc.estoque += row.quantidade;
         } else if (!wasCompany && willCompany) {
-          merc.estoque = Math.max(0, merc.estoque - (patch.quantidade ?? row.quantidade));
+          oldMerc.estoque = Math.max(0, oldMerc.estoque - nextQty);
         } else if (wasCompany && willCompany && patch.quantidade != null && patch.quantidade !== before) {
           const delta = patch.quantidade - before;
-          merc.estoque = Math.max(0, merc.estoque - delta);
+          oldMerc.estoque = Math.max(0, oldMerc.estoque - delta);
         }
         if (wasMoving && !willMove) {
           if (row.lote_codigo) {
@@ -1103,7 +1167,7 @@ export const db = {
         } else if (!wasMoving && willMove) {
           if (row.lote_codigo) {
             const lote = store.lotes.find((l) => l.codigo === row.lote_codigo && l.mercadoria_id === row.mercadoria_id);
-            if (lote) lote.quantidade = Math.max(0, lote.quantidade - (patch.quantidade ?? row.quantidade));
+            if (lote) lote.quantidade = Math.max(0, lote.quantidade - nextQty);
           }
         } else if (wasMoving && willMove && patch.quantidade != null && patch.quantidade !== before) {
           const delta = patch.quantidade - before;
@@ -1112,9 +1176,9 @@ export const db = {
             if (lote) lote.quantidade = Math.max(0, lote.quantidade - delta);
           }
         }
-      } else if (merc && tipo === "entrada" && patch.quantidade != null && patch.quantidade !== before) {
+      } else if (oldMerc && tipo === "entrada" && patch.quantidade != null && patch.quantidade !== before) {
         const delta = patch.quantidade - before;
-        merc.estoque = Math.max(0, merc.estoque + delta);
+        oldMerc.estoque = Math.max(0, oldMerc.estoque + delta);
         if (row.lote_codigo) {
           const lote = store.lotes.find((l) => l.codigo === row.lote_codigo && l.mercadoria_id === row.mercadoria_id);
           if (lote) lote.quantidade = Math.max(0, lote.quantidade + delta);
@@ -1137,6 +1201,7 @@ export const db = {
       row.updated_at = nowIso();
       if (patch.operador_nome != null) rememberOperador(store, patch.operador_nome);
       const detalheParts: string[] = [];
+      if (productChanged) detalheParts.push(`Produto ${oldMerc?.nome ?? "—"} → ${newMerc?.nome ?? "—"}`);
       if (patch.quantidade != null && patch.quantidade !== before) detalheParts.push(`Quantidade ${before} → ${patch.quantidade} ${row.unidade}`);
       if (patch.hora_chegada != null && patch.hora_chegada !== beforeHc) detalheParts.push(`Horário de chegada ${beforeHc ?? "—"} → ${patch.hora_chegada ?? "—"}`);
       if (patch.hora_saida != null && patch.hora_saida !== beforeHs) detalheParts.push(`Horário de saída ${beforeHs ?? "—"} → ${patch.hora_saida ?? "—"}`);
@@ -1144,7 +1209,7 @@ export const db = {
         acao: "editou",
         entidade: tipo === "entrada" ? "entrada" : "saida",
         entidade_id: id,
-        resumo: `Editou ${tipo === "entrada" ? "entrada" : "saída"} de ${merc?.nome ?? "produto"}`,
+        resumo: `Editou ${tipo === "entrada" ? "entrada" : "saída"} de ${newMerc?.nome ?? oldMerc?.nome ?? "produto"}`,
         detalhe: detalheParts.join(" · ") || undefined,
       });
     });
@@ -1635,6 +1700,7 @@ export const db = {
       const merc = store.mercadorias.find((m) => m.id === row.mercadoria_id);
       if (merc) merc.estoque = Math.max(0, merc.estoque - row.delta);
       row.deleted_at = nowIso();
+      recomputeStock(store);
       addLog(store, {
         acao: "excluiu",
         entidade: "contagem",
@@ -1757,6 +1823,8 @@ export const db = {
           cpf: (input.cpf || "").trim(),
           assinatura_motorista: input.assinatura_motorista || "",
           forma_pagamento: input.forma_pagamento || "",
+          pix_tipo: input.forma_pagamento === "PIX" ? input.pix_tipo || "" : "",
+          pix_chave: input.forma_pagamento === "PIX" ? (input.pix_chave || "").trim() : "",
           rubrica: input.rubrica || "",
           data_autorizacao: input.data_autorizacao || "",
           observacoes: (input.observacoes || "").trim(),
@@ -1788,6 +1856,8 @@ export const db = {
         cpf: (input.cpf || "").trim(),
         assinatura_motorista: input.assinatura_motorista || "",
         forma_pagamento: input.forma_pagamento || "",
+        pix_tipo: input.forma_pagamento === "PIX" ? input.pix_tipo || "" : "",
+        pix_chave: input.forma_pagamento === "PIX" ? (input.pix_chave || "").trim() : "",
         rubrica: input.rubrica || "",
         data_autorizacao: input.data_autorizacao || "",
         observacoes: (input.observacoes || "").trim(),

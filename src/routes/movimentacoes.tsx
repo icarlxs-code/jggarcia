@@ -21,6 +21,7 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "
 import { Label } from "@/components/ui/label";
 import { TimeField } from "@/components/ui/time-field";
 import { NameRecall } from "@/components/inventory/name-recall";
+import { ProductPicker } from "@/components/inventory/product-picker";
 
 export const Route = createFileRoute("/movimentacoes")({ component: Movimentacoes });
 
@@ -44,6 +45,7 @@ function Movimentacoes() {
   const [desconta, setDesconta] = useState(true);
   const [operador, setOperador] = useState("");
   const [obs, setObs] = useState("");
+  const [mercadoriaId, setMercadoriaId] = useState("");
   const saidas = live.listSaidas();
   const contagens = live.listContagens();
   const pavilhoes = live.listPavilhoes(true);
@@ -75,6 +77,7 @@ function Movimentacoes() {
     setDesconta(s.desconta_estoque !== false);
     setOperador(s.operador_nome || "");
     setObs(s.observacao || "");
+    setMercadoriaId(s.mercadoria_id);
   }
 
   function saveEdit() {
@@ -82,6 +85,10 @@ function Movimentacoes() {
     const n = Number(qtd);
     if (!n || n <= 0) {
       notify.error("Quantidade inválida.");
+      return;
+    }
+    if (!mercadoriaId) {
+      notify.error("Escolha o produto.");
       return;
     }
     const hs = horaSaida.trim() ? completeTime(horaSaida) : "";
@@ -94,7 +101,10 @@ function Movimentacoes() {
       notify.error("Hora de chegada inválida.");
       return;
     }
+    const merc = mercadorias.find((m) => m.id === mercadoriaId);
     db.updateSaida(edit.id, {
+      mercadoria_id: mercadoriaId,
+      unidade: merc?.unidade || edit.unidade,
       quantidade: n,
       hora_saida: hs || null,
       hora_chegada: hc || null,
@@ -261,12 +271,23 @@ function Movimentacoes() {
         </DialogContent>
       </Dialog>
       <Dialog open={!!edit} onOpenChange={(o) => !o && setEdit(null)}>
-        <DialogContent>
+        <DialogContent className="max-h-[min(92dvh,48rem)]">
           <DialogHeader>
             <DialogTitle>Editar movimentação</DialogTitle>
           </DialogHeader>
           <div className="space-y-3">
-            <p className="text-sm text-muted-foreground">{edit?.mercadoria?.nome}</p>
+            <div className="space-y-2">
+              <Label htmlFor="mov-prod">Produto</Label>
+              <ProductPicker
+                inputId="mov-prod"
+                listId="mov-prod-lista"
+                inline
+                items={mercadorias}
+                value={mercadoriaId}
+                onChange={(id) => setMercadoriaId(id)}
+                placeholder="Busque o produto certo"
+              />
+            </div>
             <div className="space-y-2">
               <Label htmlFor="mq">Quantidade</Label>
               <Input id="mq" type="number" value={qtd} onChange={(e) => setQtd(e.target.value)} />

@@ -4,8 +4,8 @@ import { FileText, Plus, Search, Truck } from "lucide-react";
 import { db } from "@/lib/store";
 import { useDb } from "@/lib/use-db";
 import { useSession } from "@/lib/session";
-import { FORMAS_PAGAMENTO_FRETE } from "@/lib/constants";
-import { formatBRL, formatDateBR, maskCPF, maskMoney, maskPlaca, parseMoney, todayISO } from "@/lib/format";
+import { FORMAS_PAGAMENTO_FRETE, PIX_TIPOS, pixTipoLabel } from "@/lib/constants";
+import { formatBRL, formatDateBR, maskCPF, maskMoney, maskPixChave, maskPlaca, parseMoney, todayISO } from "@/lib/format";
 import { buildFreteHtml, exportFretePdf, missingFreteFields } from "@/lib/frete-pdf";
 import { notify } from "@/lib/notify";
 import { fold, cn } from "@/lib/utils";
@@ -37,6 +37,8 @@ const EMPTY: Omit<FretePagamento, "id" | "created_at" | "status" | "deleted_at" 
   cpf: "",
   assinatura_motorista: "",
   forma_pagamento: "",
+  pix_tipo: "",
+  pix_chave: "",
   rubrica: "",
   data_autorizacao: "",
   observacoes: "",
@@ -64,6 +66,23 @@ function Fretes() {
     setForm((f) => ({ ...f, [key]: value }));
   }
 
+  function setPagamento(v: string) {
+    setForm((f) => ({
+      ...f,
+      forma_pagamento: v,
+      pix_tipo: v === "PIX" ? f.pix_tipo || "" : "",
+      pix_chave: v === "PIX" ? f.pix_chave || "" : "",
+    }));
+  }
+
+  function setPixTipo(id: string) {
+    setForm((f) => ({
+      ...f,
+      pix_tipo: id,
+      pix_chave: f.pix_tipo === id ? f.pix_chave : "",
+    }));
+  }
+
   function toDraft(): FretePagamento {
     return {
       id: editingId || "draft",
@@ -78,6 +97,8 @@ function Fretes() {
       cpf: form.cpf,
       assinatura_motorista: form.assinatura_motorista,
       forma_pagamento: form.forma_pagamento,
+      pix_tipo: form.forma_pagamento === "PIX" ? form.pix_tipo || "" : "",
+      pix_chave: form.forma_pagamento === "PIX" ? form.pix_chave || "" : "",
       rubrica: form.rubrica,
       data_autorizacao: form.data_autorizacao,
       observacoes: form.observacoes,
@@ -101,6 +122,8 @@ function Fretes() {
       cpf: draft.cpf,
       assinatura_motorista: draft.assinatura_motorista,
       forma_pagamento: draft.forma_pagamento,
+      pix_tipo: draft.pix_tipo,
+      pix_chave: draft.pix_chave,
       rubrica: draft.rubrica,
       data_autorizacao: draft.data_autorizacao,
       observacoes: draft.observacoes,
@@ -151,7 +174,7 @@ function Fretes() {
     if (statusF !== "todos" && f.status !== statusF) return false;
     const term = fold(q.trim());
     if (!term) return true;
-    return [f.fornecedor, f.numero, f.numero_bilhete, f.motorista, f.placa, f.pavilhao].some((x) => fold(x || "").includes(term));
+    return [f.fornecedor, f.numero, f.numero_bilhete, f.motorista, f.placa, f.pavilhao, f.forma_pagamento, f.pix_chave].some((x) => fold(x || "").includes(term));
   });
 
   const fornHits = form.fornecedor.trim()
@@ -264,7 +287,7 @@ function Fretes() {
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="space-y-1.5">
                 <Label>Forma de pagamento</Label>
-                <Select value={form.forma_pagamento || "__none"} onValueChange={(v) => patch("forma_pagamento", v === "__none" ? "" : v)}>
+                <Select value={form.forma_pagamento || "__none"} onValueChange={(v) => setPagamento(v === "__none" ? "" : v)}>
                   <SelectTrigger>
                     <SelectValue placeholder="Selecione" />
                   </SelectTrigger>
@@ -278,11 +301,67 @@ function Fretes() {
                   </SelectContent>
                 </Select>
               </div>
+              {form.forma_pagamento === "PIX" ? (
+                <div className="rounded-2xl border border-primary/30 bg-mint/40 p-3">
+                  <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Qual PIX?</p>
+                  <p className="mt-0.5 text-xs text-muted-foreground">Escolha o tipo da chave e depois informe o número ou o código.</p>
+                  <div className="mt-2 flex flex-wrap gap-1.5">
+                    {PIX_TIPOS.map((t) => {
+                      const on = form.pix_tipo === t.id;
+                      return (
+                        <button
+                          key={t.id}
+                          type="button"
+                          onClick={() => setPixTipo(t.id)}
+                          className={cn(
+                            "inline-flex min-h-9 items-center rounded-full border px-3 text-sm font-medium",
+                            on ? "border-primary bg-primary text-primary-foreground" : "border-border bg-card hover:bg-muted",
+                          )}
+                        >
+                          {t.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  {form.pix_tipo ? (
+                    <div className="mt-3 space-y-1.5">
+                      <Label htmlFor="fr-pix">{pixTipoLabel(form.pix_tipo)}</Label>
+                      <Input
+                        key={form.pix_tipo}
+                        id="fr-pix"
+                        autoFocus
+                        value={form.pix_chave || ""}
+                        onChange={(e) => patch("pix_chave", maskPixChave(form.pix_tipo || "", e.target.value))}
+                        inputMode={form.pix_tipo === "email" ? "email" : form.pix_tipo === "aleatoria" ? "text" : "numeric"}
+                        type={form.pix_tipo === "email" ? "email" : "text"}
+                        placeholder={
+                          form.pix_tipo === "cpf"
+                            ? "000.000.000-00"
+                            : form.pix_tipo === "cnpj"
+                              ? "00.000.000/0000-00"
+                              : form.pix_tipo === "celular"
+                                ? "(21) 99999-9999"
+                                : form.pix_tipo === "email"
+                                  ? "email@exemplo.com"
+                                  : "Cole a chave aleatória"
+                        }
+                      />
+                    </div>
+                  ) : null}
+                </div>
+              ) : (
+                <div className="space-y-1.5">
+                  <Label htmlFor="fr-aut">Data da autorização</Label>
+                  <Input id="fr-aut" type="date" value={form.data_autorizacao} onChange={(e) => patch("data_autorizacao", e.target.value)} />
+                </div>
+              )}
+            </div>
+            {form.forma_pagamento === "PIX" ? (
               <div className="space-y-1.5">
                 <Label htmlFor="fr-aut">Data da autorização</Label>
                 <Input id="fr-aut" type="date" value={form.data_autorizacao} onChange={(e) => patch("data_autorizacao", e.target.value)} />
               </div>
-            </div>
+            ) : null}
             <SignaturePad
               label="Autorização para pagamento (rubrica)"
               hint="Rubrica do responsável interno."
@@ -364,6 +443,9 @@ function Fretes() {
                     {f.numero_bilhete ? ` · bilhete ${f.numero_bilhete}` : ""}
                     {f.motorista ? ` · ${f.motorista}` : ""}
                     {f.pavilhao ? ` · ${f.pavilhao}` : ""}
+                    {f.forma_pagamento ? ` · ${f.forma_pagamento}` : ""}
+                    {f.forma_pagamento === "PIX" && f.pix_tipo ? ` ${pixTipoLabel(f.pix_tipo)}` : ""}
+                    {f.forma_pagamento === "PIX" && f.pix_chave ? ` ${f.pix_chave}` : ""}
                   </p>
                 </div>
                 <p className="text-sm font-semibold tabular-nums">{f.valor ? formatBRL(f.valor) : "—"}</p>

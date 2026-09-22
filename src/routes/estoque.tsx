@@ -12,11 +12,11 @@ import {
 } from "@tanstack/react-table";
 import { ArrowUpFromLine, ClipboardCheck, Download, Package, Pencil, Search, SlidersHorizontal, Trash2 } from "lucide-react";
 import { toast } from "sonner";
-import { stockAlert } from "@/lib/store";
+import { getDbGen, stockAlert } from "@/lib/store";
 import { useDb } from "@/lib/use-db";
 import { formatDateBR, formatNumber, todayISO } from "@/lib/format";
 import { useSession } from "@/lib/session";
-import type { Mercadoria } from "@/lib/types";
+import type { Contagem, Mercadoria } from "@/lib/types";
 import { pavTitle } from "@/lib/catalog";
 import { exportEstoqueDiaPdf } from "@/lib/reports";
 import { PeriodFilter, periodRange, type PeriodKey } from "@/components/inventory/period-filter";
@@ -38,19 +38,21 @@ import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/estoque")({ component: Estoque });
 
-type Quick = "todos" | "baixo" | "critico" | "zero";
+type Quick = "todos" | "baixo" | "critico" | "zero" | "falta" | "sobra" | "bateu";
+type CountMark = { falta: number; sobra: number; counted: boolean };
 
 function Estoque() {
   const db = useDb();
+  const gen = getDbGen();
   const navigate = useNavigate();
   const { isAdmin, perfil } = useSession();
   const phone = useViewport() === "phone";
-  const list = useMemo(() => db.listMercadorias(), [db]);
-  const pavilhoes = db.listPavilhoes();
+  const list = useMemo(() => db.listMercadorias(), [gen]);
+  const pavilhoes = useMemo(() => db.listPavilhoes(), [gen]);
   const [q, setQ] = useState("");
   const [quick, setQuick] = useState<Quick>("todos");
   const [pavFilter, setPavFilter] = useState<string>("todos");
-  const [sorting, setSorting] = useState<SortingState>([{ id: "nome", desc: false }]);
+  const [sorting, setSorting] = useState<SortingState>([{ id: "contagem", desc: false }]);
   const [page, setPage] = useState(0);
   const [confirmZero, setConfirmZero] = useState(false);
   const [zeroMode, setZeroMode] = useState<"all" | "day">("day");
@@ -77,12 +79,52 @@ function Estoque() {
 
   const range = view === "atual" ? null : periodRange(view, day);
   const upto = range?.to;
-  const snap = useMemo(() => (upto ? db.stockSnapshot(upto) : null), [db, upto]);
+  const snap = useMemo(() => (upto ? db.stockSnapshot(upto) : null), [gen, upto]);
   const snapById = useMemo(() => {
     const map = new Map<(NonNullable<typeof snap>)[number]["id"], NonNullable<typeof snap>[number]>();
     if (snap) for (const row of snap) map.set(row.id, row);
     return map;
   }, [snap]);
+  const lastByKey = useMemo(() => {
+    const map = new Map<string, Contagem>();
+    for (const c of db.listContagens()) {
+      if (upto && c.data > upto) continue;
+      const k = `${c.mercadoria_id}\t${c.pavilhao_id}`;
+      if (!map.has(k)) map.set(k, c);
+    }
+    return map;
+  }, [gen, upto]);
+
+  const countMark = useCallback(
+    (mercId: string): CountMark => {
+      let falta = 0;
+      let sobra = 0;
+      let counted = false;
+      const pavs = pavFilter === "todos" ? pavilhoes : pavilhoes.filter((p) => p.id === pavFilter);
+      for (const p of pavs) {
+        const c = lastByKey.get(`${mercId}\t${p.id}`);
+        if (!c) continue;
+        counted = true;
+        if (c.delta < 0) falta += -c.delta;
+        else if (c.delta > 0) sobra += c.delta;
+      }
+      return { falta, sobra, counted };
+    },
+    [lastByKey, pavFilter, pavilhoes],
+  );
+
+  const countStats = useMemo(() => {
+    let falta = 0;
+    let sobra = 0;
+    let bateu = 0;
+    for (const m of list) {
+      const mk = countMark(m.id);
+      if (mk.falta > 0) falta += 1;
+      if (mk.sobra > 0) sobra += 1;
+      if (mk.counted && mk.falta <= 0 && mk.sobra <= 0) bateu += 1;
+    }
+    return { falta, sobra, bateu };
+  }, [list, countMark]);
   const dayIds = useMemo(() => {
     if (!range) return null;
     const ids = new Set<string>();
@@ -91,7 +133,7 @@ function Estoque() {
       if (c.data >= range.from && c.data <= range.to) ids.add(c.mercadoria_id);
     }
     return ids;
-  }, [db, range?.from, range?.to]);
+  }, [gen, range?.from, range?.to]);
 
   function positionsOf(id: string) {
     if (!upto) return db.stockPositions(id);
@@ -109,7 +151,7 @@ function Estoque() {
 
   const data = useMemo(() => {
     const term = q.trim().toLowerCase();
-    return list.filter((m) => {
+    const rows = list.filter((m) => {
       if (upto) {
         const had = (dayIds && dayIds.has(m.id)) || snapById.has(m.id);
         if (!had) return false;
@@ -121,11 +163,24 @@ function Estoque() {
       if (quick === "zero" && estoque > 0) return false;
       if (quick === "critico" && a !== "critico") return false;
       if (quick === "baixo" && a !== "baixo" && a !== "atencao") return false;
-      if (pavFilter !== "todos" && qtyOf(m.id, pavFilter) <= 0) return false;
+      if (quick === "falta" || quick === "sobra" || quick === "bateu") {
+        const mk = countMark(m.id);
+        if (quick === "falta" && mk.falta <= 0) return false;
+        if (quick === "sobra" && mk.sobra <= 0) return false;
+        if (quick === "bateu" && (!mk.counted || mk.falta > 0 || mk.sobra > 0)) return false;
+      }
+      if (pavFilter !== "todos" && qtyOf(m.id, pavFilter) <= 0 && quick !== "falta" && quick !== "sobra" && quick !== "bateu") return false;
       if (!term) return true;
       return m.nome.toLowerCase().includes(term) || m.codigo.toLowerCase().includes(term);
     });
-  }, [list, q, quick, pavFilter, db, dayIds, upto, snapById]);
+    rows.sort((a, b) => {
+      const ra = countRank(countMark(a.id));
+      const rb = countRank(countMark(b.id));
+      if (ra !== rb) return ra - rb;
+      return a.nome.localeCompare(b.nome, "pt-BR");
+    });
+    return rows;
+  }, [list, q, quick, pavFilter, gen, dayIds, upto, snapById, lastByKey, countMark]);
 
   const pageCount = Math.max(1, Math.ceil(data.length / pageSize));
   const pageSafe = Math.min(page, pageCount - 1);
@@ -153,10 +208,16 @@ function Estoque() {
         accessorKey: "estoque",
         header: "Estoque",
         cell: ({ row }) => (
-          <span className="tabular font-medium">
+          <span className="tabular font-medium text-forest">
             {formatNumber(qtyOf(row.original.id))} {row.original.unidade}
           </span>
         ),
+      },
+      {
+        id: "contagem",
+        header: "Última contagem",
+        accessorFn: (row) => countRank(countMark(row.id)),
+        cell: ({ row }) => <CountMarkView {...countMark(row.original.id)} unidade={row.original.unidade} />,
       },
       {
         id: "pavilhoes",
@@ -183,7 +244,7 @@ function Estoque() {
       },
       {
         id: "status",
-        header: "Status",
+        header: "Nível",
         accessorFn: (row) => stockAlert(row),
         cell: ({ row }) => <StockBadge alert={stockAlert({ ...row.original, estoque: qtyOf(row.original.id) })} />,
       },
@@ -222,7 +283,7 @@ function Estoque() {
         ),
       },
     ],
-    [db, abrir, isAdmin, upto, snapById, pavilhoes],
+    [gen, abrir, isAdmin, upto, snapById, pavilhoes, lastByKey, pavFilter, countMark],
   );
 
   const table = useReactTable({
@@ -239,6 +300,9 @@ function Estoque() {
 
   const chips: { id: Quick; label: string; n: number }[] = [
     { id: "todos", label: "Todos", n: counts.todos },
+    { id: "falta", label: "Em falta", n: countStats.falta },
+    { id: "sobra", label: "Sobra", n: countStats.sobra },
+    { id: "bateu", label: "Bateu", n: countStats.bateu },
     { id: "baixo", label: "Estoque baixo", n: counts.baixo },
     { id: "critico", label: "Crítico", n: counts.critico },
     { id: "zero", label: "Sem estoque", n: counts.zero },
@@ -307,7 +371,17 @@ function Estoque() {
             }}
             className={cn(
               "inline-flex h-8 shrink-0 items-center gap-2 rounded-full border px-3 text-xs font-medium transition-colors",
-              quick === c.id ? "border-primary bg-primary text-primary-foreground" : "border-border bg-card text-muted-foreground hover:bg-muted",
+              quick === c.id
+                ? c.id === "falta"
+                  ? "border-destructive bg-destructive text-destructive-foreground"
+                  : c.id === "sobra"
+                    ? "border-primary bg-primary text-primary-foreground"
+                    : "border-primary bg-primary text-primary-foreground"
+                : c.id === "falta" && c.n > 0
+                  ? "border-destructive/25 bg-destructive/5 text-destructive hover:bg-destructive/10"
+                  : c.id === "sobra" && c.n > 0
+                    ? "border-primary/25 bg-mint text-primary hover:bg-mint/80"
+                    : "border-border bg-card text-muted-foreground hover:bg-muted",
             )}
           >
             {c.label}
@@ -392,46 +466,47 @@ function Estoque() {
           ) : phone ? (
             <>
               <ul className="divide-y divide-border">
-                {pageRows.map((m) => (
-                  <li key={m.id} className="flex items-center">
-                    <button type="button" onClick={() => abrir(m.id)} className="flex w-full items-center gap-3 px-3 py-2.5 text-left active:bg-muted">
-                      <ProductLabel
-                        nome={m.nome}
-                        codigo={m.codigo}
-                        className="flex-1"
-                        extra={
-                          positionsOf(m.id)
-                            .filter((p) => p.quantidade > 0)
-                            .map((p) => `${p.nome.replace(/^Pavilhão |^Galpão |^Pav\. /, "")} ${formatNumber(p.quantidade)}`)
-                            .join(" · ") || undefined
-                        }
-                      />
-                      <div className="shrink-0 text-right">
-                        <p className="text-sm font-semibold tabular-nums leading-tight">
-                          {formatNumber(pavFilter === "todos" ? qtyOf(m.id) : qtyOf(m.id, pavFilter))} {m.unidade}
-                        </p>
-                        <p className="text-[11px] text-muted-foreground">
-                          {pavFilter === "todos" ? "total" : pavTitle(pavilhoes.find((p) => p.id === pavFilter) ?? { codigo: "" })}
-                        </p>
-                      </div>
-                    </button>
-                    {isAdmin ? (
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        aria-label="Editar estoque"
-                        onClick={() => {
-                          const pos = positionsOf(m.id);
-                          setEditStock(m);
-                          setEditPav(pos.find((p) => p.quantidade > 0)?.id || pos[0]?.id || "");
-                          setEditQty(String(pos.find((p) => p.quantidade > 0)?.quantidade ?? qtyOf(m.id)));
-                        }}
-                      >
-                        <Pencil className="h-4 w-4" />
-                      </Button>
-                    ) : null}
-                  </li>
-                ))}
+                {pageRows.map((m) => {
+                  const mk = countMark(m.id);
+                  return (
+                    <li key={m.id} className={cn("flex items-center", countRowTone(mk))}>
+                      <button type="button" onClick={() => abrir(m.id)} className="flex w-full items-center gap-3 px-3 py-2.5 text-left active:bg-muted">
+                        <ProductLabel
+                          nome={m.nome}
+                          codigo={m.codigo}
+                          className="flex-1"
+                          extra={
+                            positionsOf(m.id)
+                              .filter((p) => p.quantidade > 0)
+                              .map((p) => `${p.nome.replace(/^Pavilhão |^Galpão |^Pav\. /, "")} ${formatNumber(p.quantidade)}`)
+                              .join(" · ") || undefined
+                          }
+                        />
+                        <div className="shrink-0 text-right">
+                          <p className="text-sm font-semibold tabular-nums leading-tight text-forest">
+                            {formatNumber(pavFilter === "todos" ? qtyOf(m.id) : qtyOf(m.id, pavFilter))} {m.unidade}
+                          </p>
+                          <CountMarkView {...mk} unidade={m.unidade} compact />
+                        </div>
+                      </button>
+                      {isAdmin ? (
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          aria-label="Editar estoque"
+                          onClick={() => {
+                            const pos = positionsOf(m.id);
+                            setEditStock(m);
+                            setEditPav(pos.find((p) => p.quantidade > 0)?.id || pos[0]?.id || "");
+                            setEditQty(String(pos.find((p) => p.quantidade > 0)?.quantidade ?? qtyOf(m.id)));
+                          }}
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                      ) : null}
+                    </li>
+                  );
+                })}
               </ul>
               {pageCount > 1 ? (
                 <div className="flex items-center justify-between border-t border-border px-3 py-2.5 text-xs text-muted-foreground">
@@ -474,13 +549,20 @@ function Estoque() {
                   ))}
                 </TableHeader>
                 <TableBody>
-                  {table.getRowModel().rows.map((row) => (
-                    <TableRow key={row.id} className="group cursor-pointer" onClick={() => abrir(row.original.id)}>
-                      {row.getVisibleCells().map((cell) => (
-                        <TableCell key={cell.id}>{flexRender(cell.column.columnDef.cell, cell.getContext())}</TableCell>
-                      ))}
-                    </TableRow>
-                  ))}
+                  {table.getRowModel().rows.map((row) => {
+                    const mk = countMark(row.original.id);
+                    return (
+                      <TableRow
+                        key={row.id}
+                        className={cn("group cursor-pointer", countRowTone(mk))}
+                        onClick={() => abrir(row.original.id)}
+                      >
+                        {row.getVisibleCells().map((cell) => (
+                          <TableCell key={cell.id}>{flexRender(cell.column.columnDef.cell, cell.getContext())}</TableCell>
+                        ))}
+                      </TableRow>
+                    );
+                  })}
                 </TableBody>
               </Table>
               {table.getPageCount() > 1 ? (
@@ -630,5 +712,68 @@ function Estoque() {
         </DialogContent>
       </Dialog>
     </PageStage>
+  );
+}
+
+function countRank(mk: CountMark) {
+  if (mk.falta > 0) return -1_000_000 - mk.falta;
+  if (mk.sobra > 0) return -500_000 + mk.sobra;
+  if (mk.counted) return 0;
+  return 1;
+}
+
+function countRowTone(mk: CountMark) {
+  if (mk.falta > 0) return "bg-destructive/5";
+  if (mk.sobra > 0) return "bg-mint/80";
+  return undefined;
+}
+
+function CountMarkView({
+  falta,
+  sobra,
+  counted,
+  unidade,
+  compact,
+}: CountMark & {
+  unidade: string;
+  compact?: boolean;
+}) {
+  if (!counted) {
+    return <span className="text-xs text-muted-foreground">Sem contagem</span>;
+  }
+  if (falta <= 0 && sobra <= 0) {
+    return (
+      <span className={cn("inline-flex items-center font-semibold text-forest", compact ? "text-xs" : "text-sm")}>
+        Bateu
+      </span>
+    );
+  }
+  return (
+    <span className={cn("flex flex-col font-semibold", compact ? "items-end gap-0.5" : "items-start gap-1")}>
+      {falta > 0 ? (
+        <span
+          className={cn(
+            "inline-flex items-baseline gap-1 rounded-full bg-destructive/10 font-bold text-destructive",
+            compact ? "px-1.5 py-px text-xs" : "px-2.5 py-0.5 text-sm",
+          )}
+        >
+          Falta
+          <span className={cn("tabular-nums", compact ? "text-xs" : "text-base")}>{formatNumber(falta)}</span>
+          {compact ? null : <span className="text-xs font-medium opacity-80">{unidade}</span>}
+        </span>
+      ) : null}
+      {sobra > 0 ? (
+        <span
+          className={cn(
+            "inline-flex items-baseline gap-1 rounded-full bg-mint font-bold text-primary",
+            compact ? "px-1.5 py-px text-xs" : "px-2.5 py-0.5 text-sm",
+          )}
+        >
+          Sobra
+          <span className={cn("tabular-nums", compact ? "text-xs" : "text-base")}>{formatNumber(sobra)}</span>
+          {compact ? null : <span className="text-xs font-medium opacity-80">{unidade}</span>}
+        </span>
+      ) : null}
+    </span>
   );
 }

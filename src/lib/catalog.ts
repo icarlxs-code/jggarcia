@@ -1,3 +1,5 @@
+import { inferTipoLugar } from "./constants";
+
 export interface CatalogItem {
   codigo: string;
   nome: string;
@@ -47,14 +49,19 @@ export function pavilhaoNome(id?: string | null) {
   return "—";
 }
 
-export function pavTitle(p: { codigo: string; nome?: string }) {
-  if (!p.codigo) return p.nome || "—";
-  if (p.codigo === "74") return `Galpão ${p.codigo}`;
-  return `Pavilhão ${p.codigo}`;
+export function pavTipo(p: { codigo?: string; nome?: string; tipo?: string } | null | undefined): string {
+  return inferTipoLugar(p);
+}
+
+export function pavTitle(p: { codigo: string; nome?: string; tipo?: string }) {
+  const tipo = inferTipoLugar(p);
+  const code = (p.codigo || "").trim();
+  if (code) return `${tipo} ${code}`;
+  return (p.nome || "").trim() || tipo;
 }
 
 export function lugarLabel(
-  pavilhoes: { id: string; codigo: string; nome?: string }[],
+  pavilhoes: { id: string; codigo: string; nome?: string; tipo?: string }[],
   raw?: string | null,
 ): string {
   if (!raw) return "—";
@@ -68,7 +75,7 @@ export function lugarLabel(
 }
 
 export function lugarDaSaida(
-  pavilhoes: { id: string; codigo: string; nome?: string }[],
+  pavilhoes: { id: string; codigo: string; nome?: string; tipo?: string }[],
   s: { pavilhao_id?: string | null; pavilhao?: string | null; origem?: string | null },
 ) {
   for (const raw of [s.pavilhao_id, s.pavilhao, s.origem]) {
@@ -81,7 +88,7 @@ export function lugarDaSaida(
 }
 
 export function destinoDaSaida(
-  pavilhoes: { id: string; codigo: string; nome?: string }[],
+  pavilhoes: { id: string; codigo: string; nome?: string; tipo?: string }[],
   s: { destino_pavilhao_id?: string | null; destino?: { nome?: string } | null; destino_id?: string | null },
 ) {
   if (s.destino_pavilhao_id) {

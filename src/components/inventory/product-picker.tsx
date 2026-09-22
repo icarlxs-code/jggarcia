@@ -11,14 +11,21 @@ export function ProductPicker({
   value,
   onChange,
   placeholder = "Digite o nome ou o código",
+  inputId = "busca-prod-saida",
+  listId = "lista-produtos-saida",
+  inline = false,
 }: {
   items: Mercadoria[];
   value: string;
   onChange: (id: string, item?: Mercadoria) => void;
   placeholder?: string;
+  inputId?: string;
+  listId?: string;
+  inline?: boolean;
 }) {
   const selected = items.find((m) => m.id === value);
-  const [busca, setBusca] = useState(selected ? `${selected.codigo} · ${selected.nome}` : "");
+  const selectedLabel = selected ? `${selected.codigo} · ${selected.nome}` : "";
+  const [busca, setBusca] = useState(selectedLabel);
   const [aberto, setAberto] = useState(false);
   const [destaque, setDestaque] = useState(0);
 
@@ -30,14 +37,15 @@ export function ProductPicker({
 
   const filtradas = useMemo(() => {
     const term = fold(busca.trim());
+    const keepAll = !term || term === fold(selectedLabel);
     return items
       .filter((m) => {
-        if (!term) return true;
+        if (keepAll) return true;
         const codigo = fold(m.codigo);
         return fold(m.nome).includes(term) || codigo.includes(term) || codigo.replace(/^0+/, "").includes(term.replace(/^0+/, ""));
       })
       .slice(0, 24);
-  }, [items, busca]);
+  }, [items, busca, selectedLabel]);
 
   function escolher(m: Mercadoria) {
     setBusca(`${m.codigo} · ${m.nome}`);
@@ -49,14 +57,14 @@ export function ProductPicker({
     <div className="relative">
       <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
       <Input
-        id="busca-prod-saida"
+        id={inputId}
         value={busca}
         className="pl-10"
         placeholder={placeholder}
         autoComplete="off"
         role="combobox"
         aria-expanded={aberto}
-        aria-controls="lista-produtos-saida"
+        aria-controls={listId}
         onChange={(e) => {
           const next = e.target.value;
           setBusca(next);
@@ -87,9 +95,12 @@ export function ProductPicker({
       />
       {aberto ? (
         <ul
-          id="lista-produtos-saida"
+          id={listId}
           role="listbox"
-          className="absolute z-30 mt-1 max-h-64 w-full overflow-y-auto rounded-xl border border-border bg-card p-1 shadow-card"
+          className={cn(
+            inline ? "relative mt-1" : "absolute z-30 mt-1",
+            "max-h-64 w-full overflow-y-auto rounded-xl border border-border bg-card p-1 shadow-card",
+          )}
         >
           {filtradas.length === 0 ? (
             <li className="px-3 py-6 text-center text-sm text-muted-foreground">Nenhum produto com esse nome ou código.</li>

@@ -18,19 +18,19 @@ export const CHART_WIDGETS: { id: ChartWidgetId; label: string; hint: string }[]
 export type ChartFlags = Record<ChartWidgetId, boolean>;
 
 export const DEFAULT_CHARTS: ChartFlags = {
-  destaques: true,
+  destaques: false,
   topEntrada: true,
   topSaida: true,
   comparativo: true,
   empilhador: true,
-  movimento: true,
+  movimento: false,
 };
 
 export interface UserUiPrefs {
   charts: ChartFlags;
 }
 
-const KEY = "jg-garcia-ui-prefs-v1";
+const KEY = "jg-garcia-ui-prefs-v2";
 
 function empty(): UserUiPrefs {
   return { charts: { ...DEFAULT_CHARTS } };
