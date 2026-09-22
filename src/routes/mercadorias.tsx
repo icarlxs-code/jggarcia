@@ -3,8 +3,8 @@ import { createFileRoute, Link, Navigate } from "@tanstack/react-router";
 import { Pencil, Plus, Search, Trash2 } from "lucide-react";
 import { db } from "@/lib/store";
 import { useSession } from "@/lib/session";
-import { UNIDADES } from "@/lib/constants";
-import { pavilhaoNome, pavTitle } from "@/lib/catalog";
+import { UNIDADES, unidadeLabel, unidadeValue } from "@/lib/constants";
+import { pavilhaoNome, pavTitle, pavIdsOf } from "@/lib/catalog";
 import { useDb } from "@/lib/use-db";
 import { notify } from "@/lib/notify";
 import type { Mercadoria } from "@/lib/types";
@@ -41,16 +41,16 @@ function Mercadorias() {
   const [open, setOpen] = useState(false);
   const [codigo, setCodigo] = useState("");
   const [nome, setNome] = useState("");
-  const [unidade, setUnidade] = useState("Caixa");
-  const [pavilhaoId, setPavilhaoId] = useState("p13");
+  const [unidade, setUnidade] = useState("Cx");
+  const [pavilhaoIds, setPavilhaoIds] = useState<string[]>(["p13"]);
   const [bornId, setBornId] = useState<string | null>(null);
   const [leavingId, setLeavingId] = useState<string | null>(null);
   const [pending, setPending] = useState<Mercadoria | null>(null);
   const [edit, setEdit] = useState<Mercadoria | null>(null);
   const [eNome, setENome] = useState("");
   const [eCodigo, setECodigo] = useState("");
-  const [eUnidade, setEUnidade] = useState("Caixa");
-  const [ePavilhao, setEPavilhao] = useState("p13");
+  const [eUnidade, setEUnidade] = useState("Cx");
+  const [ePavilhoes, setEPavilhoes] = useState<string[]>(["p13"]);
   const [eMinimo, setEMinimo] = useState("");
 
   const filtered = list.filter((m) => {
@@ -62,8 +62,16 @@ function Mercadorias() {
     return fold(m.nome).includes(term) || code.includes(term) || (termShort.length > 0 && codeShort.includes(termShort));
   });
   const groups = filtered.reduce<Record<string, Mercadoria[]>>((acc, m) => {
-    const key = m.categoria || "Outros";
-    (acc[key] ??= []).push(m);
+    const ids = pavIdsOf(m);
+    if (!ids.length) {
+      (acc["Outros"] ??= []).push(m);
+      return acc;
+    }
+    for (const id of ids) {
+      const pav = pavilhoesAll.find((p) => p.id === id);
+      const key = pav ? pavTitle(pav) : pavilhaoNome(id);
+      (acc[key] ??= []).push(m);
+    }
     return acc;
   }, {});
   const groupList = Object.entries(groups)
@@ -76,8 +84,8 @@ function Mercadorias() {
     setEdit(m);
     setENome(m.nome);
     setECodigo(m.codigo);
-    setEUnidade(m.unidade);
-    setEPavilhao(m.pavilhao_id || "p13");
+    setEUnidade(unidadeValue(m.unidade));
+    setEPavilhoes(pavIdsOf(m).length ? pavIdsOf(m) : ["p13"]);
     setEMinimo(String(m.minimo));
   }
 
@@ -92,7 +100,7 @@ function Mercadorias() {
       codigo: eCodigo,
       unidade: eUnidade,
       minimo: Number(eMinimo) || edit.minimo,
-      pavilhao_id: ePavilhao,
+      pavilhao_ids: ePavilhoes.length ? ePavilhoes : ["p13"],
     });
     setTick((n) => n + 1);
     setEdit(null);
@@ -167,12 +175,15 @@ function Mercadorias() {
                             <ProductLabel nome={m.nome} codigo={m.codigo} />
                           </Link>
                         </TableCell>
-                        <TableCell>{m.unidade}</TableCell>
+                        <TableCell>{unidadeLabel(m.unidade)}</TableCell>
                         <TableCell>
-                          {(() => {
-                            const pav = pavilhoesAll.find((p) => p.id === m.pavilhao_id);
-                            return pav ? pavTitle(pav) : pavilhaoNome(m.pavilhao_id);
-                          })()}
+                          {pavIdsOf(m)
+                            .map((id) => {
+                              const pav = pavilhoesAll.find((p) => p.id === id);
+                              return pav ? pavTitle(pav) : pavilhaoNome(id);
+                            })
+                            .filter(Boolean)
+                            .join(" · ") || "—"}
                         </TableCell>
                         <TableCell>
                           <Badge variant={m.status ? "success" : "muted"}>{m.status ? "Ativo" : "Inativo"}</Badge>
@@ -228,27 +239,39 @@ function Mercadorias() {
                 </SelectTrigger>
                 <SelectContent>
                   {UNIDADES.map((u) => (
-                    <SelectItem key={u} value={u}>
-                      {u}
+                    <SelectItem key={u.value} value={u.value}>
+                      {u.label}
                     </SelectItem>
                   ))}
+                  {UNIDADES.every((u) => u.value !== eUnidade) && eUnidade ? (
+                    <SelectItem value={eUnidade}>{unidadeLabel(eUnidade)}</SelectItem>
+                  ) : null}
                 </SelectContent>
               </Select>
             </div>
             <div className="space-y-1.5">
-              <Label>Pavilhão</Label>
-              <Select value={pavilhaoId} onValueChange={setPavilhaoId}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Selecione o pavilhão" />
-                </SelectTrigger>
-                <SelectContent>
-                  {pavilhoes.map((p) => (
-                    <SelectItem key={p.id} value={p.id}>
+              <Label>Pavilhões</Label>
+              <p className="text-xs text-muted-foreground">Pode marcar mais de um se o produto não fica só em um lugar.</p>
+              <div className="flex flex-wrap gap-1.5">
+                {pavilhoes.map((p) => {
+                  const on = pavilhaoIds.includes(p.id);
+                  return (
+                    <button
+                      key={p.id}
+                      type="button"
+                      onClick={() =>
+                        setPavilhaoIds((prev) => (on ? prev.filter((x) => x !== p.id) : [...prev, p.id]))
+                      }
+                      className={cn(
+                        "rounded-full border px-3 py-1.5 text-xs font-medium",
+                        on ? "border-primary bg-primary text-primary-foreground" : "border-border bg-card hover:bg-muted",
+                      )}
+                    >
                       {pavTitle(p)}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
           </div>
           <DialogFooter>
@@ -265,11 +288,11 @@ function Mercadorias() {
                   return false;
                 }
                 const createdName = nome.trim();
-                const row = db.createMercadoria({ codigo, nome, unidade, pavilhao_id: pavilhaoId });
+                const row = db.createMercadoria({ codigo, nome, unidade, pavilhao_ids: pavilhaoIds.length ? pavilhaoIds : ["p13"] });
                 setBornId(row.id);
                 setCodigo("");
                 setNome("");
-                setPavilhaoId("p13");
+                setPavilhaoIds(["p13"]);
                 setTick((n) => n + 1);
                 window.setTimeout(() => {
                   setOpen(false);
@@ -316,27 +339,39 @@ function Mercadorias() {
                   </SelectTrigger>
                   <SelectContent>
                     {UNIDADES.map((u) => (
-                      <SelectItem key={u} value={u}>
-                        {u}
+                      <SelectItem key={u.value} value={u.value}>
+                        {u.label}
                       </SelectItem>
                     ))}
+                    {UNIDADES.every((u) => u.value !== eUnidade) && eUnidade ? (
+                      <SelectItem value={eUnidade}>{unidadeLabel(eUnidade)}</SelectItem>
+                    ) : null}
                   </SelectContent>
                 </Select>
               </div>
               <div className="space-y-1.5">
-                <Label>Pavilhão</Label>
-                <Select value={ePavilhao} onValueChange={setEPavilhao}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecione o pavilhão" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {pavilhoes.map((p) => (
-                      <SelectItem key={p.id} value={p.id}>
-                        {p.nome}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <Label>Pavilhões</Label>
+                <p className="text-xs text-muted-foreground">Marque todos os lugares em que este produto circula.</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {pavilhoes.map((p) => {
+                    const on = ePavilhoes.includes(p.id);
+                    return (
+                      <button
+                        key={p.id}
+                        type="button"
+                        onClick={() =>
+                          setEPavilhoes((prev) => (on ? prev.filter((x) => x !== p.id) : [...prev, p.id]))
+                        }
+                        className={cn(
+                          "rounded-full border px-3 py-1.5 text-xs font-medium",
+                          on ? "border-primary bg-primary text-primary-foreground" : "border-border bg-card hover:bg-muted",
+                        )}
+                      >
+                        {pavTitle(p)}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="em">Estoque mínimo</Label>

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { createFileRoute, Link, Navigate } from "@tanstack/react-router";
-import { FileText, Plus, Search, Users } from "lucide-react";
+import { FileText, Pencil, Plus, Search, Users } from "lucide-react";
 import { db } from "@/lib/store";
 import { useSession } from "@/lib/session";
 import { useDb } from "@/lib/use-db";
@@ -20,6 +20,7 @@ import { notify } from "@/lib/notify";
 import { playCeremony, ceremonyDock, initialsOf } from "@/lib/ceremony";
 import { cn, fold } from "@/lib/utils";
 import { ClientMark } from "@/components/clients/client-mark";
+import type { Destino } from "@/lib/types";
 
 export const Route = createFileRoute("/clientes")({ component: Clientes });
 
@@ -38,8 +39,17 @@ function Clientes() {
   const to = todayISO();
   const stats = clientStats(from, to);
   const [prodId, setProdId] = useState("");
+  const [prodBusca, setProdBusca] = useState("");
+  const [cliFiltro, setCliFiltro] = useState("");
+  const [edit, setEdit] = useState<Destino | null>(null);
+  const [eNome, setENome] = useState("");
+  const [eTelefone, setETelefone] = useState("");
+  const [eCnpj, setECnpj] = useState("");
+  const [eEmail, setEEmail] = useState("");
+  const [eEndereco, setEEndereco] = useState("");
   const selectedProd = prodId || stats.topSaida[0]?.id || "";
   const byProd = selectedProd ? clientsForProduct(selectedProd, from, to) : null;
+  const mercadorias = live.listMercadorias(true);
 
   const filtered = list.filter((d) => {
     const term = fold(q);
@@ -103,18 +113,35 @@ function Clientes() {
       <SpotlightCard className="space-y-3 p-4">
         <div>
           <h2 className="text-sm font-semibold">Quem mais retirou cada produto</h2>
-          <p className="text-xs text-muted-foreground">Escolha uva, morango ou outro item e veja o ranking do mês.</p>
+          <p className="text-xs text-muted-foreground">Busque o produto e, se quiser, um cliente só. O PDF sai só desse recorte.</p>
         </div>
-        {stats.topSaida.length === 0 ? (
-          <p className="py-4 text-center text-sm text-muted-foreground">Sem saída neste mês para detalhar.</p>
-        ) : (
-          <>
+        <div className="relative">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            className="pl-10"
+            placeholder="Buscar produto, ex.: uva seleta"
+            value={prodBusca}
+            onChange={(e) => {
+              setProdBusca(e.target.value);
+              setProdId("");
+            }}
+          />
+        </div>
+        {(() => {
+          const qProd = fold(prodBusca.trim());
+          const prodOptions = qProd
+            ? mercadorias.filter((m) => fold(m.nome).includes(qProd) || fold(m.codigo).includes(qProd)).slice(0, 10)
+            : stats.topSaida.slice(0, 10).map((p) => mercadorias.find((m) => m.id === p.id) || { id: p.id, nome: p.nome, codigo: "" });
+          return (
             <div className="flex gap-2 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-              {stats.topSaida.slice(0, 10).map((p) => (
+              {prodOptions.map((p) => (
                 <button
                   key={p.id}
                   type="button"
-                  onClick={() => setProdId(p.id)}
+                  onClick={() => {
+                    setProdId(p.id);
+                    setProdBusca(p.nome);
+                  }}
                   className={cn(
                     "inline-flex h-9 shrink-0 items-center rounded-full border px-3 text-xs font-medium",
                     selectedProd === p.id
@@ -126,42 +153,63 @@ function Clientes() {
                 </button>
               ))}
             </div>
-            {byProd && byProd.rank.length > 0 ? (
-              <ul className="divide-y divide-border overflow-hidden rounded-xl border border-border bg-background">
-                {byProd.rank.slice(0, 8).map((c, i) => (
-                  <li key={c.id}>
-                    <Link to="/clientes/$id" params={{ id: c.id }} className="flex items-center gap-3 px-3 py-2.5 hover:bg-muted">
-                      <span className="w-5 text-center text-xs tabular-nums text-muted-foreground">{i + 1}</span>
-                      <span className="min-w-0 flex-1 truncate text-sm">{c.nome}</span>
-                      <span className="text-sm tabular-nums font-medium">
-                        {formatNumber(c.qtd)} {byProd.unidade}
-                      </span>
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p className="text-sm text-muted-foreground">Ninguém retirou este produto neste mês.</p>
-            )}
-            {selectedProd ? (
-              <Button
-                variant="outline"
-                className="w-full"
-                onClick={() =>
-                  exportReportPdf({
-                    from,
-                    to,
-                    pavilhaoId: "todos",
-                    kind: "saida",
-                    mercadoriaId: selectedProd,
-                  })
-                }
-              >
-                <FileText /> PDF das saídas deste produto
-              </Button>
-            ) : null}
-          </>
-        )}
+          );
+        })()}
+        <div className="relative">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            className="pl-10"
+            placeholder="Filtrar por um cliente só (opcional)"
+            value={cliFiltro}
+            onChange={(e) => setCliFiltro(e.target.value)}
+          />
+        </div>
+        {(() => {
+          const term = fold(cliFiltro.trim());
+          const rank = (byProd?.rank ?? []).filter((c) => !term || fold(c.nome).includes(term));
+          const chosen = term ? list.find((d) => fold(d.nome).includes(term)) : null;
+          return (
+            <>
+              {rank.length > 0 ? (
+                <ul className="divide-y divide-border overflow-hidden rounded-xl border border-border bg-background">
+                  {rank.slice(0, 8).map((c, i) => (
+                    <li key={c.id}>
+                      <Link to="/clientes/$id" params={{ id: c.id }} className="flex items-center gap-3 px-3 py-2.5 hover:bg-muted">
+                        <span className="w-5 text-center text-xs tabular-nums text-muted-foreground">{i + 1}</span>
+                        <span className="min-w-0 flex-1 truncate text-sm">{c.nome}</span>
+                        <span className="text-sm tabular-nums font-medium">
+                          {formatNumber(c.qtd)} {byProd?.unidade}
+                        </span>
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="text-sm text-muted-foreground">
+                  {selectedProd ? "Ninguém retirou este produto neste recorte." : "Sem saída neste mês para detalhar."}
+                </p>
+              )}
+              {selectedProd ? (
+                <Button
+                  variant="outline"
+                  className="w-full"
+                  onClick={() =>
+                    exportReportPdf({
+                      from,
+                      to,
+                      pavilhaoId: "todos",
+                      kind: "saida",
+                      mercadoriaId: selectedProd,
+                      destinoId: chosen?.id,
+                    })
+                  }
+                >
+                  <FileText /> {chosen ? `PDF de ${chosen.nome} · este produto` : "PDF das saídas deste produto"}
+                </Button>
+              ) : null}
+            </>
+          );
+        })()}
       </SpotlightCard>
 
       <div className="grid gap-3 sm:grid-cols-2">
@@ -181,14 +229,29 @@ function Clientes() {
       ) : (
         <ul className="grid gap-2 sm:grid-cols-2">
           {filtered.map((d) => (
-            <li key={d.id}>
-              <Link to="/clientes/$id" params={{ id: d.id }} className="flex items-center gap-3 rounded-2xl border border-border bg-card p-3 hover:bg-muted">
+            <li key={d.id} className="flex items-center gap-1 rounded-2xl border border-border bg-card pr-1">
+              <Link to="/clientes/$id" params={{ id: d.id }} className="flex min-w-0 flex-1 items-center gap-3 p-3 hover:bg-muted">
                 <ClientMark d={d} />
                 <div className="min-w-0 flex-1">
                   <p className="truncate font-medium">{d.nome}</p>
                   <p className="truncate text-[11px] text-muted-foreground">{d.telefone || d.contato || d.endereco || "Sem telefone"}</p>
                 </div>
               </Link>
+              <Button
+                variant="ghost"
+                size="icon"
+                aria-label={`Editar ${d.nome}`}
+                onClick={() => {
+                  setEdit(d);
+                  setENome(d.nome);
+                  setETelefone(d.telefone || d.contato || "");
+                  setECnpj(d.cnpj || "");
+                  setEEmail(d.email || "");
+                  setEEndereco(d.endereco || "");
+                }}
+              >
+                <Pencil />
+              </Button>
             </li>
           ))}
         </ul>
@@ -237,6 +300,47 @@ function Clientes() {
                 return true;
               }}
             />
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!edit} onOpenChange={(o) => !o && setEdit(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Editar cliente</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <Field id="en" label="Nome" value={eNome} onChange={setENome} />
+            <Field id="et" label="Telefone" value={eTelefone} onChange={setETelefone} />
+            <Field id="ec" label="CNPJ" value={eCnpj} onChange={setECnpj} />
+            <Field id="ee" label="E-mail" value={eEmail} onChange={setEEmail} />
+            <Field id="ed" label="Endereço" value={eEndereco} onChange={setEEndereco} />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEdit(null)}>
+              Cancelar
+            </Button>
+            <Button
+              onClick={() => {
+                if (!edit) return;
+                if (!eNome.trim()) {
+                  notify.error("Informe o nome do cliente.");
+                  return;
+                }
+                db.updateDestino(edit.id, {
+                  nome: eNome,
+                  telefone: eTelefone,
+                  contato: eTelefone,
+                  cnpj: eCnpj,
+                  email: eEmail,
+                  endereco: eEndereco,
+                });
+                setEdit(null);
+                notify.success("Cliente atualizado.");
+              }}
+            >
+              Salvar
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

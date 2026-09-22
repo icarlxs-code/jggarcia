@@ -42,7 +42,7 @@ export function ProductStage({
       <div className="product-stage-orb" />
       <div className="product-stage-floor" />
       <div className="product-stage-spin">
-        <ProductIcon nome={nome} codigo={codigo} size="lg" className="h-28 w-28 rounded-[1.75rem] ring-0" />
+        <ProductIcon nome={nome} codigo={codigo} size="lg" className="h-28 w-28 rounded-none border-0 bg-transparent shadow-none ring-0" />
       </div>
     </div>
   );

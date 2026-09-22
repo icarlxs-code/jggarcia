@@ -96,8 +96,7 @@ function waitThenPrint(doc: Document, win: Window, cleanup?: () => void) {
   window.setTimeout(run, 1800);
 }
 
-export function printHtml(title: string, body: string) {
-  const html = documentHtml(title, body);
+export function printHtmlDocument(html: string) {
   const iframe = document.createElement("iframe");
   iframe.setAttribute("aria-hidden", "true");
   iframe.style.cssText = "position:fixed;right:0;bottom:0;width:0;height:0;border:0;opacity:0";
@@ -122,6 +121,10 @@ export function printHtml(title: string, body: string) {
     throw new Error("Não foi possível abrir a impressão.");
   }
   waitThenPrint(doc, win, () => iframe.remove());
+}
+
+export function printHtml(title: string, body: string) {
+  printHtmlDocument(documentHtml(title, body));
 }
 
 export function esc(s: string | number | null | undefined): string {

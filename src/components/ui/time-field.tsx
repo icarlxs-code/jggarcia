@@ -21,12 +21,19 @@ export function TimeField({
       <Clock className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
       <Input
         id={id}
+        name={id ? `${id}-clock` : "hora-livre"}
         value={value}
+        type="text"
         inputMode="numeric"
         autoComplete="off"
-        placeholder="00:00"
+        autoCorrect="off"
+        autoCapitalize="off"
+        spellCheck={false}
+        placeholder="hh:mm"
         aria-label={ariaLabel}
-        className="pl-10 font-mono tabular-nums tracking-wider"
+        data-lpignore="true"
+        data-1p-ignore="true"
+        className="pl-10 font-mono tabular-nums tracking-wider placeholder:text-muted-foreground/55"
         onChange={(e) => onChange(maskTimeInput(e.target.value))}
         onBlur={() => {
           if (!value.trim()) return;

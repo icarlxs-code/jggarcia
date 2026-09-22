@@ -26,6 +26,7 @@ export interface Mercadoria {
   cor: string;
   categoria?: string;
   pavilhao_id?: string;
+  pavilhao_ids?: string[];
 }
 
 export interface Destino {
@@ -117,7 +118,10 @@ export type AuditEntidade =
   | "estoque"
   | "pavilhao"
   | "contagem"
-  | "seguranca";
+  | "seguranca"
+  | "fornecedor"
+  | "empilhador"
+  | "frete";
 
 export interface AuditLog {
   id: string;
@@ -191,5 +195,46 @@ export interface Atalho {
   destino_id?: string;
   mercadoria_id?: string;
   created_at: string;
+  updated_at?: string;
   usos: number;
+  deleted_at?: string | null;
 }
+
+export interface Empilhador {
+  id: string;
+  nome: string;
+  created_at: string;
+  updated_at?: string;
+  deleted_at?: string | null;
+}
+
+export type FreteStatus = "rascunho" | "gerado";
+
+export interface FretePagamento {
+  id: string;
+  numero: string;
+  fornecedor: string;
+  numero_bilhete: string;
+  valor: number;
+  data_entrada: string;
+  pavilhao: string;
+  placa: string;
+  motorista: string;
+  cpf: string;
+  assinatura_motorista: string;
+  forma_pagamento: string;
+  rubrica: string;
+  data_autorizacao: string;
+  observacoes: string;
+  status: FreteStatus;
+  created_at: string;
+  updated_at?: string;
+  created_by?: string;
+  created_by_nome?: string;
+  deleted_at?: string | null;
+}
+
+export type FreteInput = Omit<FretePagamento, "id" | "numero" | "created_at" | "status" | "deleted_at"> & {
+  numero?: string;
+  status?: FreteStatus;
+};

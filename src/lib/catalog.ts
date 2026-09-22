@@ -32,6 +32,12 @@ export function logoOfPavilhao(p: { id?: string | null; codigo?: string | null }
   return PAVILHAO_LOGOS[key];
 }
 
+export function pavIdsOf(m: { pavilhao_id?: string; pavilhao_ids?: string[] } | null | undefined): string[] {
+  if (!m) return [];
+  if (m.pavilhao_ids?.length) return m.pavilhao_ids.filter(Boolean);
+  return m.pavilhao_id ? [m.pavilhao_id] : [];
+}
+
 export function pavilhaoNome(id?: string | null) {
   if (id === "p11") return "Pavilhão 11";
   if (id === "p13") return "Pavilhão 13";

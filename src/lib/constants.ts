@@ -5,7 +5,63 @@ export const ORIGENS = [
   "PAV 44 RZD",
 ] as const;
 
-export const UNIDADES = ["Caixa", "Unidade", "Kg"] as const;
+export const UNIDADES = [
+  { value: "kg", label: "Quilograma (kg)" },
+  { value: "g", label: "Grama (g)" },
+  { value: "L", label: "Litro (L)" },
+  { value: "ml", label: "Mililitro (ml)" },
+  { value: "Un", label: "Unidade (Un)" },
+  { value: "Cx", label: "Caixa (Cx)" },
+  { value: "Sc", label: "Saco (Sc)" },
+  { value: "Mç", label: "Maço (Mç)" },
+  { value: "Bdj", label: "Bandeja (Bdj)" },
+  { value: "Pct", label: "Pacote (Pct)" },
+] as const;
+
+const LEGACY_UNIDADE: Record<string, string> = {
+  Caixa: "Cx",
+  caixa: "Cx",
+  Unidade: "Un",
+  unidade: "Un",
+  Kg: "kg",
+  KG: "kg",
+  Quilo: "kg",
+  Saco: "Sc",
+  Bandeja: "Bdj",
+  Pacote: "Pct",
+  Maço: "Mç",
+  Maco: "Mç",
+  Litro: "L",
+};
+
+export function unidadeValue(raw?: string | null): string {
+  const v = (raw || "").trim();
+  if (!v) return "Cx";
+  if (UNIDADES.some((u) => u.value === v)) return v;
+  return LEGACY_UNIDADE[v] || v;
+}
+
+export function unidadeLabel(raw?: string | null): string {
+  const v = unidadeValue(raw);
+  return UNIDADES.find((u) => u.value === v)?.label ?? (raw || v);
+}
+
+export const FORMAS_PAGAMENTO_FRETE = [
+  "PIX",
+  "Dinheiro",
+  "Transferência Bancária",
+  "Boleto",
+  "Outro",
+] as const;
+
+export const EMPRESA = {
+  nomeCurto: "JG GARCIA",
+  razao: "JG IRAJÁ FRUTAS E LEGUMES LTDA",
+  cnpj: "51.673.492/0001-17",
+  logradouro: "Avenida Brasil, 19.001",
+  bairro: "Irajá — Rio de Janeiro/RJ",
+  cep: "21530-900",
+} as const;
 
 export const SLOGANS = {
   main: "Frutas e qualidade em movimento",
@@ -20,6 +76,7 @@ export const MOTIVOS_CONTAGEM = [
   { id: "doou", label: "Doou" },
   { id: "transferiu", label: "Foi para outro lugar" },
   { id: "perdeu", label: "Perdeu" },
+  { id: "ajuste", label: "Ajuste de estoque" },
   { id: "outro", label: "Outro" },
 ] as const;
 

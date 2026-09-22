@@ -55,7 +55,6 @@ const NAV_GROUPS: NavGroup[] = [
       { to: "/movimentacoes", label: "Movimentações", icon: "log" },
       { to: "/estoque", label: "Estoque", icon: "stock" },
       { to: "/contagem", label: "Contagem", icon: "count" },
-      { to: "/lotes", label: "Lotes e validade", icon: "lot" },
     ],
   },
   {
@@ -64,6 +63,7 @@ const NAV_GROUPS: NavGroup[] = [
       { to: "/mercadorias", label: "Produtos", icon: "package", adminOnly: true },
       { to: "/clientes", label: "Clientes", icon: "pin", adminOnly: true },
       { to: "/fornecedores", label: "Fornecedores", icon: "truck" },
+      { to: "/empilhadores", label: "Empilhadores", icon: "users", adminOnly: true },
       { to: "/pavilhoes", label: "Pavilhões", icon: "store" },
     ],
   },
@@ -72,6 +72,7 @@ const NAV_GROUPS: NavGroup[] = [
     items: [
       { to: "/auditoria", label: "Log de alterações", icon: "log" },
       { to: "/relatorios", label: "Relatórios", icon: "chart", adminOnly: true },
+      { to: "/fretes", label: "Pagamento de fretes", icon: "truck" },
       { to: "/usuarios", label: "Equipe", icon: "users", adminOnly: true },
       { to: "/configuracoes", label: "Configurações", icon: "gear", adminOnly: true },
     ],
@@ -202,7 +203,7 @@ export function AppShell() {
   }, []);
 
   useEffect(() => {
-    const paths = ["/estoque", "/entradas", "/historico", "/lotes", "/mercadorias", "/auditoria", "/nova-saida", "/clientes", "/contagem", "/pavilhoes", "/relatorios", "/hoje", "/movimentacoes"] as const;
+    const paths = ["/estoque", "/entradas", "/historico", "/mercadorias", "/auditoria", "/nova-saida", "/clientes", "/contagem", "/pavilhoes", "/relatorios", "/hoje", "/movimentacoes", "/fretes", "/empilhadores"] as const;
     for (const to of paths) void router.preloadRoute({ to });
   }, [router]);
 

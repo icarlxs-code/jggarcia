@@ -664,15 +664,15 @@ export function ProductIcon({
 }: {
   nome: string;
   codigo?: string;
-  size?: "sm" | "md" | "lg";
+  size?: "xs" | "sm" | "md" | "lg";
   className?: string;
 }) {
-  const box = size === "sm" ? "h-9 w-9" : size === "lg" ? "h-14 w-14" : "h-11 w-11";
+  const box = size === "xs" ? "h-8 w-8" : size === "sm" ? "h-9 w-9" : size === "lg" ? "h-14 w-14" : "h-11 w-11";
   const photo = photoOfProduct(nome, codigo);
   if (photo) {
     return (
-      <span className={cn("product-icon product-icon-photo inline-flex shrink-0 overflow-hidden rounded-[10px] bg-[#f6f3ee] ring-1 ring-black/5", box, className)} aria-hidden>
-        <img src={photo} alt="" draggable={false} loading={size === "lg" ? "eager" : "lazy"} decoding="async" className="h-full w-full object-cover" />
+      <span className={cn("product-icon product-icon-photo inline-flex shrink-0 items-center justify-center overflow-visible bg-transparent p-0 shadow-none ring-0", box, className)} aria-hidden>
+        <img src={photo} alt="" draggable={false} loading={size === "lg" ? "eager" : "lazy"} decoding="async" className="h-full w-full bg-transparent object-contain" />
       </span>
     );
   }

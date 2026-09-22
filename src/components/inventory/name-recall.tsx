@@ -23,7 +23,7 @@ export function NameRecall({
   required?: boolean;
 }) {
   const term = fold(value.trim());
-  const shown = names.filter((n) => !term || fold(n).includes(term)).slice(0, 10);
+  const chips = (term ? names.filter((n) => fold(n).includes(term)) : names).slice(0, 12);
 
   return (
     <div className="space-y-2">
@@ -31,17 +31,17 @@ export function NameRecall({
         {label}
         {required ? "" : <span className="ml-1 font-normal text-muted-foreground">(opcional)</span>}
       </Label>
-      {shown.length > 0 ? (
-        <div className="flex flex-wrap gap-2">
-          {shown.map((n) => {
-            const on = fold(value) === fold(n);
+      {names.length > 0 ? (
+        <div className="flex flex-wrap gap-1.5">
+          {chips.map((n) => {
+            const on = fold(n) === term && term.length > 0;
             return (
               <button
                 key={n}
                 type="button"
-                onClick={() => onChange(on ? "" : n)}
+                onClick={() => onChange(n)}
                 className={cn(
-                  "min-h-10 rounded-full border px-3 text-sm font-medium transition-colors",
+                  "inline-flex min-h-9 items-center rounded-full border px-3 text-sm font-medium",
                   on ? "border-primary bg-primary text-primary-foreground" : "border-border bg-card hover:bg-muted",
                 )}
               >
@@ -53,10 +53,16 @@ export function NameRecall({
       ) : null}
       <Input
         id={id}
+        name={`${id}-livre`}
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        placeholder={placeholder || (names.length ? "Ou escreva um nome novo" : "Escreva o nome")}
+        placeholder={placeholder || "Escreva o nome"}
         autoComplete="off"
+        autoCorrect="off"
+        autoCapitalize="words"
+        spellCheck={false}
+        data-lpignore="true"
+        data-1p-ignore="true"
         className="h-12"
       />
       {hint ? <p className="text-xs text-muted-foreground">{hint}</p> : null}

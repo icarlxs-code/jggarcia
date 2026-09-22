@@ -6,7 +6,7 @@ import { DuplicateLaunchDialog } from "@/components/feedback/duplicate-launch-di
 import type { Mercadoria, Saida } from "@/lib/types";
 import { useSession } from "@/lib/session";
 import { logoOfPavilhao, pavTitle } from "@/lib/catalog";
-import { calcTransportTime, completeTime, formatMinutes, formatNumber, isValidTime, nowHHMM, todayISO } from "@/lib/format";
+import { calcTransportTime, completeTime, formatMinutes, formatNumber, isValidTime, todayISO } from "@/lib/format";
 import { arrivalStamp } from "@/lib/movement";
 import { useDb } from "@/lib/use-db";
 import { Button } from "@/components/ui/button";
@@ -53,18 +53,13 @@ function NovaSaida() {
   const [destKind, setDestKind] = useState<"cliente" | "pav">("cliente");
   const [destinoId, setDestinoId] = useState("");
   const [destPavId, setDestPavId] = useState("");
-  const [horaSaida, setHoraSaida] = useState(nowHHMM);
+  const [horaSaida, setHoraSaida] = useState("");
   const [horaChegada, setHoraChegada] = useState("");
+  const [observacao, setObservacao] = useState("");
   const [overConfirm, setOverConfirm] = useState(false);
   const skipDup = useRef(false);
   const skipOver = useRef(false);
-  const [operador, setOperador] = useState(() => {
-    try {
-      return localStorage.getItem("jg-last-operador") || "";
-    } catch {
-      return "";
-    }
-  });
+  const [operador, setOperador] = useState("");
   const [newOpen, setNewOpen] = useState(false);
   const [dNome, setDNome] = useState("");
   const [dCodigo, setDCodigo] = useState("");
@@ -129,8 +124,10 @@ function NovaSaida() {
     setDestKind("cliente");
     setDestinoId("");
     setDestPavId("");
-    setHoraSaida(nowHHMM());
+    setHoraSaida("");
     setHoraChegada("");
+    setObservacao("");
+    setOperador("");
   }
 
   async function save() {
@@ -223,17 +220,13 @@ function NovaSaida() {
         pavilhao_id: origemId,
         desconta_estoque: desconta,
         operador_nome: operador.trim() || undefined,
+        observacao: observacao.trim() || undefined,
         permitir_negativo: desconta && qtd > noPav && perfil.nivel_acesso === "admin",
         status: transfer ? (chegadaHora ? "entregue" : "em_transito") : "registrada",
       });
     } catch (err) {
       notify.error(err instanceof Error ? err.message : "Não foi possível registrar a saída.");
       return false;
-    }
-    try {
-      if (operador.trim()) localStorage.setItem("jg-last-operador", operador.trim());
-    } catch {
-      /* ignore */
     }
     playCeremony({
       kind: "dispatch",
@@ -356,6 +349,7 @@ function NovaSaida() {
           <div className="sf-hs space-y-2">
             <Label htmlFor="hora-saida">Saiu às</Label>
             <TimeField id="hora-saida" value={horaSaida} onChange={setHoraSaida} aria-label="Hora de saída" />
+            <p className="text-xs text-muted-foreground">Campo vazio. Digite 4 dígitos — 0300 vira 03:00. Não preenche sozinho.</p>
           </div>
           <div className="sf-hc space-y-2">
             <Label htmlFor="hora-chegada">Chegou às</Label>
@@ -372,8 +366,19 @@ function NovaSaida() {
               value={operador}
               onChange={setOperador}
               names={live.listOperadores()}
-              placeholder="Nome de quem moveu — opcional"
-              hint="Não é obrigatório. O nome fica salvo e já aparece na próxima."
+              placeholder="Escreva ou toque no nome em cima"
+              hint="Os nomes cadastrados ficam em cima da caixa. Pode escrever — a lista filtra na hora."
+            />
+          </div>
+          <div className="sf-obs space-y-2 sm:col-span-2">
+            <Label htmlFor="obs-saida">Observação</Label>
+            <textarea
+              id="obs-saida"
+              value={observacao}
+              onChange={(e) => setObservacao(e.target.value)}
+              rows={3}
+              placeholder="Anota o que precisar: palete, avaria, recado da expedição…"
+              className="min-h-20 w-full resize-y rounded-lg border border-border bg-card px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
             />
           </div>
           {mercadoria && origemOk ? (

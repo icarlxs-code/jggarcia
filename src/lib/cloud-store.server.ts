@@ -1,4 +1,4 @@
-import type { Atalho, AuditLog, Contagem, Destino, Fornecedor, Lote, Mercadoria, Pavilhao, Saida, Usuario } from "./types";
+import type { Atalho, AuditLog, Contagem, Destino, Empilhador, Fornecedor, FretePagamento, Lote, Mercadoria, Pavilhao, Saida, Usuario } from "./types";
 
 export type CloudPayload = {
   usuarios: Usuario[];
@@ -14,6 +14,8 @@ export type CloudPayload = {
   atalhos?: Atalho[];
   operadores?: string[];
   empilhadeiras?: string[];
+  empilhadoresPessoas?: Empilhador[];
+  fretes?: FretePagamento[];
   stockResetAt?: string | null;
 };
 
@@ -34,6 +36,43 @@ function mergeRows<T extends { id: string }>(a: T[] = [], b: T[] = []): T[] {
       continue;
     }
     map.set(row.id, { ...prev, ...row });
+  }
+  return [...map.values()];
+}
+
+function mergeAtalhos(a: Atalho[] = [], b: Atalho[] = []): Atalho[] {
+  const map = byId(a);
+  for (const row of b) {
+    const prev = map.get(row.id);
+    if (!prev) {
+      map.set(row.id, row);
+      continue;
+    }
+    const stamp = (x: Atalho) => x.updated_at || x.deleted_at || x.created_at || "";
+    const newer = stamp(row) >= stamp(prev) ? { ...prev, ...row } : { ...row, ...prev };
+    newer.usos = Math.max(prev.usos || 0, row.usos || 0);
+    map.set(row.id, newer);
+  }
+  return [...map.values()];
+}
+
+function mergeEmpilhadores(a: Empilhador[] = [], b: Empilhador[] = []): Empilhador[] {
+  const map = byId(a);
+  const byName = new Map<string, Empilhador>();
+  for (const row of map.values()) {
+    if (row.nome) byName.set(row.nome.toLowerCase(), row);
+  }
+  for (const row of b) {
+    const prev = (row.id && map.get(row.id)) || byName.get((row.nome || "").toLowerCase());
+    if (!prev) {
+      map.set(row.id, row);
+      if (row.nome) byName.set(row.nome.toLowerCase(), row);
+      continue;
+    }
+    const stamp = (x: Empilhador) => x.updated_at || x.deleted_at || x.created_at || "";
+    const newer = stamp(row) >= stamp(prev) ? { ...prev, ...row, id: prev.id } : { ...row, ...prev, id: prev.id };
+    map.set(prev.id, newer);
+    if (newer.nome) byName.set(newer.nome.toLowerCase(), newer);
   }
   return [...map.values()];
 }
@@ -88,9 +127,11 @@ export function mergePayload(a: CloudPayload | null | undefined, b: CloudPayload
     logs: mergeRows(left.logs, right.logs).sort((x, y) => (y.created_at || "").localeCompare(x.created_at || "")),
     contagens: mergeRows(left.contagens, right.contagens),
     contadores: [...new Set([...(left.contadores ?? []), ...(right.contadores ?? [])])].filter(Boolean).sort((a, b) => a.localeCompare(b, "pt-BR")),
-    atalhos: mergeRows(left.atalhos, right.atalhos),
+    atalhos: mergeAtalhos(left.atalhos, right.atalhos),
     operadores: [...new Set([...(left.operadores ?? []), ...(right.operadores ?? [])])].filter(Boolean).sort((a, b) => a.localeCompare(b, "pt-BR")),
     empilhadeiras: [...new Set([...(left.empilhadeiras ?? []), ...(right.empilhadeiras ?? [])])].filter(Boolean).sort((a, b) => a.localeCompare(b, "pt-BR")),
+    empilhadoresPessoas: mergeEmpilhadores(left.empilhadoresPessoas, right.empilhadoresPessoas),
+    fretes: mergeRows(left.fretes, right.fretes),
     stockResetAt,
   };
 }
@@ -110,6 +151,8 @@ export function emptyPayload(): CloudPayload {
     atalhos: [],
     operadores: [],
     empilhadeiras: [],
+    empilhadoresPessoas: [],
+    fretes: [],
     stockResetAt: null,
   };
 }

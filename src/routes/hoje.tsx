@@ -1,29 +1,30 @@
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { ArrowDownToLine, ArrowLeftRight, ArrowUpFromLine, Bookmark, BookmarkPlus, Plus, Trash2, Trophy } from "lucide-react";
+import { ArrowDownToLine, ArrowLeftRight, ArrowUpFromLine, Bookmark, BookmarkPlus, FileText, Plus, Trash2 } from "lucide-react";
 import { db } from "@/lib/store";
 import { useDb } from "@/lib/use-db";
 import { useSession } from "@/lib/session";
 import { destinoDaSaida, isPavTransfer, lugarDaSaida } from "@/lib/catalog";
 import { statusLabel, statusOf, tipoMovimentacaoOf } from "@/lib/movement";
 import { MovementDetail } from "@/components/inventory/movement-detail";
-import { formatDateBR, formatMinutes, formatNumber, formatTime, todayISO } from "@/lib/format";
-import { forkliftRanking, forkliftTrips } from "@/lib/forklift";
+import { formatDateBR, formatNumber, todayISO } from "@/lib/format";
 import { notify } from "@/lib/notify";
 import type { Atalho, AtalhoKind } from "@/lib/types";
+import { exportDiaCompletoPdf } from "@/lib/reports";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { PageHeader } from "@/components/page-header";
 import { PageStage } from "@/components/motion/page-stage";
 import { EmptyState } from "@/components/empty-state";
 import { Badge } from "@/components/ui/badge";
 import { ProductLabel } from "@/components/inventory/product-icon";
 import { PavPicker } from "@/components/inventory/pav-mark";
+import { ProductPicker } from "@/components/inventory/product-picker";
 import { ConfirmDialog } from "@/components/feedback/confirm-dialog";
+import { HojeCharts } from "@/components/hoje/hoje-charts";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/hoje")({ component: Hoje });
@@ -33,15 +34,13 @@ function Hoje() {
   const { perfil } = useSession();
   const navigate = useNavigate();
   const hoje = todayISO();
-  const [tick, setTick] = useState(0);
   const pavilhoes = live.listPavilhoes();
   const destinos = live.listDestinos(true);
   const mercadorias = live.listMercadorias(true);
-  const atalhos = useMemo(() => live.listAtalhos(), [live, tick]);
-  const movs = useMemo(() => live.listSaidas({ from: hoje, to: hoje }), [live, tick, hoje]);
+  const atalhos = live.listAtalhos();
+  const movs = live.listSaidas({ from: hoje, to: hoje });
   const entradas = movs.filter((s) => (s.tipo ?? "saida") === "entrada");
   const saidas = movs.filter((s) => (s.tipo ?? "saida") === "saida");
-  const stats = useMemo(() => forkliftRanking(forkliftTrips(saidas, pavilhoes)), [saidas, pavilhoes]);
 
   const [open, setOpen] = useState(false);
   const [kind, setKind] = useState<AtalhoKind>("transferencia");
@@ -50,6 +49,7 @@ function Hoje() {
   const [destPav, setDestPav] = useState("");
   const [destId, setDestId] = useState("");
   const [mercId, setMercId] = useState("");
+  const [formError, setFormError] = useState("");
   const [pending, setPending] = useState<Atalho | null>(null);
   const [view, setView] = useState<(typeof movs)[number] | null>(null);
   const transito = saidas.filter((s) => statusOf(s) === "em_transito").length;
@@ -63,10 +63,12 @@ function Hoje() {
     setDestPav("");
     setDestId("");
     setMercId("");
+    setFormError("");
   }
 
   function saveAtalho() {
     try {
+      setFormError("");
       const row = db.createAtalho({
         kind,
         nome,
@@ -75,18 +77,18 @@ function Hoje() {
         destino_id: kind === "saida" ? destId : undefined,
         mercadoria_id: mercId || undefined,
       });
-      setTick((n) => n + 1);
       setOpen(false);
       resetForm();
       notify.success(`Atalho “${row.nome}” na lista.`);
     } catch (err) {
-      notify.error(err instanceof Error ? err.message : "Não foi possível criar o atalho.");
+      const msg = err instanceof Error ? err.message : "Não foi possível criar o atalho.";
+      setFormError(msg);
+      notify.error(msg);
     }
   }
 
   function runAtalho(a: Atalho) {
     db.touchAtalho(a.id);
-    setTick((n) => n + 1);
     if (a.kind === "entrada") {
       void navigate({ to: "/entradas", search: { pav: a.origem_pavilhao_id, produto: a.mercadoria_id } });
       return;
@@ -111,7 +113,6 @@ function Hoje() {
           origem_pavilhao_id: s.pavilhao_id,
           mercadoria_id: s.mercadoria_id,
         });
-        setTick((n) => n + 1);
         notify.success(`Atalho “${row.nome}” na lista.`);
         return;
       }
@@ -122,7 +123,6 @@ function Hoje() {
         destino_id: s.destino_id || undefined,
         mercadoria_id: s.mercadoria_id,
       });
-      setTick((n) => n + 1);
       notify.success(`Atalho “${row.nome}” na lista.`);
     } catch (err) {
       notify.error(err instanceof Error ? err.message : "Não foi possível criar o atalho.");
@@ -138,6 +138,9 @@ function Hoje() {
         title="Hoje"
         description={`${weekday} · ${formatDateBR(hoje)}. Atalhos da operação e o que já saiu ou entrou nesta tarde.`}
       >
+        <Button variant="outline" onClick={() => exportDiaCompletoPdf(hoje)}>
+          <FileText /> PDF do dia
+        </Button>
         <Button onClick={() => setOpen(true)}>
           <Plus /> Novo atalho
         </Button>
@@ -173,7 +176,7 @@ function Hoje() {
                 </button>
                 <button
                   type="button"
-                  className="shrink-0 border-l border-border px-3 text-muted-foreground hover:bg-muted hover:text-destructive"
+                  className="flex min-w-12 shrink-0 items-center justify-center border-l border-border px-3 text-muted-foreground hover:bg-muted hover:text-destructive"
                   aria-label="Excluir atalho"
                   onClick={() => setPending(a)}
                 >
@@ -192,6 +195,8 @@ function Hoje() {
         <Kpi label="Produtos movimentados" value={produtosMov} />
         <Kpi label="Contagens" value={contagensHoje} />
       </section>
+
+      <HojeCharts />
 
       <section className="space-y-2">
         <h2 className="text-sm font-semibold">Movimentações de hoje</h2>
@@ -248,38 +253,6 @@ function Hoje() {
         </Card>
       </section>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-base">
-            <Trophy className="h-4 w-4 text-primary" /> Ranking de empilhadores
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          {stats.rank.length === 0 ? (
-            <p className="text-sm text-muted-foreground">
-              Na saída, escreva quem foi o empilhador — não é obrigatório. Com duas viagens o ranking já começa a medir o tempo médio de cada um.
-            </p>
-          ) : (
-            <ol className="space-y-2">
-              {stats.rank.slice(0, 6).map((r, i) => (
-                <li key={r.nome} className="flex items-center justify-between gap-3 rounded-xl border border-border px-3 py-2">
-                  <div className="min-w-0">
-                    <p className="text-sm font-semibold">
-                      <span className="mr-2 tabular-nums text-muted-foreground">{i + 1}.</span>
-                      {r.nome}
-                    </p>
-                    <p className="text-[11px] text-muted-foreground">
-                      {r.trips} {r.trips === 1 ? "viagem" : "viagens"} · mais rápido {formatMinutes(r.fastest)} · mais lento {formatMinutes(r.slowest)}
-                    </p>
-                  </div>
-                  <p className={cn("shrink-0 text-sm font-semibold tabular-nums", i === 0 && "text-primary")}>{formatMinutes(r.avg)}</p>
-                </li>
-              ))}
-            </ol>
-          )}
-        </CardContent>
-      </Card>
-
       <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) resetForm(); }}>
         <DialogContent>
           <DialogHeader>
@@ -322,36 +295,32 @@ function Hoje() {
             {kind === "saida" ? (
               <div className="space-y-1.5">
                 <Label>Cliente</Label>
-                <Select value={destId} onValueChange={setDestId}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Quem recebe" />
-                  </SelectTrigger>
-                  <SelectContent>
+                {destinos.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">Cadastre um cliente em Clientes antes de criar este atalho.</p>
+                ) : (
+                  <div className="flex max-h-40 flex-col gap-1 overflow-y-auto">
                     {destinos.map((d) => (
-                      <SelectItem key={d.id} value={d.id}>
+                      <button
+                        key={d.id}
+                        type="button"
+                        onClick={() => setDestId(d.id)}
+                        className={cn(
+                          "rounded-xl border px-3 py-2 text-left text-sm",
+                          destId === d.id ? "border-primary bg-mint font-medium" : "border-border hover:bg-muted",
+                        )}
+                      >
                         {d.nome}
-                      </SelectItem>
+                      </button>
                     ))}
-                  </SelectContent>
-                </Select>
+                  </div>
+                )}
               </div>
             ) : null}
             <div className="space-y-1.5">
               <Label>Produto (opcional)</Label>
-              <Select value={mercId || "none"} onValueChange={(v) => setMercId(v === "none" ? "" : v)}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Qualquer produto" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">Qualquer produto</SelectItem>
-                  {mercadorias.slice(0, 80).map((m) => (
-                    <SelectItem key={m.id} value={m.id}>
-                      {m.codigo} · {m.nome}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <ProductPicker items={mercadorias} value={mercId} onChange={(id) => setMercId(id)} placeholder="Qualquer produto — busque se quiser fixar um" />
             </div>
+            {formError ? <p className="text-sm text-destructive">{formError}</p> : null}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setOpen(false)}>
@@ -368,10 +337,10 @@ function Hoje() {
         title={pending ? `Tirar “${pending.nome}” da lista?` : "Excluir atalho"}
         description="O atalho sai da lista. Os lançamentos que já foram feitos ficam no histórico."
         onConfirm={() => {
-          if (!pending) return;
-          db.deleteAtalho(pending.id);
+          const row = pending;
+          if (!row) return;
+          db.deleteAtalho(row.id);
           setPending(null);
-          setTick((n) => n + 1);
           notify.success("Atalho removido.");
         }}
       />

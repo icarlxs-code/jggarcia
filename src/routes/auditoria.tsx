@@ -69,6 +69,9 @@ function entidadeLabel(entidade: AuditEntidade) {
   if (entidade === "pavilhao") return "pavilhão";
   if (entidade === "contagem") return "contagem";
   if (entidade === "seguranca") return "segurança";
+  if (entidade === "fornecedor") return "fornecedor";
+  if (entidade === "empilhador") return "empilhador";
+  if (entidade === "frete") return "frete";
   return entidade;
 }
 

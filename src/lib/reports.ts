@@ -1,5 +1,5 @@
 import { destinoDaSaida, lugarDaSaida, pavTitle } from "./catalog";
-import { formatDateBR, formatNumber, formatPeriodo, formatTime, formatMinutes } from "./format";
+import { formatDateBR, formatNumber, formatPeriodo, formatTime, formatMinutes, localDateISO } from "./format";
 import { motivoContagemLabel } from "./constants";
 import { db, resolvePavilhaoId } from "./store";
 import type { Contagem, Destino, Pavilhao, Saida } from "./types";
@@ -7,6 +7,7 @@ import { esc, printHtml } from "./print-pdf";
 import { notify } from "./notify";
 import { forkliftRanking, forkliftTrips } from "./forklift";
 import { tipoMovimentacaoOf } from "./movement";
+import { fold } from "./utils";
 
 export type ReportKind = "tudo" | "entrada" | "saida" | "contagem";
 
@@ -17,6 +18,7 @@ export interface ReportOpts {
   kind: ReportKind;
   mercadoriaId?: string;
   destinoId?: string;
+  produtoQuery?: string;
 }
 
 export interface ReportRow {
@@ -43,6 +45,13 @@ function pavOf(s: Saida, pavilhoes: Pavilhao[]) {
   return resolvePavilhaoId(pavilhoes, s.pavilhao_id || s.pavilhao || s.origem);
 }
 
+function matchesProduto(opts: ReportOpts, nome: string, codigo: string, id: string) {
+  if (opts.mercadoriaId && id !== opts.mercadoriaId) return false;
+  const q = fold(opts.produtoQuery || "").trim();
+  if (!q) return true;
+  return fold(nome).includes(q) || fold(codigo).includes(q) || fold(codigo).replace(/^0+/, "").includes(q.replace(/^0+/, ""));
+}
+
 export function collectReport(opts: ReportOpts): ReportRow[] {
   const pavilhoes = db.listPavilhoes(true);
   const rows: ReportRow[] = [];
@@ -57,7 +66,11 @@ export function collectReport(opts: ReportOpts): ReportRow[] {
       if (tipo === "entrada" && !wantIn) continue;
       if (tipo === "saida" && !wantOut) continue;
       if (opts.mercadoriaId && s.mercadoria_id !== opts.mercadoriaId) continue;
-      if (opts.destinoId && tipo === "saida" && s.destino_id !== opts.destinoId) continue;
+      if (!matchesProduto(opts, s.mercadoria?.nome ?? "", s.mercadoria?.codigo ?? "", s.mercadoria_id)) continue;
+      if (opts.destinoId) {
+        if (tipo === "entrada") continue;
+        if (s.destino_id !== opts.destinoId) continue;
+      }
       if (opts.pavilhaoId !== "todos") {
         const pid = pavOf(s, pavilhoes);
         const destPid = resolvePavilhaoId(pavilhoes, s.destino_pavilhao_id);
@@ -68,6 +81,7 @@ export function collectReport(opts: ReportOpts): ReportRow[] {
         s.destino_pavilhao_id ? "transferência" : "",
         s.operador_nome ? `empilhador ${s.operador_nome}` : "",
         s.empilhadeira ? `máquina ${s.empilhadeira}` : "",
+        s.observacao ? s.observacao : "",
       ].filter(Boolean);
       rows.push({
         kind: tipo,
@@ -79,7 +93,7 @@ export function collectReport(opts: ReportOpts): ReportRow[] {
         quantidade: Number(s.quantidade) || 0,
         unidade: s.unidade,
         lugar: lugarDaSaida(pavilhoes, s),
-        cliente: tipo === "saida" ? s.destino?.nome ?? "—" : "",
+        cliente: tipo === "saida" ? destinoDaSaida(pavilhoes, s) : "",
         usuario: s.usuario?.nome ?? "—",
         extra: extras.join(" · "),
         destinoId: s.destino_id,
@@ -94,9 +108,9 @@ export function collectReport(opts: ReportOpts): ReportRow[] {
   if (wantCount) {
     for (const c of db.listContagens()) {
       if (c.data < opts.from || c.data > opts.to) continue;
-      if (opts.mercadoriaId && c.mercadoria_id !== opts.mercadoriaId) continue;
       if (opts.pavilhaoId !== "todos" && c.pavilhao_id !== opts.pavilhaoId) continue;
       const merc = db.listMercadorias().find((m) => m.id === c.mercadoria_id);
+      if (!matchesProduto(opts, merc?.nome ?? "", merc?.codigo ?? "", c.mercadoria_id)) continue;
       const pav = pavilhoes.find((p) => p.id === c.pavilhao_id);
       rows.push({
         kind: "contagem",
@@ -129,6 +143,8 @@ export function reportTitle(opts: ReportOpts, pavilhoes: Pavilhao[]) {
   if (opts.mercadoriaId) {
     const m = db.listMercadorias().find((x) => x.id === opts.mercadoriaId);
     if (m) bits.push(m.nome);
+  } else if (opts.produtoQuery?.trim()) {
+    bits.push(`Busca “${opts.produtoQuery.trim()}”`);
   }
   if (opts.destinoId) {
     const d = db.listDestinos().find((x) => x.id === opts.destinoId);
@@ -247,12 +263,34 @@ export function exportSaidasClientesPdf(opts: { from: string; to: string; pavilh
   });
 }
 
-export function exportForkliftPdf(opts: { from: string; to: string }) {
+export function exportProdutoMovimentoPdf(opts: {
+  from: string;
+  to: string;
+  pavilhaoId: string;
+  mercadoriaId?: string;
+  produtoQuery?: string;
+  kind?: ReportKind;
+}) {
+  exportReportPdf({
+    from: opts.from,
+    to: opts.to,
+    pavilhaoId: opts.pavilhaoId || "todos",
+    kind: opts.kind || "tudo",
+    mercadoriaId: opts.mercadoriaId,
+    produtoQuery: opts.produtoQuery,
+  });
+}
+
+export function exportForkliftPdf(opts: { from: string; to: string; operador?: string }) {
   const pavilhoes = db.listPavilhoes(true);
   const movs = db.listSaidas({ from: opts.from, to: opts.to, tipo: "saida" });
-  const trips = forkliftTrips(movs, pavilhoes);
+  const allTrips = forkliftTrips(movs, pavilhoes);
+  const trips = opts.operador
+    ? allTrips.filter((t) => t.operador.toLowerCase() === opts.operador!.trim().toLowerCase())
+    : allTrips;
   const stats = forkliftRanking(trips);
-  const title = "Empilhadeiras · ranking do período";
+  const who = opts.operador?.trim();
+  const title = who ? `Empilhador · ${who}` : "Empilhadeiras · ranking do período";
   const rankRows = stats.rank
     .map(
       (r, i) => `<tr>
@@ -299,7 +337,7 @@ export function exportForkliftPdf(opts: { from: string; to: string }) {
   const body = `
     <div class="meta">
       <span class="chip">${esc(formatPeriodo(opts.from, opts.to))}</span>
-      <span class="chip">Tempo de pavilhão a pavilhão e até o cliente</span>
+      <span class="chip">${who ? `Somente ${esc(who)}` : "Tempo de pavilhão a pavilhão e até o cliente"}</span>
     </div>
     <div class="kpis">${kpis}</div>
     <h2>Ranking de empilhadores</h2>
@@ -439,6 +477,136 @@ export function clientStats(from: string, to: string) {
     totalEntradas: entradas.reduce((a, s) => a + Number(s.quantidade || 0), 0),
   };
 }
+
+export function exportDiaCompletoPdf(date: string) {
+  const pavilhoes = db.listPavilhoes(true);
+  const rows = collectReport({ from: date, to: date, pavilhaoId: "todos", kind: "tudo" });
+  const ins = rows.filter((r) => r.kind === "entrada");
+  const outs = rows.filter((r) => r.kind === "saida");
+  const counts = rows.filter((r) => r.kind === "contagem");
+  const logs = db.listLogs().filter((l) => localDateISO(l.created_at) === date);
+  const stock = db.stockSnapshot(date);
+  const sum = (list: ReportRow[]) => list.reduce((a, r) => a + r.quantidade, 0);
+  const title = `Movimento do dia · ${formatDateBR(date)}`;
+  const kpis = [
+    ["Entradas", `${ins.length} · ${formatNumber(sum(ins))}`],
+    ["Saídas", `${outs.length} · ${formatNumber(sum(outs))}`],
+    ["Contagens", formatNumber(counts.length)],
+    ["Itens em estoque", formatNumber(stock.length)],
+  ]
+    .map(([k, v]) => `<div class="kpi"><span>${esc(k)}</span><b>${esc(v)}</b></div>`)
+    .join("");
+
+  const movRow = (list: ReportRow[], dest: boolean) =>
+    list
+      .map(
+        (r) => `<tr>
+      <td>${esc(formatTime(r.hora) === "—" ? "" : formatTime(r.hora))}${r.horaChegada ? ` → ${esc(formatTime(r.horaChegada))}` : ""}</td>
+      <td><div class="muted" style="font-family:IBM Plex Mono,monospace;font-size:10px">${esc(r.codigo)}</div>${esc(r.produto)}</td>
+      <td class="num">${esc(formatNumber(r.quantidade))} ${esc(r.unidade)}</td>
+      <td>${esc(r.lugar)}${dest ? `<div class="muted">→ ${esc(r.cliente || "—")}</div>` : ""}</td>
+      <td>${esc(r.usuario)}${r.operador ? `<div class="muted">Empilhador ${esc(r.operador)}</div>` : ""}${r.extra ? `<div class="muted">${esc(r.extra)}</div>` : ""}</td>
+    </tr>`,
+      )
+      .join("");
+
+  const countHtml = counts
+    .map(
+      (r) => `<tr>
+      <td>${esc(r.produto)}</td>
+      <td class="num">${esc(formatNumber(r.quantidade))} ${esc(r.unidade)}</td>
+      <td>${esc(r.lugar)}</td>
+      <td>${esc(r.usuario)}</td>
+      <td>${esc(r.extra)}</td>
+    </tr>`,
+    )
+    .join("");
+
+  const logHtml = logs
+    .slice(0, 80)
+    .map(
+      (l) => `<tr>
+      <td>${esc((l.created_at || "").slice(11, 16))}</td>
+      <td>${esc(l.usuario_nome)}</td>
+      <td>${esc(l.acao)}</td>
+      <td>${esc(l.resumo)}${l.detalhe ? `<div class="muted">${esc(l.detalhe)}</div>` : ""}</td>
+    </tr>`,
+    )
+    .join("");
+
+  const stockHtml = stock
+    .map(
+      (p) => `<tr>
+      <td><div class="muted" style="font-family:IBM Plex Mono,monospace;font-size:10px">${esc(p.codigo)}</div>${esc(p.nome)}</td>
+      <td class="num">${esc(formatNumber(p.total))} ${esc(p.unidade)}</td>
+      <td>${esc(p.positions.map((x) => `${x.nome} ${formatNumber(x.quantidade)}`).join(" · "))}</td>
+    </tr>`,
+    )
+    .join("");
+
+  let sections = "";
+  sections += ins.length
+    ? `<h2>Entradas · ${ins.length}</h2>${table(["Hora", "Produto", "Qtd", "Entrou em", "Quem lançou"], movRow(ins, false))}`
+    : `<h2>Entradas</h2><p class="empty">Nenhuma entrada neste dia.</p>`;
+  sections += outs.length
+    ? `<h2>Saídas e transferências · ${outs.length}</h2>${table(["Hora", "Produto", "Qtd", "De → Para", "Quem lançou / empilhador"], movRow(outs, true))}`
+    : `<h2>Saídas</h2><p class="empty">Nenhuma saída neste dia.</p>`;
+  sections += counts.length
+    ? `<h2>Contagens · ${counts.length}</h2>${table(["Produto", "Contado", "Lugar", "Quem contou", "Diferença"], countHtml)}`
+    : `<h2>Contagens</h2><p class="empty">Nenhuma contagem neste dia.</p>`;
+  sections += logs.length
+    ? `<h2>Quem editou, cadastrou ou desfez · ${logs.length}</h2>${table(["Hora", "Pessoa", "Ação", "Detalhe"], logHtml)}`
+    : `<h2>Alterações</h2><p class="empty">Nenhuma edição registrada neste dia.</p>`;
+  sections += stock.length
+    ? `<h2>Estoque no fim do dia · ${stock.length} produtos</h2>${table(["Produto", "Total", "Por pavilhão"], stockHtml)}`
+    : `<h2>Estoque</h2><p class="empty">Nenhum saldo neste dia.</p>`;
+
+  const body = `
+    <div class="meta">
+      <span class="chip">${esc(formatDateBR(date))}</span>
+      <span class="chip">Entradas, saídas, contagens, edições e estoque</span>
+    </div>
+    <div class="kpis">${kpis}</div>
+    ${sections}
+  `;
+  printHtml(title, body);
+  notify.success("Na impressão, escolha Salvar como PDF.");
+}
+
+export function exportEstoqueDiaPdf(date?: string) {
+  const dia = date || "";
+  const stock = db.stockSnapshot(dia || undefined);
+  const title = dia ? `Estoque · ${formatDateBR(dia)}` : "Estoque atual";
+  const kpis = [
+    ["Produtos com saldo", formatNumber(stock.length)],
+    ["Total de linhas", formatNumber(stock.reduce((a, p) => a + p.positions.length, 0))],
+    ["Dia", dia ? formatDateBR(dia) : "Posição atual"],
+    ["Itens", formatNumber(stock.reduce((a, p) => a + p.total, 0))],
+  ]
+    .map(([k, v]) => `<div class="kpi"><span>${esc(k)}</span><b>${esc(v)}</b></div>`)
+    .join("");
+  const bodyRows = stock
+    .map(
+      (p) => `<tr>
+      <td><div class="muted" style="font-family:IBM Plex Mono,monospace;font-size:10px">${esc(p.codigo)}</div>${esc(p.nome)}</td>
+      <td class="num">${esc(formatNumber(p.total))} ${esc(p.unidade)}</td>
+      <td>${esc(p.positions.map((x) => `${x.nome} ${formatNumber(x.quantidade)}`).join(" · ") || "—")}</td>
+    </tr>`,
+    )
+    .join("");
+  const body = `
+    <div class="meta">
+      <span class="chip">${esc(title)}</span>
+      <span class="chip">${esc(stock.length ? `${stock.length} produtos` : "Sem saldo")}</span>
+    </div>
+    <div class="kpis">${kpis}</div>
+    <h2>Posição</h2>
+    ${stock.length ? table(["Produto", "Total", "Por pavilhão"], bodyRows) : `<p class="empty">Nenhum produto com saldo neste recorte.</p>`}
+  `;
+  printHtml(title, body);
+  notify.success("Na impressão, escolha Salvar como PDF.");
+}
+
 
 export function clientsForProduct(mercadoriaId: string, from: string, to: string) {
   const merc = db.listMercadorias().find((m) => m.id === mercadoriaId);

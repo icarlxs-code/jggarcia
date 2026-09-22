@@ -8,7 +8,7 @@ import { notify } from "@/lib/notify";
 import { destinoDaSaida, isPavTransfer, lugarDaSaida } from "@/lib/catalog";
 import { estoqueLabel, statusLabel, statusOf } from "@/lib/movement";
 import { MovementDetail } from "@/components/inventory/movement-detail";
-import { exportSaidasClientesPdf } from "@/lib/reports";
+import { exportDiaCompletoPdf, exportSaidasClientesPdf } from "@/lib/reports";
 import { ConfirmDialog } from "@/components/feedback/confirm-dialog";
 import { PageStage } from "@/components/motion/page-stage";
 import type { Saida } from "@/lib/types";
@@ -27,6 +27,7 @@ import { useViewport } from "@/lib/use-viewport";
 import { rowEl, tossAway } from "@/lib/toss";
 import { cn } from "@/lib/utils";
 import { NameRecall } from "@/components/inventory/name-recall";
+import { PeriodFilter, periodRange, type PeriodKey } from "@/components/inventory/period-filter";
 
 export const Route = createFileRoute("/historico")({ component: Historico });
 
@@ -37,6 +38,9 @@ function Historico() {
   const saidas = useMemo(() => live.listSaidas().filter((s) => (s.tipo ?? "saida") === "saida"), [tick, live]);
   const pavilhoes = live.listPavilhoes(true);
   const [q, setQ] = useState("");
+  const [period, setPeriod] = useState<PeriodKey>("hoje");
+  const [day, setDay] = useState(todayISO());
+  const [obs, setObs] = useState("");
   const [view, setView] = useState<Saida | null>(null);
   const [edit, setEdit] = useState<Saida | null>(null);
   const [qtd, setQtd] = useState("");
@@ -46,7 +50,9 @@ function Historico() {
   const [operador, setOperador] = useState("");
   const [pending, setPending] = useState<Saida | null>(null);
 
+  const range = periodRange(period, day);
   const filtered = saidas.filter((s) => {
+    if (s.data < range.from || s.data > range.to) return false;
     const term = q.trim().toLowerCase();
     if (!term) return true;
     const blob = [
@@ -76,6 +82,7 @@ function Historico() {
     setHoraChegada((s.hora_chegada || "").slice(0, 5));
     setDesconta(s.desconta_estoque !== false);
     setOperador(s.operador_nome || "");
+    setObs(s.observacao || "");
   }
 
   function saveEdit() {
@@ -98,6 +105,7 @@ function Historico() {
       tempo_transporte: hc ? calcTransportTime(hs, hc) : null,
       desconta_estoque: desconta,
       operador_nome: operador.trim() || "",
+      observacao: obs.trim() || "",
     });
     setEdit(null);
     setTick((t) => t + 1);
@@ -107,8 +115,11 @@ function Historico() {
   return (
     <PageStage className="space-y-4">
       <PageHeader icon="out" title="Saídas / Expedição" description={`${filtered.length} lançamentos · toque no registro para ver horário, origem e se baixou estoque`}>
-        <Button variant="outline" onClick={() => exportSaidasClientesPdf({ from: todayISO(), to: todayISO() })}>
-          <FileText /> PDF de hoje
+        <Button variant="outline" onClick={() => exportDiaCompletoPdf(range.from === range.to ? range.from : todayISO())}>
+          <FileText /> PDF completo do dia
+        </Button>
+        <Button variant="outline" onClick={() => exportSaidasClientesPdf({ from: range.from, to: range.to })}>
+          PDF das saídas
         </Button>
         <Button asChild>
           <Link to="/nova-saida">
@@ -116,6 +127,7 @@ function Historico() {
           </Link>
         </Button>
       </PageHeader>
+      <PeriodFilter value={period} day={day} onChange={(k, d) => { setPeriod(k); setDay(d); }} />
       <div className="relative max-w-md">
         <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
         <Input className="pl-10" placeholder="Buscar produto, destino, pavilhão ou hora" value={q} onChange={(e) => setQ(e.target.value)} />
@@ -287,6 +299,16 @@ function Historico() {
               names={live.listOperadores()}
               placeholder="Quem moveu"
             />
+            <div className="space-y-2">
+              <Label htmlFor="eh-obs">Observação</Label>
+              <textarea
+                id="eh-obs"
+                value={obs}
+                onChange={(e) => setObs(e.target.value)}
+                rows={3}
+                className="min-h-20 w-full resize-y rounded-lg border border-border bg-card px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
+              />
+            </div>
             <div className="space-y-2">
               <Label>Estoque</Label>
               <div className={cn("stock-mode-tabs", !desconta && "is-off")}>

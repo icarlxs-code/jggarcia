@@ -1,11 +1,11 @@
 import { useMemo, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { ArrowDownToLine, ArrowLeftRight, ArrowUpFromLine, ClipboardCheck, Search } from "lucide-react";
+import { ArrowDownToLine, ArrowLeftRight, ArrowUpFromLine, ClipboardCheck, Pencil, Search } from "lucide-react";
 import { useDb } from "@/lib/use-db";
 import { db } from "@/lib/store";
 import { buildTimeline, movementSearchBlob, qtyLine, statusLabel, tipoMovLabel, type TimelineItem } from "@/lib/movement";
-import { formatDateBR, formatNumber, isoDaysAgo, nowHHMM, todayISO } from "@/lib/format";
-import { fold } from "@/lib/utils";
+import { calcTransportTime, completeTime, formatDateBR, formatNumber, isoDaysAgo, isValidTime, nowHHMM, todayISO } from "@/lib/format";
+import { cn, fold } from "@/lib/utils";
 import { notify } from "@/lib/notify";
 import type { Saida } from "@/lib/types";
 import { Button } from "@/components/ui/button";
@@ -20,7 +20,7 @@ import { MovementDetail } from "@/components/inventory/movement-detail";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { TimeField } from "@/components/ui/time-field";
-import { cn } from "@/lib/utils";
+import { NameRecall } from "@/components/inventory/name-recall";
 
 export const Route = createFileRoute("/movimentacoes")({ component: Movimentacoes });
 
@@ -37,6 +37,13 @@ function Movimentacoes() {
   const [view, setView] = useState<Saida | null>(null);
   const [arrive, setArrive] = useState<Saida | null>(null);
   const [horaChegada, setHoraChegada] = useState(nowHHMM);
+  const [edit, setEdit] = useState<Saida | null>(null);
+  const [qtd, setQtd] = useState("");
+  const [horaSaida, setHoraSaida] = useState("");
+  const [horaEditChegada, setHoraEditChegada] = useState("");
+  const [desconta, setDesconta] = useState(true);
+  const [operador, setOperador] = useState("");
+  const [obs, setObs] = useState("");
   const saidas = live.listSaidas();
   const contagens = live.listContagens();
   const pavilhoes = live.listPavilhoes(true);
@@ -58,6 +65,47 @@ function Movimentacoes() {
       return fold(movementSearchBlob(item)).includes(term);
     });
   }, [timeline, kind, period, q, from, to]);
+
+  function openEdit(s: Saida) {
+    setView(null);
+    setEdit(s);
+    setQtd(String(s.quantidade));
+    setHoraSaida((s.hora_saida || "").slice(0, 5));
+    setHoraEditChegada((s.hora_chegada || "").slice(0, 5));
+    setDesconta(s.desconta_estoque !== false);
+    setOperador(s.operador_nome || "");
+    setObs(s.observacao || "");
+  }
+
+  function saveEdit() {
+    if (!edit) return;
+    const n = Number(qtd);
+    if (!n || n <= 0) {
+      notify.error("Quantidade inválida.");
+      return;
+    }
+    const hs = horaSaida.trim() ? completeTime(horaSaida) : "";
+    const hc = horaEditChegada.trim() ? completeTime(horaEditChegada) : "";
+    if (hs && !isValidTime(hs)) {
+      notify.error("Hora de saída inválida.");
+      return;
+    }
+    if (hc && !isValidTime(hc)) {
+      notify.error("Hora de chegada inválida.");
+      return;
+    }
+    db.updateSaida(edit.id, {
+      quantidade: n,
+      hora_saida: hs || null,
+      hora_chegada: hc || null,
+      tempo_transporte: hs && hc ? calcTransportTime(hs, hc) : null,
+      desconta_estoque: desconta,
+      operador_nome: operador.trim() || "",
+      observacao: obs.trim() || "",
+    });
+    setEdit(null);
+    notify.success("Movimentação atualizada.");
+  }
 
   function openItem(item: TimelineItem) {
     if (item.saida) setView(item.saida);
@@ -175,6 +223,7 @@ function Movimentacoes() {
       <MovementDetail
         view={view}
         onClose={() => setView(null)}
+        onEdit={openEdit}
         onArrive={(s) => {
           setView(null);
           setArrive(s);
@@ -207,6 +256,70 @@ function Movimentacoes() {
               }}
             >
               Confirmar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      <Dialog open={!!edit} onOpenChange={(o) => !o && setEdit(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Editar movimentação</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <p className="text-sm text-muted-foreground">{edit?.mercadoria?.nome}</p>
+            <div className="space-y-2">
+              <Label htmlFor="mq">Quantidade</Label>
+              <Input id="mq" type="number" value={qtd} onChange={(e) => setQtd(e.target.value)} />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <Label>Saiu às</Label>
+                <TimeField value={horaSaida} onChange={setHoraSaida} />
+              </div>
+              <div className="space-y-2">
+                <Label>Chegou às</Label>
+                <TimeField value={horaEditChegada} onChange={setHoraEditChegada} />
+              </div>
+            </div>
+            <NameRecall
+              id="mov-op"
+              label="Empilhador"
+              value={operador}
+              onChange={setOperador}
+              names={live.listOperadores()}
+              placeholder="Quem moveu"
+            />
+            <div className="space-y-2">
+              <Label htmlFor="mov-obs">Observação</Label>
+              <textarea
+                id="mov-obs"
+                value={obs}
+                onChange={(e) => setObs(e.target.value)}
+                rows={3}
+                className="min-h-20 w-full resize-y rounded-lg border border-border bg-card px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
+              />
+            </div>
+            {(edit?.tipo ?? "saida") !== "entrada" ? (
+              <div className="space-y-2">
+                <Label>Estoque</Label>
+                <div className={cn("stock-mode-tabs", !desconta && "is-off")}>
+                  <span className="stock-mode-pill" aria-hidden />
+                  <button type="button" className={cn(desconta && "is-on")} onClick={() => setDesconta(true)}>
+                    Descontar
+                  </button>
+                  <button type="button" className={cn(!desconta && "is-on")} onClick={() => setDesconta(false)}>
+                    Não descontar
+                  </button>
+                </div>
+              </div>
+            ) : null}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEdit(null)}>
+              Cancelar
+            </Button>
+            <Button onClick={saveEdit}>
+              <Pencil className="h-4 w-4" /> Salvar
             </Button>
           </DialogFooter>
         </DialogContent>

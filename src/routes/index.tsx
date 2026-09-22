@@ -213,18 +213,36 @@ function Dashboard() {
             </div>
           </CardHeader>
           <CardContent>
-            <div className="h-52">
+            <div className="aspect-[12/9] max-h-52">
               {movs.length === 0 ? (
                 <p className="flex h-full items-center justify-center text-sm text-muted-foreground">Sem movimentação ainda.</p>
               ) : (
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={stats.semana}>
+                  <BarChart data={stats.semana} barGap={6} barCategoryGap="28%">
+                    <defs>
+                      <linearGradient id="dashIn" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="var(--color-primary)" stopOpacity={1} />
+                        <stop offset="100%" stopColor="var(--color-primary)" stopOpacity={0.55} />
+                      </linearGradient>
+                      <linearGradient id="dashOut" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="var(--color-gold)" stopOpacity={1} />
+                        <stop offset="100%" stopColor="var(--color-gold)" stopOpacity={0.5} />
+                      </linearGradient>
+                    </defs>
                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--color-border)" />
-                    <XAxis dataKey="name" tick={{ fontSize: 11 }} />
-                    <YAxis tick={{ fontSize: 11 }} width={36} />
-                    <ChartTooltip />
-                    <Bar dataKey="entradas" fill="var(--color-primary)" radius={[4, 4, 0, 0]} />
-                    <Bar dataKey="saidas" fill="var(--color-gold)" radius={[4, 4, 0, 0]} />
+                    <XAxis dataKey="name" tick={{ fontSize: 11, fill: "var(--color-muted-foreground)" }} axisLine={false} tickLine={false} />
+                    <YAxis tick={{ fontSize: 11, fill: "var(--color-muted-foreground)" }} width={36} axisLine={false} tickLine={false} />
+                    <ChartTooltip
+                      cursor={{ fill: "var(--color-muted)", fillOpacity: 0.35 }}
+                      contentStyle={{
+                        borderRadius: 12,
+                        border: "1px solid var(--color-border)",
+                        background: "var(--color-card)",
+                        fontSize: 12,
+                      }}
+                    />
+                    <Bar dataKey="entradas" name="Entradas" fill="url(#dashIn)" radius={[8, 8, 2, 2]} maxBarSize={28} />
+                    <Bar dataKey="saidas" name="Saídas" fill="url(#dashOut)" radius={[8, 8, 2, 2]} maxBarSize={28} />
                   </BarChart>
                 </ResponsiveContainer>
               )}

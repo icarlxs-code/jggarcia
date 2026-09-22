@@ -26,6 +26,7 @@ import { hydrateFromCloud } from "@/lib/store";
 import { fold } from "@/lib/utils";
 import { rowEl, tossAway } from "@/lib/toss";
 import type { Saida } from "@/lib/types";
+import { PeriodFilter, periodRange, type PeriodKey } from "@/components/inventory/period-filter";
 
 export const Route = createFileRoute("/entradas")({
   validateSearch: (s: Record<string, unknown>): { produto?: string; pav?: string } => ({
@@ -53,9 +54,15 @@ function Entradas() {
   const [pending, setPending] = useState<Saida | null>(null);
   const [dup, setDup] = useState<Saida | null>(null);
   const [rise, setRise] = useState<StockRise | null>(null);
+  const [period, setPeriod] = useState<PeriodKey>("hoje");
+  const [day, setDay] = useState(todayISO());
 
   const hoje = todayISO();
-  const registros = useMemo(() => live.listSaidas({ tipo: "entrada" }), [live, tick]);
+  const range = periodRange(period, day);
+  const registros = useMemo(
+    () => live.listSaidas({ tipo: "entrada", from: range.from, to: range.to }),
+    [live, tick, range.from, range.to],
+  );
 
   const filtradas = mercadorias
     .filter((m) => {
@@ -302,10 +309,11 @@ function Entradas() {
         <CardHeader>
           <CardTitle>Histórico de entradas</CardTitle>
           <CardDescription>Altere a quantidade, diminua ou desfaça um lançamento errado. O estoque se ajusta na hora.</CardDescription>
+          <PeriodFilter value={period} day={day} onChange={(k, d) => { setPeriod(k); setDay(d); }} />
         </CardHeader>
         <CardContent>
           {registros.length === 0 ? (
-            <p className="text-sm text-muted-foreground">Nenhuma entrada lançada ainda.</p>
+            <p className="text-sm text-muted-foreground">Nenhuma entrada neste período.</p>
           ) : (
             <ul className="divide-y divide-border">
               {registros.map((s) => (

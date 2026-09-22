@@ -75,6 +75,7 @@ export function MovementDetail({
             <Row label="Tempo de transporte" value={formatMinutes(view.tempo_transporte)} />
             <Row label="Empilhador" value={view.operador_nome || "Não informado"} />
             <Row label="Responsável pelo lançamento" value={view.usuario?.nome ?? "—"} />
+            {view.observacao ? <Row label="Observação" value={view.observacao} /> : null}
             <Row label="Estoque" value={estoqueLabel(view)} />
             {view.estoque_origem_antes != null ? (
               <Row

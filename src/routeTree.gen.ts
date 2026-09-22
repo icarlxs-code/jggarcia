@@ -15,9 +15,11 @@ import { Route as ClientesRouteImport } from './routes/clientes'
 import { Route as ConfiguracoesRouteImport } from './routes/configuracoes'
 import { Route as ContagemRouteImport } from './routes/contagem'
 import { Route as DestinosRouteImport } from './routes/destinos'
+import { Route as EmpilhadoresRouteImport } from './routes/empilhadores'
 import { Route as EntradasRouteImport } from './routes/entradas'
 import { Route as EstoqueRouteImport } from './routes/estoque'
 import { Route as FornecedoresRouteImport } from './routes/fornecedores'
+import { Route as FretesRouteImport } from './routes/fretes'
 import { Route as HistoricoRouteImport } from './routes/historico'
 import { Route as HojeRouteImport } from './routes/hoje'
 import { Route as LotesRouteImport } from './routes/lotes'
@@ -61,6 +63,11 @@ const DestinosRoute = DestinosRouteImport.update({
   path: '/destinos',
   getParentRoute: () => rootRouteImport,
 } as any)
+const EmpilhadoresRoute = EmpilhadoresRouteImport.update({
+  id: '/empilhadores',
+  path: '/empilhadores',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const EntradasRoute = EntradasRouteImport.update({
   id: '/entradas',
   path: '/entradas',
@@ -74,6 +81,11 @@ const EstoqueRoute = EstoqueRouteImport.update({
 const FornecedoresRoute = FornecedoresRouteImport.update({
   id: '/fornecedores',
   path: '/fornecedores',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const FretesRoute = FretesRouteImport.update({
+  id: '/fretes',
+  path: '/fretes',
   getParentRoute: () => rootRouteImport,
 } as any)
 const HistoricoRoute = HistoricoRouteImport.update({
@@ -144,9 +156,11 @@ export interface FileRoutesByFullPath {
   '/configuracoes': typeof ConfiguracoesRoute
   '/contagem': typeof ContagemRoute
   '/destinos': typeof DestinosRoute
+  '/empilhadores': typeof EmpilhadoresRoute
   '/entradas': typeof EntradasRoute
   '/estoque': typeof EstoqueRoute
   '/fornecedores': typeof FornecedoresRoute
+  '/fretes': typeof FretesRoute
   '/historico': typeof HistoricoRoute
   '/hoje': typeof HojeRoute
   '/lotes': typeof LotesRoute
@@ -167,9 +181,11 @@ export interface FileRoutesByTo {
   '/configuracoes': typeof ConfiguracoesRoute
   '/contagem': typeof ContagemRoute
   '/destinos': typeof DestinosRoute
+  '/empilhadores': typeof EmpilhadoresRoute
   '/entradas': typeof EntradasRoute
   '/estoque': typeof EstoqueRoute
   '/fornecedores': typeof FornecedoresRoute
+  '/fretes': typeof FretesRoute
   '/historico': typeof HistoricoRoute
   '/hoje': typeof HojeRoute
   '/lotes': typeof LotesRoute
@@ -191,9 +207,11 @@ export interface FileRoutesById {
   '/configuracoes': typeof ConfiguracoesRoute
   '/contagem': typeof ContagemRoute
   '/destinos': typeof DestinosRoute
+  '/empilhadores': typeof EmpilhadoresRoute
   '/entradas': typeof EntradasRoute
   '/estoque': typeof EstoqueRoute
   '/fornecedores': typeof FornecedoresRoute
+  '/fretes': typeof FretesRoute
   '/historico': typeof HistoricoRoute
   '/hoje': typeof HojeRoute
   '/lotes': typeof LotesRoute
@@ -216,9 +234,11 @@ export interface FileRouteTypes {
     | '/configuracoes'
     | '/contagem'
     | '/destinos'
+    | '/empilhadores'
     | '/entradas'
     | '/estoque'
     | '/fornecedores'
+    | '/fretes'
     | '/historico'
     | '/hoje'
     | '/lotes'
@@ -239,9 +259,11 @@ export interface FileRouteTypes {
     | '/configuracoes'
     | '/contagem'
     | '/destinos'
+    | '/empilhadores'
     | '/entradas'
     | '/estoque'
     | '/fornecedores'
+    | '/fretes'
     | '/historico'
     | '/hoje'
     | '/lotes'
@@ -262,9 +284,11 @@ export interface FileRouteTypes {
     | '/configuracoes'
     | '/contagem'
     | '/destinos'
+    | '/empilhadores'
     | '/entradas'
     | '/estoque'
     | '/fornecedores'
+    | '/fretes'
     | '/historico'
     | '/hoje'
     | '/lotes'
@@ -286,9 +310,11 @@ export interface RootRouteChildren {
   ConfiguracoesRoute: typeof ConfiguracoesRoute
   ContagemRoute: typeof ContagemRoute
   DestinosRoute: typeof DestinosRoute
+  EmpilhadoresRoute: typeof EmpilhadoresRoute
   EntradasRoute: typeof EntradasRoute
   EstoqueRoute: typeof EstoqueRoute
   FornecedoresRoute: typeof FornecedoresRoute
+  FretesRoute: typeof FretesRoute
   HistoricoRoute: typeof HistoricoRoute
   HojeRoute: typeof HojeRoute
   LotesRoute: typeof LotesRoute
@@ -346,6 +372,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DestinosRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/empilhadores': {
+      id: '/empilhadores'
+      path: '/empilhadores'
+      fullPath: '/empilhadores'
+      preLoaderRoute: typeof EmpilhadoresRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/entradas': {
       id: '/entradas'
       path: '/entradas'
@@ -365,6 +398,13 @@ declare module '@tanstack/react-router' {
       path: '/fornecedores'
       fullPath: '/fornecedores'
       preLoaderRoute: typeof FornecedoresRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/fretes': {
+      id: '/fretes'
+      path: '/fretes'
+      fullPath: '/fretes'
+      preLoaderRoute: typeof FretesRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/historico': {
@@ -473,9 +513,11 @@ const rootRouteChildren: RootRouteChildren = {
   ConfiguracoesRoute: ConfiguracoesRoute,
   ContagemRoute: ContagemRoute,
   DestinosRoute: DestinosRoute,
+  EmpilhadoresRoute: EmpilhadoresRoute,
   EntradasRoute: EntradasRoute,
   EstoqueRoute: EstoqueRoute,
   FornecedoresRoute: FornecedoresRoute,
+  FretesRoute: FretesRoute,
   HistoricoRoute: HistoricoRoute,
   HojeRoute: HojeRoute,
   LotesRoute: LotesRoute,

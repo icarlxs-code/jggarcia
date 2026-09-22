@@ -6,7 +6,10 @@ import type {
   AtalhoKind,
   Contagem,
   Destino,
+  Empilhador,
   Fornecedor,
+  FreteInput,
+  FretePagamento,
   Lote,
   Mercadoria,
   MovimentoStatus,
@@ -65,9 +68,12 @@ interface LocalDb {
   atalhos: Atalho[];
   operadores: string[];
   empilhadeiras: string[];
+  empilhadoresPessoas: Empilhador[];
+  fretes: FretePagamento[];
   senhas: Record<string, string>;
   apagados: string[];
   stockResetAt?: string | null;
+  stockIgnoredDates?: string[];
 }
 
 let memoryDb: LocalDb | null = null;
@@ -77,6 +83,54 @@ let pushTimer = 0;
 
 function uid() {
   return crypto.randomUUID();
+}
+
+function mergeNamedPeople(a: Empilhador[] = [], b: Empilhador[] = []): Empilhador[] {
+  const map = new Map<string, Empilhador>();
+  const byName = new Map<string, Empilhador>();
+  for (const row of [...a, ...b]) {
+    if (!row?.id && !row?.nome) continue;
+    const prev = (row.id && map.get(row.id)) || byName.get((row.nome || "").toLowerCase());
+    if (!prev) {
+      map.set(row.id, row);
+      if (row.nome) byName.set(row.nome.toLowerCase(), row);
+      continue;
+    }
+    const stamp = (x: Empilhador) => x.updated_at || x.deleted_at || x.created_at || "";
+    const newer = stamp(row) >= stamp(prev) ? { ...prev, ...row, id: prev.id } : { ...row, ...prev, id: prev.id };
+    map.set(prev.id, newer);
+    if (newer.nome) byName.set(newer.nome.toLowerCase(), newer);
+  }
+  return [...map.values()];
+}
+
+function rememberOperador(store: LocalDb, nome?: string | null) {
+  const n = (nome || "").trim();
+  if (!n) return;
+  store.operadores = rememberList(store.operadores, n);
+  const people = store.empilhadoresPessoas ?? [];
+  const key = n.toLowerCase();
+  const hit = people.find((e) => e.nome.toLowerCase() === key);
+  const stamp = nowIso();
+  if (hit) {
+    hit.deleted_at = null;
+    hit.updated_at = stamp;
+    hit.nome = n;
+    store.empilhadoresPessoas = people;
+    return;
+  }
+  people.push({ id: uid(), nome: n, created_at: stamp, updated_at: stamp, deleted_at: null });
+  store.empilhadoresPessoas = people;
+}
+
+function nextFreteNumero(rows: FretePagamento[]): string {
+  let max = 0;
+  for (const r of rows) {
+    if (r.deleted_at) continue;
+    const n = parseInt(String(r.numero || "").replace(/\D/g, ""), 10);
+    if (Number.isFinite(n) && n > max) max = n;
+  }
+  return String(max + 1).padStart(6, "0");
 }
 
 function rememberList(list: string[] | undefined, nome?: string | null) {
@@ -89,6 +143,23 @@ function rememberList(list: string[] | undefined, nome?: string | null) {
 
 function atalhoKey(a: Pick<Atalho, "kind" | "origem_pavilhao_id" | "destino_pavilhao_id" | "destino_id" | "mercadoria_id">) {
   return [a.kind, a.origem_pavilhao_id || "", a.destino_pavilhao_id || "", a.destino_id || "", a.mercadoria_id || ""].join("|");
+}
+
+function mergeAtalhos(a: Atalho[] = [], b: Atalho[] = []): Atalho[] {
+  const map = new Map<string, Atalho>();
+  for (const row of [...a, ...b]) {
+    if (!row?.id) continue;
+    const prev = map.get(row.id);
+    if (!prev) {
+      map.set(row.id, row);
+      continue;
+    }
+    const stamp = (x: Atalho) => x.updated_at || x.deleted_at || x.created_at || "";
+    const newer = stamp(row) >= stamp(prev) ? { ...prev, ...row } : { ...row, ...prev };
+    newer.usos = Math.max(prev.usos || 0, row.usos || 0);
+    map.set(row.id, newer);
+  }
+  return [...map.values()];
 }
 
 function nowIso() {
@@ -118,6 +189,7 @@ function catalogRows(): Mercadoria[] {
     cor: p.cor,
     categoria: p.categoria,
     pavilhao_id: pavilhaoFromCategoria(p.categoria),
+    pavilhao_ids: [pavilhaoFromCategoria(p.categoria)],
   }));
 }
 
@@ -139,15 +211,15 @@ function ensureCatalog(store: LocalDb): boolean {
         cor: p.cor,
         categoria: p.categoria,
         pavilhao_id: pavilhaoFromCategoria(p.categoria),
+        pavilhao_ids: [pavilhaoFromCategoria(p.categoria)],
       });
       changed = true;
-    } else if (row.nome !== p.nome || row.unidade !== p.unidade || row.categoria !== p.categoria || row.pavilhao_id !== pavilhaoFromCategoria(p.categoria)) {
-      row.nome = p.nome;
-      row.unidade = p.unidade;
-      row.categoria = p.categoria;
-      row.cor = p.cor;
-      row.pavilhao_id = pavilhaoFromCategoria(p.categoria);
-      changed = true;
+    } else {
+      if (!row.pavilhao_ids?.length) {
+        row.pavilhao_ids = row.pavilhao_id ? [row.pavilhao_id] : [pavilhaoFromCategoria(p.categoria)];
+        if (!row.pavilhao_id) row.pavilhao_id = row.pavilhao_ids[0];
+        changed = true;
+      }
     }
   }
   return changed;
@@ -215,8 +287,11 @@ function seed(): LocalDb {
     atalhos: [],
     operadores: [],
     empilhadeiras: [],
+    empilhadoresPessoas: [],
+    fretes: [],
     senhas: { [ADMIN_ID]: "Jg@2026", [OP_ID]: "Op@2026" },
     apagados: [],
+    stockIgnoredDates: [],
   };
 }
 
@@ -235,7 +310,10 @@ function snapshotOf(data: LocalDb) {
     atalhos: data.atalhos ?? [],
     operadores: data.operadores ?? [],
     empilhadeiras: data.empilhadeiras ?? [],
+    empilhadoresPessoas: data.empilhadoresPessoas ?? [],
+    fretes: data.fretes ?? [],
     stockResetAt: data.stockResetAt ?? null,
+    stockIgnoredDates: data.stockIgnoredDates ?? [],
   };
 }
 
@@ -271,21 +349,36 @@ function applyCloud(data: LocalDb, remote: Partial<ReturnType<typeof snapshotOf>
   data.contagens = by(data.contagens ?? [], (remote as { contagens?: Contagem[] }).contagens ?? []);
   const remoteNames = (remote as { contadores?: string[] }).contadores ?? [];
   data.contadores = [...new Set([...(data.contadores ?? []), ...remoteNames])].filter(Boolean).sort((a, b) => a.localeCompare(b, "pt-BR"));
-  data.atalhos = by(data.atalhos ?? [], (remote as { atalhos?: Atalho[] }).atalhos ?? []);
+  data.atalhos = mergeAtalhos(data.atalhos ?? [], (remote as { atalhos?: Atalho[] }).atalhos ?? []);
   data.operadores = [...new Set([...(data.operadores ?? []), ...((remote as { operadores?: string[] }).operadores ?? [])])].filter(Boolean).sort((a, b) => a.localeCompare(b, "pt-BR"));
   data.empilhadeiras = [...new Set([...(data.empilhadeiras ?? []), ...((remote as { empilhadeiras?: string[] }).empilhadeiras ?? [])])].filter(Boolean).sort((a, b) => a.localeCompare(b, "pt-BR"));
+  data.empilhadoresPessoas = mergeNamedPeople(data.empilhadoresPessoas ?? [], (remote as { empilhadoresPessoas?: Empilhador[] }).empilhadoresPessoas ?? []);
+  data.fretes = by(data.fretes ?? [], (remote as { fretes?: FretePagamento[] }).fretes ?? []);
   const remoteReset = (remote as { stockResetAt?: string | null }).stockResetAt;
   if (remoteReset && (!data.stockResetAt || remoteReset > data.stockResetAt)) data.stockResetAt = remoteReset;
+  const remoteIgnored = (remote as { stockIgnoredDates?: string[] }).stockIgnoredDates ?? [];
+  data.stockIgnoredDates = [...new Set([...(data.stockIgnoredDates ?? []), ...remoteIgnored])].sort();
   recomputeStock(data);
 }
 
+function countsForStock(store: LocalDb, data: string | undefined, createdAt: string | undefined, upto?: string) {
+  if (upto && data && data > upto) return false;
+  const ignored = store.stockIgnoredDates || [];
+  if (data && ignored.includes(data) && data !== upto) return false;
+  if (store.stockResetAt && (createdAt || "") <= store.stockResetAt) {
+    if (!upto) return false;
+    const resetDay = store.stockResetAt.slice(0, 10);
+    if (upto > resetDay) return false;
+  }
+  return true;
+}
+
 function recomputeStock(data: LocalDb) {
-  const since = data.stockResetAt || "";
   const qty = new Map<string, number>();
   const moved = new Set<string>();
   for (const s of data.saidas) {
     if (s.deleted_at) continue;
-    if (since && (s.created_at || "") <= since) continue;
+    if (!countsForStock(data, s.data, s.created_at)) continue;
     const sign = companySign(s);
     if (!sign) continue;
     qty.set(s.mercadoria_id, (qty.get(s.mercadoria_id) || 0) + sign * Number(s.quantidade || 0));
@@ -293,9 +386,11 @@ function recomputeStock(data: LocalDb) {
   }
   for (const c of data.contagens ?? []) {
     if (c.deleted_at) continue;
-    if (since && (c.created_at || "") <= since) continue;
+    if (!countsForStock(data, c.data, c.created_at)) continue;
     qty.set(c.mercadoria_id, (qty.get(c.mercadoria_id) || 0) + Number(c.delta || 0));
+    moved.add(c.mercadoria_id);
   }
+  const since = data.stockResetAt || "";
   for (const m of data.mercadorias) {
     if (moved.has(m.id)) m.estoque = Math.max(0, qty.get(m.id) || 0);
     else if (since) m.estoque = Math.max(0, qty.get(m.id) || 0);
@@ -304,7 +399,7 @@ function recomputeStock(data: LocalDb) {
     for (const l of data.lotes) l.quantidade = 0;
     for (const s of data.saidas) {
       if (s.deleted_at || !s.lote_codigo) continue;
-      if ((s.created_at || "") <= since) continue;
+      if (!countsForStock(data, s.data, s.created_at)) continue;
       const lote = data.lotes.find((l) => l.codigo === s.lote_codigo && l.mercadoria_id === s.mercadoria_id);
       if (!lote) continue;
       const sign = movementSign(s);
@@ -333,7 +428,12 @@ function parseDb(raw: string | null): LocalDb | null {
     parsed.atalhos = parsed.atalhos ?? [];
     parsed.operadores = parsed.operadores ?? [];
     parsed.empilhadeiras = parsed.empilhadeiras ?? [];
+    parsed.empilhadoresPessoas = parsed.empilhadoresPessoas ?? [];
+    parsed.fretes = parsed.fretes ?? [];
     parsed.apagados = parsed.apagados ?? [];
+    for (const m of parsed.mercadorias) {
+      if (!m.pavilhao_ids?.length && m.pavilhao_id) m.pavilhao_ids = [m.pavilhao_id];
+    }
     ensureCatalog(parsed);
     ensurePavLogos(parsed);
     return parsed;
@@ -350,6 +450,8 @@ function load(): LocalDb {
   }
   const parsed = parseDb(localStorage.getItem(KEY)) || parseDb(localStorage.getItem(BAK_KEY));
   memoryDb = parsed || seed();
+  memoryDb.empilhadoresPessoas = memoryDb.empilhadoresPessoas ?? [];
+  memoryDb.fretes = memoryDb.fretes ?? [];
   const changed = ensureCatalog(memoryDb) || ensurePavLogos(memoryDb);
   if (changed) saveLocal(memoryDb);
   return memoryDb;
@@ -562,14 +664,13 @@ function pavOfMovement(store: LocalDb, s: Saida, merc?: Mercadoria | null): stri
   );
 }
 
-function stockMapFor(store: LocalDb, mercadoriaId: string): Map<string, number> {
-  const since = store.stockResetAt || "";
+function stockMapFor(store: LocalDb, mercadoriaId: string, upto?: string): Map<string, number> {
   const merc = store.mercadorias.find((m) => m.id === mercadoriaId);
   const map = new Map<string, number>();
   let moved = false;
   for (const s of store.saidas) {
     if (s.deleted_at || s.mercadoria_id !== mercadoriaId) continue;
-    if (since && (s.created_at || "") <= since) continue;
+    if (!countsForStock(store, s.data, s.created_at, upto)) continue;
     const pav = pavOfMovement(store, s, merc);
     if (!pav) continue;
     const sign = movementSign(s);
@@ -585,17 +686,17 @@ function stockMapFor(store: LocalDb, mercadoriaId: string): Map<string, number> 
   }
   for (const c of store.contagens ?? []) {
     if (c.deleted_at || c.mercadoria_id !== mercadoriaId) continue;
-    if (since && (c.created_at || "") <= since) continue;
+    if (!countsForStock(store, c.data, c.created_at, upto)) continue;
     moved = true;
     map.set(c.pavilhao_id, (map.get(c.pavilhao_id) || 0) + Number(c.delta || 0));
   }
-  if (!moved && merc && merc.estoque > 0 && merc.pavilhao_id) {
+  if (!moved && merc && merc.estoque > 0 && merc.pavilhao_id && !upto) {
     map.set(merc.pavilhao_id, merc.estoque);
   } else if (moved && merc) {
     let allocated = 0;
     for (const v of map.values()) allocated += v;
     const rest = Number(merc.estoque || 0) - allocated;
-    if (rest !== 0 && merc.pavilhao_id) {
+    if (rest !== 0 && merc.pavilhao_id && !upto) {
       map.set(merc.pavilhao_id, (map.get(merc.pavilhao_id) || 0) + rest);
     }
   }
@@ -711,18 +812,42 @@ export const db = {
       .lotes.filter((l) => l.mercadoria_id === mercadoriaId && l.quantidade > 0)
       .sort((a, b) => a.validade.localeCompare(b.validade));
   },
-  stockAt(mercadoriaId: string, pavilhaoId: string): number {
+  stockAt(mercadoriaId: string, pavilhaoId: string, upto?: string): number {
     const store = load();
     const pav = resolvePavilhaoId(store.pavilhoes, pavilhaoId) || pavilhaoId;
-    return stockMapFor(store, mercadoriaId).get(pav) || 0;
+    return stockMapFor(store, mercadoriaId, upto).get(pav) || 0;
   },
-  stockPositions(mercadoriaId: string): { id: string; nome: string; quantidade: number }[] {
+  stockPositions(mercadoriaId: string, upto?: string): { id: string; nome: string; quantidade: number }[] {
     const store = load();
-    const map = stockMapFor(store, mercadoriaId);
+    const map = stockMapFor(store, mercadoriaId, upto);
     return store.pavilhoes
       .filter((p) => p.ativo)
       .sort((a, b) => Number(a.codigo) - Number(b.codigo))
       .map((p) => ({ id: p.id, nome: pavTitle(p), quantidade: map.get(p.id) || 0 }));
+  },
+  stockSnapshot(upto?: string): {
+    id: string;
+    codigo: string;
+    nome: string;
+    unidade: string;
+    total: number;
+    positions: { id: string; nome: string; quantidade: number }[];
+  }[] {
+    const store = load();
+    const rows = [];
+    for (const m of store.mercadorias) {
+      if (!m.status) continue;
+      const map = stockMapFor(store, m.id, upto);
+      const positions = store.pavilhoes
+        .filter((p) => p.ativo)
+        .sort((a, b) => Number(a.codigo) - Number(b.codigo))
+        .map((p) => ({ id: p.id, nome: pavTitle(p), quantidade: map.get(p.id) || 0 }))
+        .filter((p) => p.quantidade > 0);
+      const total = positions.reduce((a, p) => a + p.quantidade, 0);
+      if (total <= 0) continue;
+      rows.push({ id: m.id, codigo: m.codigo, nome: m.nome, unidade: m.unidade, total, positions });
+    }
+    return rows.sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR"));
   },
   listSaidas(opts?: { tipo?: "entrada" | "saida"; from?: string; to?: string }): Saida[] {
     const data = load();
@@ -768,6 +893,23 @@ export const db = {
         resumo: "Zerou todo o estoque. Quantidades voltaram para 0.",
       });
     });
+  },
+  zeroStockDay(date: string) {
+    mutate((store) => {
+      const next = new Set(store.stockIgnoredDates ?? []);
+      next.add(date);
+      store.stockIgnoredDates = [...next].sort();
+      recomputeStock(store);
+      addLog(store, {
+        acao: "excluiu",
+        entidade: "estoque",
+        entidade_id: `dia:${date}`,
+        resumo: `Zerou o estoque do dia ${date}. O histórico do dia permanece; as quantidades daquele dia não entram mais no saldo.`,
+      });
+    });
+  },
+  stockIgnoredDates(): string[] {
+    return (load().stockIgnoredDates ?? []).slice();
   },
   createSaida(input: SaidaInput) {
     const current = load();
@@ -869,7 +1011,7 @@ export const db = {
         created_at: nowIso(),
         updated_at: nowIso(),
       });
-      if (input.operador_nome?.trim()) store.operadores = rememberList(store.operadores, input.operador_nome);
+      if (input.operador_nome?.trim()) rememberOperador(store, input.operador_nome);
       const dest = store.destinos.find((d) => d.id === input.destino_id);
       const pavNome = pavRow?.nome;
       const destPavNome = destPavId ? pavTitle(store.pavilhoes.find((p) => p.id === destPavId) ?? { codigo: "" }) : "";
@@ -993,7 +1135,7 @@ export const db = {
       }
       Object.assign(row, patch);
       row.updated_at = nowIso();
-      if (patch.operador_nome != null) store.operadores = rememberList(store.operadores, patch.operador_nome);
+      if (patch.operador_nome != null) rememberOperador(store, patch.operador_nome);
       const detalheParts: string[] = [];
       if (patch.quantidade != null && patch.quantidade !== before) detalheParts.push(`Quantidade ${before} → ${patch.quantidade} ${row.unidade}`);
       if (patch.hora_chegada != null && patch.hora_chegada !== beforeHc) detalheParts.push(`Horário de chegada ${beforeHc ?? "—"} → ${patch.hora_chegada ?? "—"}`);
@@ -1078,11 +1220,14 @@ export const db = {
       });
     });
   },
-  createMercadoria(input: { codigo: string; nome: string; unidade: string; pavilhao_id?: string }): Mercadoria {
+  createMercadoria(input: { codigo: string; nome: string; unidade: string; pavilhao_id?: string; pavilhao_ids?: string[] }): Mercadoria {
     let created!: Mercadoria;
     mutate((store) => {
-      const pav = input.pavilhao_id || "p13";
-      const pavNome = store.pavilhoes.find((p) => p.id === pav)?.nome || pavilhaoNome(pav);
+      const ids = (input.pavilhao_ids?.length ? input.pavilhao_ids : input.pavilhao_id ? [input.pavilhao_id] : ["p13"]).filter(Boolean);
+      const pav = ids[0] || "p13";
+      const pavNomes = ids
+        .map((id) => store.pavilhoes.find((p) => p.id === id)?.nome || pavilhaoNome(id))
+        .filter(Boolean);
       created = {
         id: uid(),
         codigo: input.codigo.trim(),
@@ -1094,7 +1239,8 @@ export const db = {
         minimo: 10,
         cor: "#2d6a4f",
         pavilhao_id: pav,
-        categoria: pavNome,
+        pavilhao_ids: ids,
+        categoria: pavNomes.join(" · ") || pavilhaoNome(pav),
       };
       store.mercadorias.unshift(created);
       addLog(store, {
@@ -1106,14 +1252,17 @@ export const db = {
     });
     return created;
   },
-  updateMercadoria(id: string, patch: Partial<Pick<Mercadoria, "nome" | "codigo" | "unidade" | "status" | "minimo" | "estoque" | "pavilhao_id" | "categoria">>) {
+  updateMercadoria(id: string, patch: Partial<Pick<Mercadoria, "nome" | "codigo" | "unidade" | "status" | "minimo" | "estoque" | "pavilhao_id" | "pavilhao_ids" | "categoria">>) {
     mutate((store) => {
       const row = store.mercadorias.find((m) => m.id === id);
       if (!row) return;
       const before = `${row.nome} (${row.codigo})`;
       Object.assign(row, patch);
-      if (patch.pavilhao_id) {
-        row.categoria = store.pavilhoes.find((p) => p.id === patch.pavilhao_id)?.nome || pavilhaoNome(patch.pavilhao_id);
+      const ids = patch.pavilhao_ids?.length ? patch.pavilhao_ids : patch.pavilhao_id ? [patch.pavilhao_id] : row.pavilhao_ids?.length ? row.pavilhao_ids : row.pavilhao_id ? [row.pavilhao_id] : [];
+      if (ids.length) {
+        row.pavilhao_ids = ids;
+        row.pavilhao_id = ids[0];
+        row.categoria = ids.map((pid) => store.pavilhoes.find((p) => p.id === pid)?.nome || pavilhaoNome(pid)).join(" · ");
       }
       const acao: AuditAcao = patch.status === false ? "desativou" : patch.status === true ? "ativou" : "editou";
       addLog(store, {
@@ -1215,8 +1364,57 @@ export const db = {
     mutate((store) => {
       created = { id: uid(), nome: input.nome.trim(), contato: input.contato.trim(), status: true };
       store.fornecedores.unshift(created);
+      addLog(store, {
+        acao: "cadastrou",
+        entidade: "fornecedor",
+        entidade_id: created.id,
+        resumo: `Cadastrou o fornecedor ${created.nome}`,
+      });
     });
     return created;
+  },
+  updateFornecedor(id: string, patch: Partial<Pick<Fornecedor, "nome" | "contato" | "status">>) {
+    mutate((store) => {
+      const row = store.fornecedores.find((f) => f.id === id);
+      if (!row) return;
+      const before = row.nome;
+      Object.assign(row, patch);
+      addLog(store, {
+        acao: patch.status === false ? "desativou" : patch.status === true ? "ativou" : "editou",
+        entidade: "fornecedor",
+        entidade_id: id,
+        resumo: `Atualizou o fornecedor ${row.nome}`,
+        detalhe: patch.nome && patch.nome !== before ? `Antes: ${before}` : undefined,
+      });
+    });
+  },
+  deleteFornecedor(id: string): Fornecedor | null {
+    let snap: Fornecedor | null = null;
+    mutate((store) => {
+      const row = store.fornecedores.find((f) => f.id === id);
+      if (!row) return;
+      snap = { ...row };
+      store.fornecedores = store.fornecedores.filter((f) => f.id !== id);
+      addLog(store, {
+        acao: "excluiu",
+        entidade: "fornecedor",
+        entidade_id: id,
+        resumo: `Excluiu o fornecedor ${row.nome}`,
+      });
+    });
+    return snap;
+  },
+  restoreFornecedor(row: Fornecedor) {
+    mutate((store) => {
+      if (store.fornecedores.some((f) => f.id === row.id)) return;
+      store.fornecedores.unshift(row);
+      addLog(store, {
+        acao: "cadastrou",
+        entidade: "fornecedor",
+        entidade_id: row.id,
+        resumo: `Desfez a exclusão do fornecedor ${row.nome}`,
+      });
+    });
   },
   listUsuarios(): Usuario[] {
     return load().usuarios.slice().sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR"));
@@ -1392,11 +1590,13 @@ export const db = {
     observacao: string;
     usuario_id: string;
     contador: string;
+    data?: string;
   }) {
     mutate((store) => {
       const merc = store.mercadorias.find((m) => m.id === input.mercadoria_id);
       if (!merc) throw new Error("Produto não encontrado.");
-      const esperado = stockMapFor(store, merc.id).get(input.pavilhao_id) || 0;
+      const day = input.data || todayISO();
+      const esperado = stockMapFor(store, merc.id, input.data).get(input.pavilhao_id) || 0;
       const delta = input.contado - esperado;
       merc.estoque = Math.max(0, merc.estoque + delta);
       const user = store.usuarios.find((u) => u.id === input.usuario_id);
@@ -1404,7 +1604,7 @@ export const db = {
       store.contagens.unshift({
         id,
         created_at: nowIso(),
-        data: todayISO(),
+        data: day,
         mercadoria_id: input.mercadoria_id,
         pavilhao_id: input.pavilhao_id,
         esperado,
@@ -1418,11 +1618,12 @@ export const db = {
         contador: input.contador,
       });
       store.contadores = rememberList(store.contadores, input.contador);
+      recomputeStock(store);
       addLog(store, {
-        acao: "cadastrou",
+        acao: input.motivo === "ajuste" ? "editou" : "cadastrou",
         entidade: "contagem",
         entidade_id: id,
-        resumo: `Contagem de ${merc.nome}: ${esperado} → ${input.contado} ${merc.unidade}`,
+        resumo: `${input.motivo === "ajuste" ? "Editou estoque" : "Contagem"} de ${merc.nome}: ${esperado} → ${input.contado} ${merc.unidade}${input.data ? ` · ${input.data}` : ""}`,
         usuario_id: input.usuario_id,
       });
     });
@@ -1443,10 +1644,183 @@ export const db = {
     });
   },
   listAtalhos(): Atalho[] {
-    return (load().atalhos ?? []).slice().sort((a, b) => b.usos - a.usos || b.created_at.localeCompare(a.created_at));
+    return (load().atalhos ?? [])
+      .filter((a) => !a.deleted_at)
+      .slice()
+      .sort((a, b) => b.usos - a.usos || (b.updated_at || b.created_at).localeCompare(a.updated_at || a.created_at));
   },
   listOperadores(): string[] {
-    return (load().operadores ?? []).slice();
+    const store = load();
+    const named = (store.empilhadoresPessoas ?? []).filter((e) => !e.deleted_at).map((e) => e.nome);
+    if (named.length) return named.slice().sort((a, b) => a.localeCompare(b, "pt-BR"));
+    return (store.operadores ?? []).slice();
+  },
+  listEmpilhadores(): Empilhador[] {
+    return (load().empilhadoresPessoas ?? [])
+      .filter((e) => !e.deleted_at)
+      .slice()
+      .sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR"));
+  },
+  createEmpilhador(nome: string): Empilhador {
+    let created!: Empilhador;
+    mutate((store) => {
+      const n = nome.trim();
+      if (!n) throw new Error("Informe o nome do empilhador.");
+      const people = store.empilhadoresPessoas ?? [];
+      const hit = people.find((e) => e.nome.toLowerCase() === n.toLowerCase());
+      const stamp = nowIso();
+      if (hit) {
+        hit.deleted_at = null;
+        hit.nome = n;
+        hit.updated_at = stamp;
+        created = hit;
+      } else {
+        created = { id: uid(), nome: n, created_at: stamp, updated_at: stamp, deleted_at: null };
+        people.push(created);
+        store.empilhadoresPessoas = people;
+      }
+      rememberOperador(store, n);
+      addLog(store, {
+        acao: "cadastrou",
+        entidade: "empilhador",
+        entidade_id: created.id,
+        resumo: `Cadastrou o empilhador ${n}`,
+      });
+    });
+    return created;
+  },
+  renameEmpilhador(id: string, nome: string) {
+    mutate((store) => {
+      const n = nome.trim();
+      if (!n) throw new Error("Informe o nome.");
+      const people = store.empilhadoresPessoas ?? [];
+      const row = people.find((e) => e.id === id);
+      if (!row) throw new Error("Empilhador não encontrado.");
+      const before = row.nome;
+      if (before === n) return;
+      row.nome = n;
+      row.updated_at = nowIso();
+      row.deleted_at = null;
+      store.operadores = (store.operadores ?? []).map((x) => (x.toLowerCase() === before.toLowerCase() ? n : x));
+      if (!store.operadores.some((x) => x.toLowerCase() === n.toLowerCase())) store.operadores = rememberList(store.operadores, n);
+      for (const s of store.saidas) {
+        if ((s.operador_nome || "").trim().toLowerCase() === before.toLowerCase()) s.operador_nome = n;
+      }
+      addLog(store, {
+        acao: "editou",
+        entidade: "empilhador",
+        entidade_id: id,
+        resumo: `Renomeou o empilhador ${before} → ${n}`,
+      });
+    });
+  },
+  deleteEmpilhador(id: string) {
+    mutate((store) => {
+      const row = (store.empilhadoresPessoas ?? []).find((e) => e.id === id);
+      if (!row) return;
+      row.deleted_at = nowIso();
+      row.updated_at = row.deleted_at;
+      store.operadores = (store.operadores ?? []).filter((x) => x.toLowerCase() !== row.nome.toLowerCase());
+      addLog(store, {
+        acao: "excluiu",
+        entidade: "empilhador",
+        entidade_id: id,
+        resumo: `Removeu o empilhador ${row.nome} do cadastro`,
+      });
+    });
+  },
+  listFretes(): FretePagamento[] {
+    return (load().fretes ?? [])
+      .filter((f) => !f.deleted_at)
+      .slice()
+      .sort((a, b) => (b.created_at || "").localeCompare(a.created_at || ""));
+  },
+  getFrete(id: string): FretePagamento | undefined {
+    return this.listFretes().find((f) => f.id === id);
+  },
+  saveFrete(input: FreteInput & { id?: string }): FretePagamento {
+    let saved!: FretePagamento;
+    mutate((store) => {
+      const stamp = nowIso();
+      const rows = store.fretes ?? [];
+      if (input.id) {
+        const row = rows.find((f) => f.id === input.id && !f.deleted_at);
+        if (!row) throw new Error("Pagamento de frete não encontrado.");
+        Object.assign(row, {
+          fornecedor: input.fornecedor.trim(),
+          numero_bilhete: (input.numero_bilhete || "").trim(),
+          valor: Number(input.valor) || 0,
+          data_entrada: input.data_entrada,
+          pavilhao: (input.pavilhao || "").trim(),
+          placa: (input.placa || "").trim(),
+          motorista: (input.motorista || "").trim(),
+          cpf: (input.cpf || "").trim(),
+          assinatura_motorista: input.assinatura_motorista || "",
+          forma_pagamento: input.forma_pagamento || "",
+          rubrica: input.rubrica || "",
+          data_autorizacao: input.data_autorizacao || "",
+          observacoes: (input.observacoes || "").trim(),
+          status: input.status || row.status,
+          updated_at: stamp,
+          created_by: input.created_by || row.created_by,
+          created_by_nome: input.created_by_nome || row.created_by_nome,
+        });
+        saved = row;
+        addLog(store, {
+          acao: "editou",
+          entidade: "frete",
+          entidade_id: row.id,
+          resumo: `Atualizou o frete nº ${row.numero}${row.fornecedor ? ` · ${row.fornecedor}` : ""}`,
+        });
+        return;
+      }
+      const numero = (input.numero || "").trim() || nextFreteNumero(rows);
+      saved = {
+        id: uid(),
+        numero,
+        fornecedor: input.fornecedor.trim(),
+        numero_bilhete: (input.numero_bilhete || "").trim(),
+        valor: Number(input.valor) || 0,
+        data_entrada: input.data_entrada,
+        pavilhao: (input.pavilhao || "").trim(),
+        placa: (input.placa || "").trim(),
+        motorista: (input.motorista || "").trim(),
+        cpf: (input.cpf || "").trim(),
+        assinatura_motorista: input.assinatura_motorista || "",
+        forma_pagamento: input.forma_pagamento || "",
+        rubrica: input.rubrica || "",
+        data_autorizacao: input.data_autorizacao || "",
+        observacoes: (input.observacoes || "").trim(),
+        status: input.status || "gerado",
+        created_at: stamp,
+        updated_at: stamp,
+        created_by: input.created_by,
+        created_by_nome: input.created_by_nome,
+        deleted_at: null,
+      };
+      store.fretes = [saved, ...rows];
+      addLog(store, {
+        acao: "cadastrou",
+        entidade: "frete",
+        entidade_id: saved.id,
+        resumo: `Gerou o comprovante de frete nº ${saved.numero}${saved.fornecedor ? ` · ${saved.fornecedor}` : ""}`,
+      });
+    });
+    return saved;
+  },
+  deleteFrete(id: string) {
+    mutate((store) => {
+      const row = (store.fretes ?? []).find((f) => f.id === id);
+      if (!row) return;
+      row.deleted_at = nowIso();
+      row.updated_at = row.deleted_at;
+      addLog(store, {
+        acao: "excluiu",
+        entidade: "frete",
+        entidade_id: id,
+        resumo: `Excluiu o frete nº ${row.numero}`,
+      });
+    });
   },
   listEmpilhadeiras(): string[] {
     return (load().empilhadeiras ?? []).slice();
@@ -1472,7 +1846,16 @@ export const db = {
       if (kind === "transferencia" && origem_pavilhao_id === destino_pavilhao_id) throw new Error("Origem e destino não podem ser o mesmo lugar.");
       const key = atalhoKey({ kind, origem_pavilhao_id, destino_pavilhao_id, destino_id, mercadoria_id });
       const dup = (store.atalhos ?? []).find((a) => atalhoKey(a) === key);
+      const stamp = nowIso();
       if (dup) {
+        if (dup.deleted_at) {
+          dup.deleted_at = null;
+          dup.updated_at = stamp;
+          if ((input.nome || "").trim()) dup.nome = input.nome!.trim();
+        } else if ((input.nome || "").trim() && input.nome!.trim() !== dup.nome) {
+          dup.nome = input.nome!.trim();
+          dup.updated_at = stamp;
+        }
         created = dup;
         return;
       }
@@ -1494,8 +1877,10 @@ export const db = {
         destino_pavilhao_id,
         destino_id,
         mercadoria_id,
-        created_at: nowIso(),
+        created_at: stamp,
+        updated_at: stamp,
         usos: 0,
+        deleted_at: null,
       };
       store.atalhos = [...(store.atalhos ?? []), created];
     });
@@ -1504,12 +1889,18 @@ export const db = {
   touchAtalho(id: string) {
     mutate((store) => {
       const row = (store.atalhos ?? []).find((a) => a.id === id);
-      if (row) row.usos += 1;
+      if (row && !row.deleted_at) {
+        row.usos += 1;
+        row.updated_at = nowIso();
+      }
     });
   },
   deleteAtalho(id: string) {
     mutate((store) => {
-      store.atalhos = (store.atalhos ?? []).filter((a) => a.id !== id);
+      const row = (store.atalhos ?? []).find((a) => a.id === id);
+      if (!row) return;
+      row.deleted_at = nowIso();
+      row.updated_at = row.deleted_at;
     });
   },
 };

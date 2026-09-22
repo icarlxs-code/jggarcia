@@ -1,5 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
-import type { Atalho, AuditLog, Contagem, Destino, Fornecedor, Lote, Mercadoria, Pavilhao, Saida, Usuario } from "./types";
+import type { Atalho, AuditLog, Contagem, Destino, Empilhador, Fornecedor, FretePagamento, Lote, Mercadoria, Pavilhao, Saida, Usuario } from "./types";
 
 export type CloudPayload = {
   usuarios: Usuario[];
@@ -15,6 +15,8 @@ export type CloudPayload = {
   atalhos?: Atalho[];
   operadores?: string[];
   empilhadeiras?: string[];
+  empilhadoresPessoas?: Empilhador[];
+  fretes?: FretePagamento[];
   stockResetAt?: string | null;
 };
 

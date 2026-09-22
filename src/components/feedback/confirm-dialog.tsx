@@ -65,6 +65,7 @@ export function ConfirmDialog({
           <Button
             variant="destructive"
             onClick={() => {
+              onConfirm();
               onOpenChange(false);
               playCeremony({
                 kind: "delete",
@@ -74,7 +75,6 @@ export function ConfirmDialog({
                 initials,
                 mark,
               });
-              onConfirm();
             }}
           >
             {confirmLabel}
