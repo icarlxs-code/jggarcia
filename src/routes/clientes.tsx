@@ -115,7 +115,7 @@ function Clientes() {
                     <span className="w-5 shrink-0 text-center text-xs font-semibold tabular-nums text-muted-foreground">{i + 1}</span>
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-sm font-medium">{c.nome}</p>
-                      <p className="truncate text-[11px] text-muted-foreground">
+                      <p className="truncate text-xs text-muted-foreground">
                         {c.vezes} saídas{c.topProduto ? ` · mais ${c.topProduto.nome}` : ""}
                       </p>
                     </div>
@@ -130,7 +130,7 @@ function Clientes() {
         <SpotlightCard className="flex h-full min-h-0 flex-col space-y-2 p-3">
           <div>
             <h2 className="text-sm font-semibold">Quem mais retirou cada produto</h2>
-            <p className="text-[11px] text-muted-foreground">O PDF sai só desse recorte.</p>
+            <p className="text-xs text-muted-foreground">O PDF sai só desse recorte.</p>
           </div>
           <div className="relative">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -180,7 +180,7 @@ function Clientes() {
                       setProdCleared(false);
                     }}
                     className={cn(
-                      "inline-flex h-8 shrink-0 items-center rounded-full border px-2.5 text-[11px] font-medium",
+                      "inline-flex h-8 shrink-0 items-center rounded-full border px-2.5 text-xs font-medium",
                       selectedProd === p.id
                         ? "border-primary bg-primary text-primary-foreground"
                         : "border-border bg-background text-muted-foreground hover:bg-muted",
@@ -265,7 +265,7 @@ function Clientes() {
                 <ClientMark d={d} />
                 <div className="min-w-0 flex-1">
                   <p className="truncate font-medium">{d.nome}</p>
-                  <p className="truncate text-[11px] text-muted-foreground">{d.telefone || d.contato || d.endereco || "Sem telefone"}</p>
+                  <p className="truncate text-xs text-muted-foreground">{d.telefone || d.contato || d.endereco || "Sem telefone"}</p>
                 </div>
               </Link>
               <Button
@@ -391,7 +391,7 @@ function Field({ id, label, value, onChange }: { id: string; label: string; valu
 function StatCard({ label, value }: { label: string; value: number }) {
   return (
     <div className="rounded-2xl border border-border bg-card p-4">
-      <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{label}</p>
+      <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{label}</p>
       <p className="mt-1 text-2xl font-semibold tabular-nums leading-none">
         <CountUp value={value} />
       </p>
@@ -420,3 +420,4 @@ function RankBlock({ title, items, extra }: { title: string; items: { id: string
     </section>
   );
 }
+

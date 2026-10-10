@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { Package, Pencil, Trash2 } from "lucide-react";
 import { toast } from "sonner";
-import { db } from "@/lib/store";
+import { db, getDbGen } from "@/lib/store";
 import { useSession } from "@/lib/session";
 import { pavTitle, lugarDaSaida } from "@/lib/catalog";
 import { formatDateBR, formatNumber, formatTime, todayISO } from "@/lib/format";
@@ -30,6 +30,7 @@ import type { Saida } from "@/lib/types";
 import { PeriodFilter, periodRange, type PeriodKey } from "@/components/inventory/period-filter";
 import { ViewSwitch, useChartView } from "@/components/analytics/view-switch";
 import { ScreenCharts } from "@/components/analytics/screen-charts";
+import { useRowUpdates } from "@/lib/use-row-updates";
 
 export const Route = createFileRoute("/entradas")({
   validateSearch: (s: Record<string, unknown>): { produto?: string; pav?: string } => ({
@@ -43,10 +44,13 @@ function Entradas() {
   const { produto: produtoParam, pav: pavParam } = Route.useSearch();
   const { perfil } = useSession();
   const live = useDb();
+  const gen = getDbGen();
+  const changed = useRowUpdates(live.listSaidas({ tipo: "entrada" }));
+  const [error, setError] = useState<{ field: string; message: string } | null>(null);
   const [tick, setTick] = useState(0);
   const { vista } = useChartView("entradas");
-  const mercadorias = useMemo(() => live.listMercadorias(true), [live, tick]);
-  const pavilhoes = useMemo(() => live.listPavilhoes(), [live, tick]);
+  const mercadorias = useMemo(() => live.listMercadorias(true), [live, tick, gen]);
+  const pavilhoes = useMemo(() => live.listPavilhoes(), [live, tick, gen]);
   const [busca, setBusca] = useState("");
   const [mercadoriaId, setMercadoriaId] = useState("");
   const [aberto, setAberto] = useState(false);
@@ -67,7 +71,7 @@ function Entradas() {
   const range = periodRange(period, day, span);
   const registros = useMemo(
     () => live.listSaidas({ tipo: "entrada", from: range.from, to: range.to }),
-    [live, tick, range.from, range.to],
+    [live, tick, gen, range.from, range.to],
   );
 
   const filtradas = mercadorias
@@ -82,6 +86,7 @@ function Entradas() {
   const merc = mercadorias.find((m) => m.id === mercadoriaId);
 
   function escolher(m: (typeof mercadorias)[number]) {
+    setError(null);
     setMercadoriaId(m.id);
     setBusca(`${m.codigo} · ${m.nome}`);
     setAberto(false);
@@ -106,16 +111,20 @@ function Entradas() {
   }
 
   async function lancarEntrada() {
+    setError(null);
     if (!merc || !perfil) {
+      setError({ field: "busca-prod", message: "Selecione o produto." });
       toast.error("Selecione o produto.");
       return false;
     }
     if (!pavilhao) {
+      setError({ field: "entra-em", message: "Escolha o pavilhão onde o produto vai entrar." });
       toast.error("Escolha o pavilhão onde o produto vai entrar.");
       return false;
     }
     const n = Number(quantidade);
     if (!n || n <= 0) {
+      setError({ field: "qtd", message: "Informe uma quantidade maior que zero." });
       toast.error("Informe a quantidade.");
       return false;
     }
@@ -152,7 +161,7 @@ function Entradas() {
 
   return (
     <div className="mx-auto w-full max-w-[1400px] space-y-4" data-vista={vista}>
-      <PageHeader clip="/lottie/caixa.json" title="Entrada do Ceasa" description="Produto, quantidade e o pavilhão ou galpão onde entra.">
+      <PageHeader clip="/lottie/caixa.json" title="Entradas" description="Registre o recebimento e confira os lançamentos por período.">
         <ViewSwitch page="entradas" />
       </PageHeader>
       {mercadorias.length === 0 ? (
@@ -169,7 +178,7 @@ function Entradas() {
           </EmptyState>
         </Card>
       ) : (
-        <div className="grid items-start gap-4 lg:grid-cols-2">
+        <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)]">
         <Card>
           <CardHeader>
             <CardTitle>Nova entrada</CardTitle>
@@ -181,6 +190,8 @@ function Entradas() {
               <div className="relative">
                 <Input
                   id="busca-prod"
+                  aria-invalid={error?.field === "busca-prod"}
+                  aria-describedby={error?.field === "busca-prod" ? "busca-prod-error" : undefined}
                   value={busca}
                   onChange={(e) => {
                     const next = e.target.value;
@@ -254,23 +265,26 @@ function Entradas() {
                   </ul>
                 ) : null}
               </div>
+              {error?.field === "busca-prod" ? <p id="busca-prod-error" role="alert" className="mt-2 text-sm text-destructive">{error.message}</p> : null}
               {merc ? <StockSplit mercadoriaId={merc.id} highlightId={pavilhao || undefined} delta={pavilhao ? Number(quantidade) || 0 : 0} /> : null}
             </div>
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
                 <Label htmlFor="qtd">Quantidade</Label>
-                <Input id="qtd" data-step={2} type="number" min="1" value={quantidade} onChange={(e) => setQuantidade(e.target.value)} onKeyDown={(e) => enterNext(e)} />
+                <Input id="qtd" aria-invalid={error?.field === "qtd"} aria-describedby={error?.field === "qtd" ? "qtd-error" : undefined} data-step={2} type="number" min="1" value={quantidade} onChange={(e) => { setQuantidade(e.target.value); setError(null); }} onKeyDown={(e) => enterNext(e)} />
+                {error?.field === "qtd" ? <p id="qtd-error" role="alert" className="text-sm text-destructive">{error.message}</p> : null}
               </div>
               <div className="space-y-2">
-                <Label>Entra em</Label>
+                <Label htmlFor="entra-em">Entra em</Label>
                 <Select
                   value={pavilhao}
                   onValueChange={(id) => {
+                    setError(null);
                     setPavilhao(id);
                     window.setTimeout(() => focusFlow(document.getElementById("qtd"), 4), 0);
                   }}
                 >
-                  <SelectTrigger id="entra-em" data-step={3} data-open-select="1">
+                  <SelectTrigger id="entra-em" aria-invalid={error?.field === "entra-em"} aria-describedby={error?.field === "entra-em" ? "entra-em-error" : undefined} data-step={3} data-open-select="1">
                     <SelectValue placeholder="Pavilhão ou galpão" />
                   </SelectTrigger>
                   <SelectContent>
@@ -282,6 +296,7 @@ function Entradas() {
                     ))}
                   </SelectContent>
                 </Select>
+                {error?.field === "entra-em" ? <p id="entra-em-error" role="alert" className="text-sm text-destructive">{error.message}</p> : null}
               </div>
             </div>
             <div className="space-y-2">
@@ -360,12 +375,12 @@ function Entradas() {
                 >
                   <ProductIcon nome={s.mercadoria?.nome ?? ""} size="sm" />
                   <div className="min-w-0 flex-1">
-                    <p className="truncate font-mono text-[11px] font-bold tabular-nums">{s.mercadoria?.codigo}</p>
+                    <p className="truncate font-mono text-xs font-bold tabular-nums">{s.mercadoria?.codigo}</p>
                     <p className="truncate text-sm font-normal">{s.mercadoria?.nome}</p>
-                    <p className="text-[11px] text-muted-foreground">
+                    <p className="text-xs text-muted-foreground">
                       {s.data === hoje ? "Hoje" : formatDateBR(s.data)} · {formatTime(s.hora_chegada) || formatTime(s.hora_saida)} · entrou no {lugarDaSaida(pavilhoes, s)}
                     </p>
-                    {s.observacao ? <p className="truncate text-[11px] text-muted-foreground">{s.observacao}</p> : null}
+                    {s.observacao ? <p className="truncate text-xs text-muted-foreground">{s.observacao}</p> : null}
                   </div>
                   <p className="shrink-0 text-sm font-semibold tabular-nums">
                     {formatNumber(s.quantidade)} {s.unidade}

@@ -39,6 +39,7 @@ import { ViewSwitch, useChartView } from "@/components/analytics/view-switch";
 import { ScreenCharts } from "@/components/analytics/screen-charts";
 import { useViewport } from "@/lib/use-viewport";
 import { cn, fold } from "@/lib/utils";
+import { useRowUpdates } from "@/lib/use-row-updates";
 
 export const Route = createFileRoute("/estoque")({ component: Estoque });
 
@@ -64,8 +65,15 @@ function Estoque() {
   const phone = useViewport() === "phone";
   const { vista } = useChartView("estoque");
   const list = useMemo(() => db.listMercadorias(), [gen]);
+  const changed = useRowUpdates(list);
   const pavilhoes = useMemo(() => db.listPavilhoes(), [gen]);
-  const [q, setQ] = useState("");
+  const stockSearchKey = `jg-estoque-busca:${perfil?.id || "local"}`;
+  const [q, setQ] = useState(() => {
+    try { return sessionStorage.getItem(stockSearchKey) || ""; } catch { return ""; }
+  });
+  useEffect(() => {
+    try { sessionStorage.setItem(stockSearchKey, q); } catch { /* quota */ }
+  }, [q, stockSearchKey]);
   const [quick, setQuick] = useState<Quick>("todos");
   const [pavFilter, setPavFilter] = useState<string>("todos");
   const [sorting, setSorting] = useState<SortingState>([]);
@@ -290,7 +298,7 @@ function Estoque() {
           <button type="button" className="text-left" onClick={() => abrir(row.original.id)}>
             <ProductLabel nome={row.original.nome} codigo={row.original.codigo} />
             {pinnedIds(perfil?.id).includes(row.original.id) ? (
-              <span className="mt-0.5 inline-flex rounded-full bg-primary/15 px-1.5 py-0.5 text-[10px] font-semibold text-primary">Fixado</span>
+              <span className="mt-0.5 inline-flex rounded-full bg-primary/15 px-1.5 py-0.5 text-xs font-semibold text-primary">Fixado</span>
             ) : null}
           </button>
         ),
@@ -417,7 +425,7 @@ function Estoque() {
 
   return (
     <PageStage className="space-y-4" data-vista={vista}>
-      <PageHeader clip="/lottie/caixa.json" title="Estoque" description="Toque no produto para abrir o perfil, o histórico e quanto tem em cada pavilhão.">
+      <PageHeader clip="/lottie/caixa.json" title="Estoque" description="Busque produtos e confira saldo, unidade, localização e situação.">
         <ViewSwitch page="estoque" />
         <Button
           className="hidden sm:inline-flex"
@@ -432,7 +440,7 @@ function Estoque() {
         {isAdmin ? (
           <>
             <Button
-              className="hidden sm:inline-flex"
+              className="hidden border-destructive/30 text-destructive hover:bg-destructive/5 sm:inline-flex"
               variant="outline"
               onClick={() => {
                 setZeroPav("");
@@ -472,6 +480,7 @@ function Estoque() {
                 setPage(0);
               }}
               placeholder="Filtrar por nome ou código"
+              aria-label="Buscar no estoque por nome ou código"
               className="h-10 w-full rounded-lg border border-border bg-muted/40 pl-9 pr-3 text-sm outline-none focus:bg-card focus:ring-2 focus:ring-ring"
             />
           </div>
@@ -677,16 +686,16 @@ function Estoque() {
                   const lugares = positionsOf(m.id).filter((p) => p.quantidade > 0);
                   const qty = pavFilter === "todos" ? qtyOf(m.id) : qtyOf(m.id, pavFilter);
                   return (
-                    <li key={m.id} className={cn("px-3 py-2.5", mk ? countRowTone(mk) : undefined)} data-ctx="produto" data-id={m.id} data-nome={m.nome} data-codigo={m.codigo}>
+                    <li key={m.id} className={cn("p-4", mk ? countRowTone(mk) : undefined, changed.has(m.id) && "row-updated")} data-ctx="produto" data-id={m.id} data-nome={m.nome} data-codigo={m.codigo}>
                       <button type="button" onClick={() => abrir(m.id)} className="flex w-full items-start gap-2.5 text-left">
                         <ProductIcon nome={m.nome} codigo={m.codigo} size="sm" />
                         <span className="min-w-0 flex-1">
                           <span className="flex items-baseline justify-between gap-2">
                             <span className="truncate text-sm font-medium">{m.nome}</span>
-                            <span className="shrink-0 text-sm font-semibold tabular-nums text-forest">{formatNumber(qty)} {m.unidade}</span>
+                            <span className="shrink-0 text-base font-semibold tabular-nums text-foreground">{formatNumber(qty)} <span className="text-xs font-normal text-muted-foreground">{m.unidade}</span></span>
                           </span>
-                          <span className="block truncate font-mono text-[11px] text-muted-foreground">{m.codigo}</span>
-                          <span className="mt-0.5 block text-[11px] leading-4 text-muted-foreground">
+                          <span className="block truncate font-mono text-xs text-muted-foreground">{m.codigo}</span>
+                          <span className="mt-0.5 block text-xs leading-4 text-muted-foreground">
                             {lugares.length ? lugares.map((p) => `${p.nome}: ${formatNumber(p.quantidade)}`).join(" · ") : "Sem saldo neste lugar"}
                           </span>
                         </span>
@@ -730,11 +739,9 @@ function Estoque() {
                       {hg.headers.map((h) => (
                         <TableHead
                           key={h.id}
-                          className={h.column.getCanSort() ? "cursor-pointer select-none" : undefined}
-                          onClick={h.column.getToggleSortingHandler()}
+                          aria-sort={h.column.getIsSorted() === "asc" ? "ascending" : h.column.getIsSorted() === "desc" ? "descending" : undefined}
                         >
-                          {flexRender(h.column.columnDef.header, h.getContext())}
-                          {h.column.getIsSorted() === "asc" ? " ↑" : h.column.getIsSorted() === "desc" ? " ↓" : ""}
+                          {h.column.getCanSort() ? <button type="button" className="flex min-h-11 items-center gap-2 text-left" onClick={h.column.getToggleSortingHandler()}>{flexRender(h.column.columnDef.header, h.getContext())}{h.column.getIsSorted() === "asc" ? " ↑" : h.column.getIsSorted() === "desc" ? " ↓" : " ↕"}</button> : flexRender(h.column.columnDef.header, h.getContext())}
                         </TableHead>
                       ))}
                     </TableRow>
@@ -750,7 +757,10 @@ function Estoque() {
                         data-id={row.original.id}
                         data-nome={row.original.nome}
                         data-codigo={row.original.codigo}
-                        className={cn("group cursor-pointer", mk ? countRowTone(mk) : undefined)}
+                        className={cn("group cursor-pointer", mk ? countRowTone(mk) : undefined, changed.has(row.original.id) && "row-updated")}
+                        tabIndex={0}
+                        aria-label={`Abrir ${row.original.nome}`}
+                        onKeyDown={(e) => { if (e.target === e.currentTarget && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); abrir(row.original.id); } }}
                         onClick={(e) => {
                           if ((e.target as HTMLElement).closest("[data-fix-count]")) return;
                           abrir(row.original.id);
@@ -1250,7 +1260,7 @@ function FecharEstoqueDialog({ initialDay, onClose }: { initialDay: string; onCl
             return (
               <li key={m.id} className="rounded-xl border border-border p-2">
                 <p className="text-sm font-medium">{m.nome}</p>
-                <p className="font-mono text-[11px] text-muted-foreground">{m.codigo}</p>
+                <p className="font-mono text-xs text-muted-foreground">{m.codigo}</p>
                 <div className="mt-1 space-y-1">
                   {places.map((p) => (
                     <label key={p.id} className="flex items-center justify-between gap-2 text-sm">
@@ -1282,7 +1292,7 @@ function FecharEstoqueDialog({ initialDay, onClose }: { initialDay: string; onCl
 function FilterGroup({ label, children, flatten }: { label: string; children: ReactNode; flatten?: boolean }) {
   return (
     <div className="min-w-0 space-y-1.5">
-      <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">{label}</p>
+      <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{label}</p>
       <div className={cn("flex flex-wrap items-center gap-1.5", flatten && "[&>div]:contents")}>{children}</div>
     </div>
   );

@@ -25,6 +25,7 @@ import { ProductPicker } from "@/components/inventory/product-picker";
 import { readUiPrefs } from "@/lib/ui-prefs";
 import { ViewSwitch, useChartView } from "@/components/analytics/view-switch";
 import { ScreenCharts } from "@/components/analytics/screen-charts";
+import { useRowUpdates } from "@/lib/use-row-updates";
 
 export const Route = createFileRoute("/movimentacoes")({
   validateSearch: (s: Record<string, unknown>): { q?: string; periodo?: "hoje" | "ontem" | "7d" | "tudo" | "periodo"; tipo?: "tudo" | "entrada" | "saida" | "transferencia" | "contagem" } => {
@@ -67,6 +68,7 @@ function Movimentacoes() {
   const pavilhoes = live.listPavilhoes(true);
   const mercadorias = live.listMercadorias();
   const timeline = useMemo(() => buildTimeline(saidas, contagens, pavilhoes, mercadorias), [saidas, contagens, pavilhoes, mercadorias]);
+  const changed = useRowUpdates(timeline);
 
   const filtered = useMemo(() => {
     const hoje = todayISO();
@@ -151,6 +153,7 @@ function Movimentacoes() {
         <Input
           className="h-11 pl-10"
           placeholder="Buscar produto, código, cliente, pavilhão ou movimentação..."
+          aria-label="Buscar movimentações"
           value={q}
           onChange={(e) => setQ(e.target.value)}
         />
@@ -161,6 +164,7 @@ function Movimentacoes() {
             key={k}
             type="button"
             onClick={() => setKind(k)}
+            aria-pressed={kind === k}
             className={cn(
               "h-9 rounded-full border px-3 text-xs font-semibold",
               kind === k ? "border-primary bg-primary text-primary-foreground" : "border-border bg-card",
@@ -182,6 +186,7 @@ function Movimentacoes() {
             key={id}
             type="button"
             onClick={() => setPeriod(id)}
+            aria-pressed={period === id}
             className={cn(
               "h-9 rounded-full border px-3 text-xs font-medium",
               period === id ? "border-gold bg-gold/15 text-gold-ink" : "border-border bg-card text-muted-foreground",
@@ -194,11 +199,11 @@ function Movimentacoes() {
       {period === "periodo" ? (
         <div className="flex flex-wrap items-end gap-3">
           <div className="space-y-1">
-            <Label className="text-[11px] text-muted-foreground">De</Label>
+            <Label className="text-xs text-muted-foreground">De</Label>
             <Input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className="h-10 w-40" />
           </div>
           <div className="space-y-1">
-            <Label className="text-[11px] text-muted-foreground">Até</Label>
+            <Label className="text-xs text-muted-foreground">Até</Label>
             <Input type="date" value={to} onChange={(e) => setTo(e.target.value)} className="h-10 w-40" />
           </div>
         </div>
@@ -233,7 +238,7 @@ function Movimentacoes() {
           <p className="text-xs text-muted-foreground">
             {filtered.length} {filtered.length === 1 ? "movimentação" : "movimentações"} · mais recente primeiro
           </p>
-          <ul className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+          <ul className="grid grid-cols-1 gap-3 xl:grid-cols-2">
             {filtered.map((item) => {
               const accent =
                 item.tipo === "entrada"
@@ -244,7 +249,7 @@ function Movimentacoes() {
                       ? "bg-gold"
                       : "bg-foreground/15";
               return (
-                <li key={item.id} className="min-w-0">
+                <li key={item.id} className={cn("min-w-0 rounded-2xl", changed.has(item.id) && "row-updated")}>
                   <button
                     type="button"
                     data-ctx={item.tipo === "entrada" ? "entrada" : item.tipo === "contagem" ? "contagem" : "saida"}
@@ -257,10 +262,10 @@ function Movimentacoes() {
                     className="flex h-full w-full flex-col overflow-hidden rounded-2xl border border-border bg-card text-left shadow-card"
                   >
                     <div className={cn("h-1 shrink-0", accent)} />
-                    <div className="flex items-center gap-3 p-3">
+                    <div className="flex items-center gap-3 p-4">
                       <ProductIcon nome={item.titulo} codigo={item.codigo} size="lg" className="h-14 w-14 shrink-0" />
                       <div className="min-w-0 flex-1">
-                        <p className="flex items-center gap-1.5 truncate text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                        <p className="flex items-center gap-1.5 truncate text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                           <KindMark tipo={item.tipo} />
                           <span className="truncate">
                             {formatDateBR(item.data)} · {item.hora} · {tipoMovLabel(item.tipo)}
@@ -270,7 +275,7 @@ function Movimentacoes() {
                         {item.quantidade != null ? (
                           <p className="text-base font-semibold tabular-nums leading-tight text-foreground">{qtyLine(item.quantidade, item.unidade)}</p>
                         ) : null}
-                        <p className="mt-1 truncate text-[11px] text-muted-foreground">
+                        <p className="mt-1 truncate text-xs text-muted-foreground">
                           {item.detalhe}
                           {item.empilhador ? ` · ${item.empilhador}` : ""}
                           {item.usuario ? ` · ${item.usuario}` : ""}

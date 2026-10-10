@@ -693,10 +693,11 @@ export function ProductIcon({
   }, [nome, codigo, foto, lite]);
   const photo = lite ? "" : (foto != null ? foto : live) || catalog || "";
   const src = photo.startsWith("media:") ? catalog || "" : photo;
-  if (!lite && src) {
+  const [failedSrc, setFailedSrc] = useState("");
+  if (!lite && src && failedSrc !== src) {
     return (
       <span className={cn("product-icon product-icon-photo inline-flex shrink-0 items-center justify-center overflow-visible bg-transparent p-0 shadow-none ring-0", box, className)} aria-hidden>
-        <img src={src} alt="" draggable={false} decoding="async" className="h-full w-full bg-transparent object-contain" />
+        <img src={src} alt="" draggable={false} decoding="async" onError={() => setFailedSrc(src)} className="h-full w-full bg-transparent object-contain" />
       </span>
     );
   }
@@ -727,9 +728,9 @@ export function ProductLabel({
     <div className={cn("flex min-w-0 items-center gap-2.5", className)}>
       <ProductIcon nome={nome} codigo={codigo} foto={foto} size={size} />
       <div className="min-w-0">
-        {codigo ? <div data-part="codigo" className="truncate font-mono text-[11px] font-bold tabular-nums tracking-wide text-foreground">{codigo}</div> : null}
+        {codigo ? <div data-part="codigo" className="truncate font-mono text-xs font-bold tabular-nums tracking-wide text-foreground">{codigo}</div> : null}
         <div data-part="nome" className="truncate text-sm font-normal leading-tight text-foreground/85">{nome}</div>
-        {extra ? <div className="truncate text-[11px] text-muted-foreground">{extra}</div> : null}
+        {extra ? <div className="truncate text-xs text-muted-foreground">{extra}</div> : null}
       </div>
     </div>
   );

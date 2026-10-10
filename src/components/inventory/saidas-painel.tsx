@@ -30,6 +30,23 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { TimeField } from "@/components/ui/time-field";
+import { CountUp } from "@/components/motion/count-up";
+import { useRowUpdates } from "@/lib/use-row-updates";
+import { useViewport } from "@/lib/use-viewport";
+
+function filterKey() { return `jg-saidas-filtros:${db.getSessionUser()?.id || "local"}`; }
+
+function savedFilter(): FiltroSaidas {
+  const defaults = vazio();
+  try {
+    const saved = JSON.parse(sessionStorage.getItem(filterKey()) || "null");
+    if (!saved || typeof saved !== "object") return defaults;
+    for (const key of Object.keys(defaults) as (keyof FiltroSaidas)[]) {
+      if (typeof saved[key] === "string") defaults[key] = saved[key];
+    }
+  } catch { /* filtros opcionais não impedem a consulta */ }
+  return defaults;
+}
 
 const vazio = (): FiltroSaidas => ({
   de: todayISO(),
@@ -74,14 +91,16 @@ export function SaidasPainel({
   onEdit: (s: Saida) => void;
   onDelete: (s: Saida) => void;
 }) {
-  const [draft, setDraft] = useState<FiltroSaidas>(vazio);
-  const [filtro, setFiltro] = useState<FiltroSaidas>(vazio);
+  const [draft, setDraft] = useState<FiltroSaidas>(savedFilter);
+  const [filtro, setFiltro] = useState<FiltroSaidas>(savedFilter);
   const [q, setQ] = useState("");
   const [grupo, setGrupo] = useState<"lista" | "mercadoria" | "pavilhao">("lista");
   const [detalhe, setDetalhe] = useState<{ titulo: string; linhas: SaidaLinha[] } | null>(null);
   const [chegada, setChegada] = useState<Saida | null>(null);
   const [horaChegada, setHoraChegada] = useState("");
   const { vista } = useChartView("saidas");
+  const phone = useViewport() === "phone";
+  const [filtersOpen, setFiltersOpen] = useState(false);
 
   const live = useDb();
   const gen = getDbGen();
@@ -93,6 +112,16 @@ export function SaidasPainel({
   const linhas = useMemo(() => saidas.map((s) => linhaDeSaida(s, pavilhoes, destinos, usuarios)), [saidas, pavilhoes, destinos, usuarios]);
   const visiveis = useMemo(() => pesquisaRapida(filtrarSaidas(linhas, filtro), q), [linhas, filtro, q]);
   const soma = totais(visiveis);
+  const changed = useRowUpdates(saidas);
+  const volumes = useMemo(() => {
+    const units = new Map<string, number>();
+    for (const row of visiveis) units.set(row.unidade, (units.get(row.unidade) || 0) + row.total);
+    return [...units].sort(([a], [b]) => a.localeCompare(b, "pt-BR"));
+  }, [visiveis]);
+
+  useEffect(() => {
+    try { sessionStorage.setItem(filterKey(), JSON.stringify(filtro)); } catch { /* quota */ }
+  }, [filtro]);
   const porMercadoria = useMemo(() => agruparMercadoria(visiveis), [visiveis]);
   const porPavilhao = useMemo(() => agruparPavilhao(visiveis), [visiveis]);
   const familia = resumoFamilia(visiveis, q.trim());
@@ -150,15 +179,105 @@ export function SaidasPainel({
       <div className="flex justify-end">
         <ViewSwitch page="saidas" />
       </div>
-      <section className="relative z-20 rounded-2xl border border-border bg-card p-3 shadow-card sm:p-4">
-        <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-12">
-          <Campo label="Data inicial" className="xl:col-span-3">
-            <Input type="date" value={draft.de} onChange={(e) => set("de", e.target.value)} />
-          </Campo>
-          <Campo label="Data final" className="xl:col-span-3">
-            <Input type="date" value={draft.ate} onChange={(e) => set("ate", e.target.value)} />
-          </Campo>
-          <Campo label="Pavilhão / galpão de origem" className="xl:col-span-3">
+      <section aria-label="Filtros de saídas" className="relative z-20 space-y-4 rounded-2xl border border-border bg-card p-5 shadow-card">
+        <details open={!phone || filtersOpen} onToggle={(e) => { if (phone) setFiltersOpen(e.currentTarget.open); }}>
+          <summary className={cn("min-h-11 cursor-pointer items-center text-sm font-semibold", phone ? "flex" : "hidden")}>Filtros e exportações · {formatDateBR(filtro.de)}</summary>
+          <div className="space-y-4">
+      <div className="flex flex-wrap items-end gap-2">
+        <div className="flex flex-wrap gap-1">
+          {(
+            [
+              ["hoje", "Hoje"],
+              ["7", "7 dias"],
+              ["15", "15 dias"],
+              ["30", "30 dias"],
+            ] as const
+          ).map(([id, label]) => {
+            const hoje = todayISO();
+            const de = id === "hoje" ? hoje : id === "7" ? isoDaysAgo(6) : id === "15" ? isoDaysAgo(14) : isoDaysAgo(29);
+            const ativo = filtro.de === de && (filtro.ate === hoje || (id === "hoje" && !filtro.ate));
+            return (
+              <button
+                key={id}
+                type="button"
+                onClick={() => {
+                  setDraft((f) => ({ ...f, de, ate: hoje }));
+                  setFiltro((f) => ({ ...f, de, ate: hoje }));
+                }}
+                className={cn(
+                  "h-11 rounded-full border px-3 text-xs font-medium",
+                  ativo ? "border-primary bg-primary text-primary-foreground" : "border-border bg-card text-muted-foreground",
+                )}
+              >
+                {label}
+              </button>
+            );
+          })}
+        </div>
+        <Campo label="Data inicial" className="w-40">
+          <Input
+            type="date"
+            value={filtro.de}
+            onChange={(e) => {
+              const de = e.target.value;
+              setDraft((f) => ({ ...f, de }));
+              setFiltro((f) => ({ ...f, de }));
+            }}
+          />
+        </Campo>
+        <Campo label="Data final" className="w-40">
+          <Input
+            type="date"
+            value={filtro.ate}
+            onChange={(e) => {
+              const ate = e.target.value;
+              setDraft((f) => ({ ...f, ate }));
+              setFiltro((f) => ({ ...f, ate }));
+            }}
+          />
+        </Campo>
+        <BuscaMercadoria
+          catalogo={catalogo}
+          linhas={linhas}
+          value={q}
+          onChange={setQ}
+        />
+        <div className="flex flex-wrap gap-1">
+          {(
+            [
+              ["lista", "Lista"],
+              ["mercadoria", "Agrupar por mercadoria"],
+              ["pavilhao", "Agrupar por pavilhão"],
+            ] as const
+          ).map(([id, label]) => (
+            <button
+              key={id}
+              type="button"
+              aria-pressed={grupo === id}
+              onClick={() => setGrupo(id)}
+              className={cn(
+                "min-h-11 rounded-full border px-3 py-2 text-xs",
+                grupo === id ? "border-primary bg-primary text-primary-foreground" : "border-border bg-card",
+              )}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+        <Button type="button" variant="outline" size="sm" onClick={() => exportarPdfSaidas(visiveis, meta())}>
+          <FileText /> PDF
+        </Button>
+        <Button type="button" variant="outline" size="sm" onClick={() => exportarExcelSaidas(visiveis, meta())}>
+          <Download /> Excel
+        </Button>
+        <Button type="button" variant="outline" size="sm" onClick={() => exportarPdfSaidas(visiveis, meta())}>
+          <Printer /> Imprimir
+        </Button>
+      </div>
+        <details className="rounded-xl border border-border p-4">
+          <summary className="cursor-pointer text-sm font-semibold">Filtros detalhados · origem, produto, destino e responsável</summary>
+        <div className="mt-4 grid gap-4 sm:grid-cols-2 xl:grid-cols-12">
+          <Campo label="Pavilhão / galpão de origem" className="xl:col-span-6">
             <Select value={draft.pav || "todos"} onValueChange={(v) => set("pav", v === "todos" ? "" : v)}>
               <SelectTrigger>
                 <SelectValue placeholder="Todos" />
@@ -175,7 +294,7 @@ export function SaidasPainel({
               </SelectContent>
             </Select>
           </Campo>
-          <Campo label="Mercadoria / produto" className="xl:col-span-3">
+          <Campo label="Mercadoria / produto" className="xl:col-span-6">
             <MercadoriaFiltro
               items={catalogo}
               valueId={draft.mercadoriaId}
@@ -236,19 +355,21 @@ export function SaidasPainel({
             <X /> Limpar filtros
           </Button>
         </div>
+        </details>
+          </div>
+        </details>
       </section>
 
-      <div className="grid grid-cols-2 gap-2 lg:grid-cols-5">
-        <CardKpi label="Total de saídas" value={formatNumber(soma.saidas)} />
-        <CardKpi label="Total de pallets" value={num(soma.pallets)} hint={soma.pallets == null ? "Só soma quando o lançamento tem pallet" : undefined} />
-        <CardKpi label="Volumes / caixas" value={`${formatNumber(soma.volumes)} ${soma.unidade}`} />
-        <CardKpi label="Pavilhão" value={pavNome} />
-        <CardKpi label="Mercadoria" value={mercLabel} />
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
+        <CardKpi label="Total de saídas" value={soma.saidas} />
+        <CardKpi label="Total de pallets" value={soma.pallets ?? "—"} hint={soma.pallets == null ? "Só soma quando o lançamento tem pallet" : undefined} />
+        <div className="col-span-2 rounded-2xl border border-border bg-card p-5 shadow-card lg:col-span-1"><p className="text-xs text-muted-foreground">Volumes por unidade</p><div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-3xl font-semibold">{volumes.map(([unit, amount]) => <CountUp key={unit} value={amount} decimals={Number.isInteger(amount) ? 0 : 3} suffix={unit} />)}{!volumes.length ? "—" : null}</div></div>
       </div>
+      <p className="text-xs text-muted-foreground">Origem: {pavNome} · Produto: {mercLabel}</p>
 
       {familia ? (
         <section className="rounded-2xl border border-border bg-card p-3 shadow-card sm:p-4">
-          <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Total geral de {familia.nome}</p>
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Total geral de {familia.nome}</p>
           <ul className="mt-2 grid gap-1.5 sm:grid-cols-2 lg:grid-cols-3">
             {familia.variedades.map((v) => (
               <li key={v.nome}>
@@ -275,97 +396,6 @@ export function SaidasPainel({
           </p>
         </section>
       ) : null}
-
-      <div className="flex flex-wrap items-end gap-2">
-        <div className="flex flex-wrap gap-1">
-          {(
-            [
-              ["hoje", "Hoje"],
-              ["7", "7 dias"],
-              ["15", "15 dias"],
-              ["30", "30 dias"],
-            ] as const
-          ).map(([id, label]) => {
-            const hoje = todayISO();
-            const de = id === "hoje" ? hoje : id === "7" ? isoDaysAgo(6) : id === "15" ? isoDaysAgo(14) : isoDaysAgo(29);
-            const ativo = filtro.de === de && (filtro.ate === hoje || (id === "hoje" && !filtro.ate));
-            return (
-              <button
-                key={id}
-                type="button"
-                onClick={() => {
-                  setDraft((f) => ({ ...f, de, ate: hoje }));
-                  setFiltro((f) => ({ ...f, de, ate: hoje }));
-                }}
-                className={cn(
-                  "h-8 rounded-full border px-3 text-xs font-medium",
-                  ativo ? "border-primary bg-primary text-primary-foreground" : "border-border bg-card text-muted-foreground",
-                )}
-              >
-                {label}
-              </button>
-            );
-          })}
-        </div>
-        <Campo label="Data inicial" className="w-40">
-          <Input
-            type="date"
-            value={filtro.de}
-            onChange={(e) => {
-              const de = e.target.value;
-              setDraft((f) => ({ ...f, de }));
-              setFiltro((f) => ({ ...f, de }));
-            }}
-          />
-        </Campo>
-        <Campo label="Data final" className="w-40">
-          <Input
-            type="date"
-            value={filtro.ate}
-            onChange={(e) => {
-              const ate = e.target.value;
-              setDraft((f) => ({ ...f, ate }));
-              setFiltro((f) => ({ ...f, ate }));
-            }}
-          />
-        </Campo>
-        <BuscaMercadoria
-          catalogo={catalogo}
-          linhas={linhas}
-          value={q}
-          onChange={setQ}
-        />
-        <div className="flex flex-wrap gap-1">
-          {(
-            [
-              ["lista", "Lista"],
-              ["mercadoria", "Agrupar por mercadoria"],
-              ["pavilhao", "Agrupar por pavilhão"],
-            ] as const
-          ).map(([id, label]) => (
-            <button
-              key={id}
-              type="button"
-              onClick={() => setGrupo(id)}
-              className={cn(
-                "rounded-full border px-3 py-1.5 text-xs",
-                grupo === id ? "border-primary bg-primary text-primary-foreground" : "border-border bg-card",
-              )}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
-        <Button type="button" variant="outline" size="sm" onClick={() => exportarPdfSaidas(visiveis, meta())}>
-          <FileText /> PDF
-        </Button>
-        <Button type="button" variant="outline" size="sm" onClick={() => exportarExcelSaidas(visiveis, meta())}>
-          <Download /> Excel
-        </Button>
-        <Button type="button" variant="outline" size="sm" onClick={() => exportarPdfSaidas(visiveis, meta())}>
-          <Printer /> Imprimir
-        </Button>
-      </div>
 
       {vista !== "lista" ? (
         <ScreenCharts
@@ -431,7 +461,7 @@ export function SaidasPainel({
         <>
           <ul className="space-y-2 sm:hidden">
             {visiveis.map((r) => (
-              <li key={r.id}>
+              <li key={r.id} className={changed.has(r.id) ? "row-updated rounded-2xl" : undefined}>
                 <article
                   data-ctx="saida"
                   data-id={r.id}
@@ -455,7 +485,7 @@ export function SaidasPainel({
                     <Info label="Origem" value={r.pavilhao} />
                     <Info label="Horário de saída" value={formatTime(r.raw.hora_saida)} />
                     <div>
-                      <dt className="text-[10px] uppercase tracking-wide text-muted-foreground">Horário de chegada</dt>
+                      <dt className="text-xs uppercase tracking-wide text-muted-foreground">Horário de chegada</dt>
                       <dd className="mt-0.5">
                         <ChegadaBtn s={r.raw} onChegada={abrirChegada} />
                       </dd>
@@ -476,10 +506,10 @@ export function SaidasPainel({
               </li>
             ))}
           </ul>
-          <div className="hidden overflow-x-auto rounded-2xl border border-border bg-card shadow-card sm:block">
+          <div role="region" aria-label="Histórico de saídas" tabIndex={0} className="jg-table-wrap hidden overflow-x-auto rounded-2xl border border-border bg-card shadow-card sm:block">
             <table className="w-full min-w-[980px] text-sm">
               <thead>
-                <tr className="border-b border-border text-left text-[11px] uppercase tracking-wide text-muted-foreground">
+                <tr className="border-b border-border text-left text-xs uppercase tracking-wide text-muted-foreground">
                   <th className="w-[1%] whitespace-nowrap px-3 py-2 font-medium">Data</th>
                   <th className="px-3 py-2 font-medium">Origem</th>
                   <th className="px-3 py-2 font-medium">Mercadoria</th>
@@ -502,7 +532,10 @@ export function SaidasPainel({
                     data-produto={r.mercadoriaId}
                     data-nome={r.mercadoria}
                     data-codigo={r.codigo}
-                    className="cursor-pointer border-b border-border last:border-0"
+                    className={cn("cursor-pointer border-b border-border last:border-0", changed.has(r.id) && "row-updated")}
+                    tabIndex={0}
+                    aria-label={`Abrir saída de ${r.mercadoria}`}
+                    onKeyDown={(e) => { if (e.target === e.currentTarget && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); onOpen(r.raw); } }}
                     onClick={() => onOpen(r.raw)}
                   >
                     <td className="whitespace-nowrap px-3 py-2">{formatDateBR(r.data)}</td>
@@ -582,7 +615,7 @@ export function SaidasPainel({
 function Info({ label, value }: { label: string; value: string }) {
   return (
     <div className="min-w-0">
-      <dt className="text-[10px] uppercase tracking-wide text-muted-foreground">{label}</dt>
+      <dt className="text-xs uppercase tracking-wide text-muted-foreground">{label}</dt>
       <dd className="truncate font-medium">{value}</dd>
     </div>
   );
@@ -736,7 +769,7 @@ function BuscaMercadoria({
 function Campo({ label, children, className }: { label: string; children: ReactNode; className?: string }) {
   return (
     <label className={cn("block space-y-1", className)}>
-      <Label className="text-xs text-muted-foreground">{label}</Label>
+      <span className="text-xs font-medium text-muted-foreground">{label}</span>
       {children}
     </label>
   );
@@ -869,12 +902,12 @@ function MercadoriaFiltro({
   );
 }
 
-function CardKpi({ label, value, hint }: { label: string; value: string; hint?: string }) {
+function CardKpi({ label, value, hint }: { label: string; value: string | number; hint?: string }) {
   return (
-    <div className="rounded-2xl border border-border bg-card px-3 py-2.5 shadow-card">
-      <p className="text-[11px] uppercase tracking-wide text-muted-foreground">{label}</p>
-      <p className="mt-0.5 truncate text-lg font-semibold tabular-nums">{value}</p>
-      {hint ? <p className="text-[10px] leading-tight text-muted-foreground">{hint}</p> : null}
+    <div className="rounded-2xl border border-border bg-card p-5 shadow-card">
+      <p className="text-xs uppercase tracking-wide text-muted-foreground">{label}</p>
+      <p className={cn("mt-2 font-semibold tabular-nums", typeof value === "number" ? "text-4xl" : "text-lg break-words")}>{typeof value === "number" ? <CountUp value={value} decimals={Number.isInteger(value) ? 0 : 3} /> : value}</p>
+      {hint ? <p className="text-xs leading-tight text-muted-foreground">{hint}</p> : null}
     </div>
   );
 }

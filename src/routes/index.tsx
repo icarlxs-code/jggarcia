@@ -57,17 +57,7 @@ function mixByUnit(rows: { unidade?: string; quantidade?: number; estoque?: numb
     const key = row.unidade?.trim() || "Unidade";
     map.set(key, (map.get(key) || 0) + q);
   }
-  const parts = [...map.entries()]
-    .sort((a, b) => b[1] - a[1])
-    .map(([u, q]) => `${formatNumber(q)} ${unitShort(u)}`);
-  return parts.length ? parts.join(" · ") : "—";
-}
-
-function greeting() {
-  const h = new Date().getHours();
-  if (h < 12) return "Bom dia";
-  if (h < 18) return "Boa tarde";
-  return "Boa noite";
+  return [...map.entries()].sort((a, b) => a[0].localeCompare(b[0], "pt-BR"));
 }
 
 function Dashboard() {
@@ -94,8 +84,8 @@ function Dashboard() {
       const iso = `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
       return {
         name: `${pad2(d.getDate())}/${pad2(d.getMonth() + 1)}`,
-        entradas: movs.filter((m) => m.data === iso && m.tipo === "entrada").reduce((a, s) => a + s.quantidade, 0),
-        saidas: movs.filter((m) => m.data === iso && (m.tipo ?? "saida") === "saida").reduce((a, s) => a + s.quantidade, 0),
+        entradas: movs.filter((m) => m.data === iso && m.tipo === "entrada").length,
+        saidas: movs.filter((m) => m.data === iso && (m.tipo ?? "saida") === "saida").length,
       };
     });
     const baixos = produtos
@@ -124,8 +114,8 @@ function Dashboard() {
       <PageHeader
           clip="/lottie/galpao.json"
           clipClassName="lottie-clip h-14 w-24 shrink-0"
-          title={`${greeting()}.`}
-          description={isAdmin ? "Tudo que a equipe lança aparece aqui na hora." : "Estoque, entradas e expedição da JG Garcia no CEASA RJ."}
+          title="Visão geral"
+          description="Posição atual do estoque, alertas e tendências da operação."
         >
         <ViewSwitch page="inicio" />
         <Button asChild variant="outline">
@@ -175,8 +165,8 @@ function Dashboard() {
       ) : null}
 
       <div className="grid grid-cols-2 gap-3 xl:grid-cols-5">
-        <Kpi ctx="skus" label="SKUs ativos" value={produtos.filter((p) => p.status).length} hint="Produtos cadastrados" icon={Boxes} />
         <Kpi ctx="estoque" label="Estoque total" mix={stats.estoqueMix} hint="Somado por caixa, saco, unidade, kg…" icon={Warehouse} />
+        <Kpi ctx="skus" label="Produtos ativos" value={produtos.filter((p) => p.status).length} hint="Produtos cadastrados" icon={Boxes} />
         <Kpi ctx="entradas" label="Entradas hoje" mix={stats.inMix} hint={`${stats.entradasN} lançamentos`} icon={ArrowDownToLine} />
         <Kpi ctx="saidas" label="Saídas hoje" mix={stats.outMix} hint={`${stats.saidasN} lançamentos`} icon={ArrowUpFromLine} />
         <Kpi ctx="critico" label="Crítico / zerado" value={stats.criticos + stats.zerados} hint={`${stats.aVencer} lotes em risco`} icon={AlertTriangle} warn={stats.criticos + stats.zerados + stats.aVencer > 0} />
@@ -195,14 +185,14 @@ function Dashboard() {
       <div className="jg-lista grid items-start gap-4 xl:grid-cols-3">
         <Card data-ctx="kpi" data-id="grafico" data-nome="Movimentação · 7 dias" className="xl:col-span-2">
           <CardHeader className="flex-row items-center justify-between px-4 py-3">
-            <CardTitle>Movimentação · 7 dias</CardTitle>
+            <CardTitle>Lançamentos · últimos 7 dias</CardTitle>
             <div className="flex gap-3 text-xs text-muted-foreground">
               <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-sm bg-primary" /> Entradas</span>
               <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-sm bg-gold" /> Saídas</span>
             </div>
           </CardHeader>
           <CardContent className="px-4 pb-3">
-            <div className="h-28">
+            <div className="h-52">
               {movs.length === 0 ? (
                 <p className="flex h-full items-center justify-center text-sm text-muted-foreground">Sem movimentação ainda.</p>
               ) : (
@@ -219,8 +209,8 @@ function Dashboard() {
                       </linearGradient>
                     </defs>
                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--color-border)" />
-                    <XAxis dataKey="name" tick={{ fontSize: 11, fill: "var(--color-muted-foreground)" }} axisLine={false} tickLine={false} />
-                    <YAxis tick={{ fontSize: 11, fill: "var(--color-muted-foreground)" }} width={36} axisLine={false} tickLine={false} />
+                    <XAxis dataKey="name" tick={{ fontSize: 12, fill: "var(--color-muted-foreground)" }} axisLine={false} tickLine={false} />
+                    <YAxis allowDecimals={false} tick={{ fontSize: 12, fill: "var(--color-muted-foreground)" }} width={36} axisLine={false} tickLine={false} />
                     <ChartTooltip
                       cursor={{ fill: "var(--color-muted)", fillOpacity: 0.35 }}
                       contentStyle={{
@@ -285,7 +275,7 @@ function Dashboard() {
                       </span>
                       <div className="min-w-0 flex-1">
                         <p className="truncate text-sm font-medium">{s.mercadoria?.nome}</p>
-                        <p className="truncate text-[11px] text-muted-foreground">
+                        <p className="truncate text-xs text-muted-foreground">
                           {tipo === "entrada" ? `↓ ${lugarDaSaida(pavilhoes, s)}` : `${lugarDaSaida(pavilhoes, s)} → ${destinoDaSaida(pavilhoes, s)}`}
                           {s.usuario?.nome ? ` · ${s.usuario.nome}` : ""}
                         </p>
@@ -294,7 +284,7 @@ function Dashboard() {
                         <p className="text-sm font-semibold tabular-nums">
                           {formatNumber(s.quantidade)} {unitShort(s.unidade)}
                         </p>
-                        <p className="text-[11px] text-muted-foreground">{s.data.slice(8, 10)}/{s.data.slice(5, 7)} {formatTime(s.hora_saida)}</p>
+                        <p className="text-xs text-muted-foreground">{s.data.slice(8, 10)}/{s.data.slice(5, 7)} {formatTime(s.hora_saida)}</p>
                       </div>
                       <Badge variant={tipo === "entrada" ? "success" : tipo === "transferencia" ? "muted" : "gold"}>
                         {tipo === "entrada" ? "↓ Entrada" : tipo === "transferencia" ? "⇄ Transferência" : "↑ Saída"}
@@ -359,13 +349,13 @@ function Kpi({
   label: string;
   value?: number;
   suffix?: string;
-  mix?: string;
+  mix?: [string, number][];
   hint: string;
   icon: typeof Boxes;
   warn?: boolean;
 }) {
   return (
-    <SpotlightCard data-ctx="kpi" data-id={ctx} data-nome={label} className="p-4">
+    <SpotlightCard data-ctx="kpi" data-id={ctx} data-nome={label} className="p-5">
       <div className="flex items-start justify-between gap-2">
         <span className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
           <Icon className={warn ? "h-4 w-4 text-destructive" : "h-4 w-4 text-muted-foreground"} />
@@ -387,9 +377,9 @@ function Kpi({
         )}
       </div>
       {mix ? (
-        <div className="mt-2 text-lg font-semibold leading-snug tracking-tight">{mix}</div>
+        <div className="mt-3 flex flex-wrap items-baseline gap-x-3 gap-y-1 text-3xl font-semibold leading-snug tracking-tight">{mix.length ? mix.map(([unit, amount]) => <CountUp key={unit} value={amount} decimals={Number.isInteger(amount) ? 0 : 3} suffix={unitShort(unit)} />) : "—"}</div>
       ) : (
-        <div className="mt-2 tabular text-2xl font-semibold tracking-tight">
+        <div className="mt-3 tabular text-4xl font-semibold tracking-tight">
           <CountUp value={value ?? 0} suffix={suffix} />
         </div>
       )}

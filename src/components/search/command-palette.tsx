@@ -125,10 +125,12 @@ export function CommandPalette({ open, onOpenChange }: { open: boolean; onOpenCh
 
   return (
     <>
-    {open ? (
-    <div className="fixed inset-0 z-[70] flex items-start justify-center px-3 pt-3 sm:px-4 sm:pt-[10vh]" role="dialog" aria-label="Busca">
-      <button type="button" className="absolute inset-0 bg-forest/40" onClick={() => onOpenChange(false)} aria-label="Fechar busca" />
-      <Command
+      <Command.Dialog
+        open={open}
+        onOpenChange={onOpenChange}
+        label="Busca"
+        overlayClassName="fixed inset-0 z-[70] bg-forest/40"
+        contentClassName="fixed left-1/2 top-3 z-[71] w-[calc(100%-1.5rem)] max-w-xl -translate-x-1/2 sm:top-[10vh]"
         className="relative z-10 w-full max-w-xl overflow-hidden rounded-2xl border border-border bg-card shadow-card"
         shouldFilter={false}
         loop
@@ -139,10 +141,11 @@ export function CommandPalette({ open, onOpenChange }: { open: boolean; onOpenCh
             value={q}
             onValueChange={setQ}
             placeholder="Produto, código, pavilhão, página ou ação…"
+            aria-label="Buscar produto, código, pavilhão, página ou ação"
             className="h-12 w-full bg-transparent text-sm outline-none placeholder:text-muted-foreground"
             autoFocus
           />
-          <kbd className="hidden rounded-md border border-border px-1.5 py-0.5 text-[10px] text-muted-foreground sm:inline">ESC</kbd>
+          <kbd className="hidden rounded-md border border-border px-1.5 py-0.5 text-xs text-muted-foreground sm:inline">ESC</kbd>
         </div>
         <Command.List className="max-h-[min(70vh,32rem)] overflow-y-auto p-1">
           <Command.Empty className="px-3 py-8 text-center text-sm text-muted-foreground">
@@ -158,7 +161,7 @@ export function CommandPalette({ open, onOpenChange }: { open: boolean; onOpenCh
                 </div>
                 <div className="text-right">
                   <p className="text-lg font-semibold tabular-nums leading-none">{formatNumber(featured.total ?? 0)}</p>
-                  <p className="text-[11px] text-muted-foreground">{featured.unidade ?? "un"} no total</p>
+                  <p className="text-xs text-muted-foreground">{featured.unidade ?? "un"} no total</p>
                 </div>
               </div>
               {featured.positions && featured.positions.length > 0 ? (
@@ -204,7 +207,7 @@ export function CommandPalette({ open, onOpenChange }: { open: boolean; onOpenCh
             </div>
           ) : null}
           {grouped.map(([group, items]) => (
-            <Command.Group key={group} heading={group} className="[&_[cmdk-group-heading]]:px-3 [&_[cmdk-group-heading]]:py-1.5 [&_[cmdk-group-heading]]:text-[11px] [&_[cmdk-group-heading]]:font-medium [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-wide [&_[cmdk-group-heading]]:text-muted-foreground">
+            <Command.Group key={group} heading={group} className="[&_[cmdk-group-heading]]:px-3 [&_[cmdk-group-heading]]:py-1.5 [&_[cmdk-group-heading]]:text-xs [&_[cmdk-group-heading]]:font-medium [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-wide [&_[cmdk-group-heading]]:text-muted-foreground">
               {items.map((hit) => {
                 const Icon =
                   hit.run === "theme"
@@ -236,7 +239,7 @@ export function CommandPalette({ open, onOpenChange }: { open: boolean; onOpenCh
                     <span className="min-w-0 flex-1">
                       {hit.kind === "produto" || hit.kind === "alerta" ? (
                         <>
-                          <span className="block truncate font-mono text-[11px] font-bold tabular-nums">{hit.codigo}</span>
+                          <span className="block truncate font-mono text-xs font-bold tabular-nums">{hit.codigo}</span>
                           <span className="block truncate font-normal">{hit.title}</span>
                           {hit.total != null ? (
                             <span className="block truncate text-xs text-muted-foreground">
@@ -261,9 +264,7 @@ export function CommandPalette({ open, onOpenChange }: { open: boolean; onOpenCh
             </Command.Group>
           ))}
         </Command.List>
-      </Command>
-    </div>
-    ) : null}
+      </Command.Dialog>
     <AtalhoDialog open={atalhoOpen} onOpenChange={setAtalhoOpen} />
     </>
   );
