@@ -24,6 +24,8 @@ import { Badge } from "@/components/ui/badge";
 import { ProductIcon } from "@/components/inventory/product-icon";
 import { ViewSwitch, useChartView } from "@/components/analytics/view-switch";
 import { ScreenCharts } from "@/components/analytics/screen-charts";
+import { CountUp } from "@/components/motion/count-up";
+import { useRowUpdates } from "@/lib/use-row-updates";
 
 export const Route = createFileRoute("/hoje")({ component: Hoje });
 
@@ -37,6 +39,7 @@ function Hoje() {
   const range = periodRange(period, day, span);
   const pavilhoes = live.listPavilhoes();
   const movs = live.listSaidas({ from: range.from, to: range.to });
+  const changed = useRowUpdates(live.listSaidas());
   const entradas = movs.filter((s) => (s.tipo ?? "saida") === "entrada");
   const saidas = movs.filter((s) => (s.tipo ?? "saida") === "saida");
 
@@ -87,7 +90,7 @@ function Hoje() {
   const nome = perfil?.nome?.split(" ")[0] || "Administrador";
 
   return (
-    <PageStage className="hoje-glass space-y-4">
+    <PageStage className="space-y-6">
       <div className="page-hero hoje-banner">
         <div className="hoje-banner-copy">
           <p className="hoje-kicker">{eHoje ? "Operação de hoje" : "Operação"}</p>
@@ -97,6 +100,7 @@ function Hoje() {
           <p className="page-desc hoje-date">{periodoTxt}</p>
         </div>
         <div className="hoje-banner-tools">
+          {isAdmin ? <><Button asChild variant="outline"><Link to="/entradas">Registrar entrada</Link></Button><Button asChild><Link to="/nova-saida">Nova saída</Link></Button></> : null}
           {umDia ? (
             <Button variant="outline" className="hoje-pdf" onClick={() => exportDiaCompletoPdf(range.from)}>
               <FileText /> PDF do dia
@@ -117,7 +121,7 @@ function Hoje() {
         }}
       />
 
-      <section className="hoje-kpis grid grid-cols-2 gap-2 lg:grid-cols-5" aria-label="Indicadores do período">
+      <section className="hoje-kpis grid grid-cols-2 gap-3 lg:grid-cols-5" aria-label="Indicadores do período">
         <Kpi kind="in" label={eHoje ? "Entradas hoje" : "Entradas"} value={entradas.length} hint="lançamentos" series={countsByHour(entradas.map((s) => s.hora_saida || s.created_at))} />
         <Kpi kind="out" label={eHoje ? "Saídas hoje" : "Saídas"} value={saidas.length} hint="lançamentos" series={countsByHour(saidas.map((s) => s.hora_saida || s.created_at))} />
         <Kpi
@@ -132,7 +136,7 @@ function Hoje() {
       </section>
 
       {transito > 0 ? (
-        <div className="flex items-center gap-3 rounded-xl border border-border bg-card px-3 py-2.5">
+        <div className="flex flex-wrap items-center gap-3 rounded-xl border border-gold/30 bg-gold/10 p-4" role="status">
           <KpiMark kind="go" />
           <div className="min-w-0">
             <p className="text-sm font-semibold">
@@ -140,6 +144,7 @@ function Hoje() {
             </p>
             <p className="text-xs text-muted-foreground">Saídas deste período que ainda não registraram chegada.</p>
           </div>
+          <Button asChild variant="outline" className="sm:ml-auto"><Link to="/movimentacoes" search={{ periodo: eHoje ? "hoje" : "tudo", tipo: "transferencia" }}>Conferir chegadas</Link></Button>
         </div>
       ) : null}
 
@@ -176,22 +181,11 @@ function Hoje() {
         <ViewSwitch page="hoje" />
       </div>
 
-      {vista !== "lista" ? (
-        <ScreenCharts
-          screen="hoje"
-          movs={movs}
-          contagens={contagens}
-          produtos={live.listMercadorias(true)}
-          pavilhoes={pavilhoes}
-          periodLabel={periodoTxt}
-        />
-      ) : null}
-
       {vista !== "graficos" ? (
       <section className="space-y-2">
         <div className="flex flex-wrap items-end justify-between gap-2">
           <div>
-            <h2 className="text-sm font-semibold">{eHoje ? "Movimentações de hoje" : `Movimentações · ${periodoTxt}`}</h2>
+            <h2 className="text-lg font-semibold">{eHoje ? "Movimentações de hoje" : `Movimentações · ${periodoTxt}`}</h2>
             <p className="text-xs text-muted-foreground">
               {qMov.trim()
                 ? `${shownMovs.length} de ${movs.length}`
@@ -225,12 +219,12 @@ function Hoje() {
             </button>
           </p>
         ) : shownMovs.length > 0 ? (
-          <ul className="grid max-h-[32rem] grid-cols-1 gap-2 overflow-y-auto pr-1 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+          <ul className="grid grid-cols-1 gap-3 xl:grid-cols-2">
             {shownMovs.map((s) => {
               const tipo = tipoMovimentacaoOf(s);
               const accent = tipo === "entrada" ? "bg-primary" : tipo === "transferencia" ? "bg-foreground/25" : "bg-gold";
               return (
-                <li key={s.id} className="min-w-0">
+                <li key={s.id} className={cn("min-w-0 rounded-xl", changed.has(s.id) && "row-updated")}>
                   <article className="flex h-full overflow-hidden rounded-xl border border-border bg-card">
                     <div className={`w-1 shrink-0 ${accent}`} />
                     <button
@@ -240,20 +234,19 @@ function Hoje() {
                       data-produto={s.mercadoria_id}
                       data-nome={s.mercadoria?.nome ?? ""}
                       data-codigo={s.mercadoria?.codigo ?? ""}
-                      className="hoje-mov min-w-0 flex-1 rounded-none px-2.5 py-2 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      className="hoje-mov min-w-0 flex-1 rounded-none p-4 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                       onClick={() => setView(s)}
                     >
                       <div className="flex items-start gap-2">
                         <ProductIcon nome={s.mercadoria?.nome ?? "Produto"} codigo={s.mercadoria?.codigo} size="sm" />
                         <div className="min-w-0 flex-1">
-                          <p className="truncate text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                          <p className="truncate text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                             {s.hora_saida || s.created_at.slice(11, 16)} · {tipo === "entrada" ? "Entrada" : tipo === "transferencia" ? "Transferência" : "Saída"}
                             {s.mercadoria?.codigo ? ` · ${s.mercadoria.codigo}` : ""}
                           </p>
                           <p className="truncate text-sm font-medium leading-tight">{s.mercadoria?.nome ?? "Produto"}</p>
-                          <p className="truncate text-[11px] text-muted-foreground">
-                            {formatNumber(s.quantidade)} {s.unidade}
-                            {" · "}
+                          <p className="mt-1 text-base font-semibold tabular-nums">{formatNumber(s.quantidade)} <span className="text-xs font-normal text-muted-foreground">{s.unidade}</span></p>
+                          <p className="truncate text-xs text-muted-foreground">
                             {tipo === "entrada" ? lugarDaSaida(pavilhoes, s) : `${lugarDaSaida(pavilhoes, s)} → ${destinoDaSaida(pavilhoes, s)}`}
                             {s.operador_nome ? ` · ${s.operador_nome}` : ""}
                           </p>
@@ -276,6 +269,8 @@ function Hoje() {
         ) : null}
       </section>
       ) : null}
+
+      {vista !== "lista" ? <section className="space-y-3"><h2 className="text-lg font-semibold">Análise do período</h2><ScreenCharts screen="hoje" movs={movs} contagens={contagens} produtos={live.listMercadorias(true)} pavilhoes={pavilhoes} periodLabel={periodoTxt} /></section> : null}
 
       <MovementDetail view={view} onClose={() => setView(null)} />
     </PageStage>
@@ -302,9 +297,7 @@ function Kpi({ kind, label, value, hint, series }: { kind: KpiKind; label: strin
 
   useEffect(() => {
     if (prev.current === value) return;
-    const rose = value > prev.current && value > 0;
     prev.current = value;
-    if (!rose) return;
     setFresh(true);
     const timer = window.setTimeout(() => setFresh(false), MOTION.duration.icon);
     return () => window.clearTimeout(timer);
@@ -312,22 +305,20 @@ function Kpi({ kind, label, value, hint, series }: { kind: KpiKind; label: strin
 
   return (
     <Card className={cn("hoje-kpi", `is-${kind}`, live && "is-live", fresh && "is-fresh")}>
-      <CardContent className="px-3 py-2.5">
+      <CardContent className="p-5">
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0">
-            <p className="text-[11px] font-semibold uppercase leading-tight tracking-wide text-muted-foreground">{label}</p>
+            <p className="text-xs font-semibold uppercase leading-tight tracking-wide text-muted-foreground">{label}</p>
             <p className="kpi-figure mt-1 font-semibold tabular-nums">
-              <span key={value} className="kpi-num">
-                {value.toLocaleString("pt-BR")}
-              </span>
+              <CountUp value={value} />
             </p>
-            <p className="mt-0.5 text-[11px] text-muted-foreground">{hint}</p>
+            <p className="mt-0.5 text-xs text-muted-foreground">{hint}</p>
             {kind === "go" ? (
-              <Link to="/movimentacoes" search={{ periodo: "hoje", tipo: "transferencia" }} className="mt-1 inline-block text-[11px] font-medium underline-offset-2 hover:underline">
+              <Link to="/movimentacoes" search={{ periodo: "hoje", tipo: "transferencia" }} className="mt-1 inline-block text-xs font-medium underline-offset-2 hover:underline">
                 Ver registros
               </Link>
             ) : (
-              <Link to={kind === "in" ? "/entradas" : kind === "out" ? "/historico" : kind === "count" ? "/contagem" : "/movimentacoes"} search={kind === "move" ? { periodo: "hoje" } : undefined} className="mt-1 inline-block text-[11px] font-medium underline-offset-2 hover:underline">
+              <Link to={kind === "in" ? "/entradas" : kind === "out" ? "/historico" : kind === "count" ? "/contagem" : "/movimentacoes"} search={kind === "move" ? { periodo: "hoje" } : undefined} className="mt-1 inline-block text-xs font-medium underline-offset-2 hover:underline">
                 Ver registros
               </Link>
             )}

@@ -115,9 +115,9 @@ export function ScreenCharts({
           <div className="rounded-2xl border border-border bg-card p-3">
             <p className="text-sm font-semibold">Transferências</p>
             <div className="mt-2 grid grid-cols-3 gap-2 text-center">
-              <p><span className="block text-lg font-semibold tabular-nums">{trip.pendente}</span><span className="text-[10px] text-muted-foreground">Pendentes</span></p>
-              <p><span className="block text-lg font-semibold tabular-nums">{trip.concluida}</span><span className="text-[10px] text-muted-foreground">Concluídas</span></p>
-              <p><span className="block text-lg font-semibold tabular-nums">{trip.media != null ? formatMinutes(trip.media) : "—"}</span><span className="text-[10px] text-muted-foreground">Tempo médio</span></p>
+              <p><span className="block text-lg font-semibold tabular-nums">{trip.pendente}</span><span className="text-xs text-muted-foreground">Pendentes</span></p>
+              <p><span className="block text-lg font-semibold tabular-nums">{trip.concluida}</span><span className="text-xs text-muted-foreground">Concluídas</span></p>
+              <p><span className="block text-lg font-semibold tabular-nums">{trip.media != null ? formatMinutes(trip.media) : "—"}</span><span className="text-xs text-muted-foreground">Tempo médio</span></p>
             </div>
             <ForkList movs={movs} pavilhoes={pavilhoes} />
           </div>
@@ -177,7 +177,7 @@ function EstoqueBloco({ produtos }: { produtos: Mercadoria[]; pavilhoes: Pavilha
     <div className="grid items-start gap-2 lg:grid-cols-2">
       <Rank title="Maiores saldos" rows={rows.map((m) => ({ nome: m.nome, valor: m.estoque }))} unit={mesma ? unidade : "ver unidade no nome"} period="Posição atual" color={COLORS.in} />
       <Rank title="Saldo por local" rows={localRows} unit={unidade || "da unidade principal"} period="Posição atual" color={COLORS.in} />
-      <p className="text-[11px] text-muted-foreground lg:col-span-2">
+      <p className="text-xs text-muted-foreground lg:col-span-2">
         Saldo por local só soma a unidade {unidade || "principal"}, para não misturar caixa com quilo. Abaixo do mínimo: {produtos.filter((m) => m.estoque > 0 && m.estoque < m.minimo).length}.
       </p>
     </div>
@@ -240,9 +240,9 @@ function tipoMov(s: Saida) {
 function Stat({ k, v, hint }: { k: string; v: number; hint: string }) {
   return (
     <div className="rounded-2xl border border-border bg-card px-3 py-2.5">
-      <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">{k}</p>
+      <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{k}</p>
       <p className="text-xl font-semibold tabular-nums">{formatNumber(v)}</p>
-      <p className="text-[11px] text-muted-foreground">{hint}</p>
+      <p className="text-xs text-muted-foreground">{hint}</p>
     </div>
   );
 }
@@ -260,12 +260,12 @@ function Rank({ title, rows, unit, period, color }: { title: string; rows: { nom
       <div className="flex items-baseline justify-between gap-2">
         <p className="text-sm font-semibold">{title}</p>
         {rows.length > 5 ? (
-          <button type="button" className="text-[11px] font-medium text-primary" onClick={() => setOpen((v) => !v)}>
+          <button type="button" className="text-xs font-medium text-primary" onClick={() => setOpen((v) => !v)}>
             {open ? "Menos" : `+${rows.length - 5}`}
           </button>
         ) : null}
       </div>
-      <p className="text-[11px] text-muted-foreground">{period} · {unit}</p>
+      <p className="text-xs text-muted-foreground">{period} · {unit}</p>
       {shown.length === 0 ? <p className="mt-2 text-sm text-muted-foreground">Nenhum dado neste período.</p> : (
         <ol className="mt-1.5 space-y-1">
           {shown.map((r) => (
@@ -290,9 +290,9 @@ function Donut({ title, hint, unit, rows }: { title: string; hint: string; unit:
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
           <p className="text-sm font-semibold">{title}</p>
-          <p className="text-[11px] text-muted-foreground">{hint}</p>
+          <p className="text-xs text-muted-foreground">{hint}</p>
         </div>
-        <button type="button" className="h-7 rounded-full border border-border px-2 text-[11px]" onClick={() => downloadCsv(title, rows)}>CSV</button>
+        <button type="button" className="h-7 rounded-full border border-border px-2 text-xs" onClick={() => downloadCsv(title, rows)}>CSV</button>
       </div>
       <div className="mt-2 flex items-center gap-3">
         <div className="h-24 w-24 shrink-0">
@@ -328,7 +328,7 @@ function SplitBars({ title, hint, rows }: { title: string; hint: string; rows: {
   return (
     <div className="rounded-2xl border border-border bg-card p-3">
       <p className="text-sm font-semibold">{title}</p>
-      <p className="text-[11px] text-muted-foreground">{hint}</p>
+      <p className="text-xs text-muted-foreground">{hint}</p>
       <ul className="mt-1.5 space-y-1.5">
         {shown.map((r) => (
           <li key={r.nome}>
@@ -364,12 +364,12 @@ function ChartCard({ title, hint, period, unit, rows, children }: { title: strin
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div>
           <p className="text-sm font-semibold">{title}</p>
-          <p className="text-[11px] text-muted-foreground">{hint} · {period} · {unit}</p>
+          <p className="text-xs text-muted-foreground">{hint} · {period} · {unit}</p>
         </div>
         <div className="flex gap-1">
-          <button type="button" className="h-8 rounded-full border border-border px-2.5 text-[11px]" onClick={() => setTable((v) => !v)}>{table ? "Gráfico" : "Tabela"}</button>
-          <button type="button" className="h-8 rounded-full border border-border px-2.5 text-[11px]" onClick={() => downloadCsv(title, rows)}>CSV</button>
-          <button type="button" className="h-8 rounded-full border border-border px-2.5 text-[11px]" onClick={() => downloadPng(ref.current, title)} disabled={lite}>PNG</button>
+          <button type="button" className="h-8 rounded-full border border-border px-2.5 text-xs" onClick={() => setTable((v) => !v)}>{table ? "Gráfico" : "Tabela"}</button>
+          <button type="button" className="h-8 rounded-full border border-border px-2.5 text-xs" onClick={() => downloadCsv(title, rows)}>CSV</button>
+          <button type="button" className="h-8 rounded-full border border-border px-2.5 text-xs" onClick={() => downloadPng(ref.current, title)} disabled={lite}>PNG</button>
         </div>
       </div>
       {table ? (

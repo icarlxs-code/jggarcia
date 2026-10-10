@@ -35,7 +35,7 @@ export function ViewSwitch({ page }: { page: ViewPage }) {
           aria-pressed={vista === o.id}
           onClick={() => choose(o.id)}
           className={cn(
-            "h-8 rounded-full px-3 text-xs font-medium",
+            "h-10 rounded-full px-3 text-xs font-medium transition-colors duration-200",
             vista === o.id ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground",
           )}
         >

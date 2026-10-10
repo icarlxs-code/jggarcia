@@ -158,24 +158,24 @@ function JobCard({ job, now, onOpen }: { job: ForkliftJob; now: number; onOpen: 
       <div className="space-y-0.5 px-3 py-2.5">
         <div className="flex items-center justify-between gap-2">
           <p className="truncate text-sm font-semibold">{job.operator_nome}</p>
-          <span className="shrink-0 text-[10px] font-medium uppercase text-muted-foreground">{job.status === "em_transporte" ? "Em transporte" : job.status === "concluido" ? "Concluído" : "Cancelado"}</span>
+          <span className="shrink-0 text-xs font-medium uppercase text-muted-foreground">{job.status === "em_transporte" ? "Em transporte" : job.status === "concluido" ? "Concluído" : "Cancelado"}</span>
         </div>
         <p className="truncate text-sm">{job.product_nome}</p>
         <p className="text-xs tabular-nums text-muted-foreground">{formatNumber(job.quantity)} {job.unit}</p>
         <p className="truncate text-xs">{job.origin_nome} → {job.destination_nome}</p>
         <p className="font-mono text-sm font-semibold tabular-nums">{job.status === "em_transporte" ? formatElapsed(job.started_at, now) : job.finished_at ? formatDurationText(job.started_at, job.finished_at) : "—"}</p>
-        {link ? <p className="truncate text-[11px] text-muted-foreground">{link}</p> : null}
+        {link ? <p className="truncate text-xs text-muted-foreground">{link}</p> : null}
       </div>
       {last ? (
         <div className="mt-auto border-t border-border">
           <iframe title={`Localização de ${job.operator_nome}`} src={map} className="pointer-events-none hidden h-24 w-full sm:block" loading="lazy" />
-          <p className="px-3 py-1.5 text-[11px] leading-4 text-muted-foreground">
+          <p className="px-3 py-1.5 text-xs leading-4 text-muted-foreground">
             Última localização {new Date(last.captured_at).toLocaleTimeString("pt-BR")}
             <span className="mt-0.5 block tabular-nums">{last.latitude.toFixed(5)}, {last.longitude.toFixed(5)} · ± {Math.round(last.accuracy)} m</span>
           </p>
         </div>
       ) : (
-        <p className="mt-auto px-3 pb-2.5 text-[11px] text-muted-foreground">Sem localização recebida</p>
+        <p className="mt-auto px-3 pb-2.5 text-xs text-muted-foreground">Sem localização recebida</p>
       )}
     </article>
   );
@@ -309,3 +309,4 @@ function JobDetail({ job, now, mapOpen, onMap }: { job: ForkliftJob; now: number
     </>
   );
 }
+

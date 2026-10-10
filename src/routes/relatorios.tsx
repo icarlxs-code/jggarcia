@@ -141,9 +141,9 @@ function Relatorios() {
       </div>
 
       <div className="flex flex-wrap items-center gap-2 rounded-xl border border-border bg-card px-2 py-1.5">
-        <Label htmlFor="from" className="text-[11px] text-muted-foreground">De</Label>
+        <Label htmlFor="from" className="text-xs text-muted-foreground">De</Label>
         <Input id="from" type="date" value={from} onChange={(e) => setFrom(e.target.value)} className="h-8 w-[9.5rem]" />
-        <Label htmlFor="to" className="text-[11px] text-muted-foreground">Até</Label>
+        <Label htmlFor="to" className="text-xs text-muted-foreground">Até</Label>
         <Input id="to" type="date" value={to} onChange={(e) => setTo(e.target.value)} className="h-8 w-[9.5rem]" />
       </div>
 
@@ -176,7 +176,7 @@ function Relatorios() {
               className="min-w-[11rem] flex-1 rounded-xl border border-primary bg-primary px-3 py-2 text-left text-primary-foreground"
             >
               <span className="block text-sm font-semibold leading-tight">PDF de todos</span>
-              <span className="text-[11px] opacity-80">{kinds.find((k) => k.id === kind)?.label} · todos os lugares</span>
+              <span className="text-xs opacity-80">{kinds.find((k) => k.id === kind)?.label} · todos os lugares</span>
             </button>
             <button
               type="button"
@@ -184,7 +184,7 @@ function Relatorios() {
               className="min-w-[11rem] flex-1 rounded-xl border border-border bg-card px-3 py-2 text-left hover:bg-muted"
             >
               <span className="block text-sm font-semibold leading-tight">PDF do dia</span>
-              <span className="text-[11px] text-muted-foreground">{from === to ? formatDateBR(from) : formatDateBR(to)}</span>
+              <span className="text-xs text-muted-foreground">{from === to ? formatDateBR(from) : formatDateBR(to)}</span>
             </button>
             <div className="grid min-w-[18rem] flex-[1.4] grid-cols-4 gap-1.5">
               <Kpi label="Lançamentos" value={rows.length} />
@@ -217,7 +217,7 @@ function Relatorios() {
       {tab === "produto" ? (
         <section className="space-y-3">
           <SpotlightCard className="p-4 sm:p-5">
-            <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Produto específico</p>
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Produto específico</p>
             <p className="mt-1 text-sm">Escreva o nome — uva, tomate, maçã — ou toque numa variedade. Depois escolha o pavilhão.</p>
             <div className="relative mt-3">
               <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -258,7 +258,7 @@ function Relatorios() {
                   >
                     <ProductIcon nome={m.nome} codigo={m.codigo} size="sm" />
                     <span className="min-w-0">
-                      <span className="block truncate font-mono text-[11px] font-bold tabular-nums">{m.codigo}</span>
+                      <span className="block truncate font-mono text-xs font-bold tabular-nums">{m.codigo}</span>
                       <span className="block truncate text-sm">{m.nome}</span>
                     </span>
                   </button>
@@ -268,7 +268,7 @@ function Relatorios() {
           </SpotlightCard>
 
           <div>
-            <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Lugar</p>
+            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Lugar</p>
             <div className="flex gap-2 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
               <Chip on={prodPav === "todos"} onClick={() => setProdPav("todos")}>
                 Todos
@@ -282,7 +282,7 @@ function Relatorios() {
           </div>
 
           <div>
-            <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">O que entra</p>
+            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">O que entra</p>
             <div className="grid grid-cols-3 gap-2">
               {([
                 ["tudo", "Entradas e saídas"],
@@ -360,7 +360,7 @@ function Relatorios() {
                     }}
                     className="flex min-h-[5.5rem] w-full flex-col items-start px-4 py-3 text-left"
                   >
-                    <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                       {p.codigo === "74" ? "Galpão" : "Pavilhão"}
                     </p>
                     <p className="text-2xl font-semibold tabular-nums leading-tight">{p.codigo}</p>
@@ -376,7 +376,7 @@ function Relatorios() {
       {tab === "empilhador" ? (
         <section className="space-y-3">
           <SpotlightCard className="p-4">
-            <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Empilhadeiras</p>
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Empilhadeiras</p>
             <p className="mt-1 text-sm">Ranking da equipe ou PDF de um empilhador só.</p>
             {lift.fastest ? (
               <p className="mt-2 text-sm">
@@ -445,7 +445,7 @@ function Relatorios() {
       {tab === "clientes" ? (
         <section className="space-y-3">
           <SpotlightCard className="p-4">
-            <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Cliente específico</p>
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Cliente específico</p>
             <p className="mt-1 text-sm">Escolha um cliente e veja entradas e saídas só dele. Pode cruzar com produto.</p>
             <div className="relative mt-3">
               <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -658,10 +658,11 @@ function Chip({ on, onClick, children }: { on: boolean; onClick: () => void; chi
 function Kpi({ label, value }: { label: string; value: number }) {
   return (
     <div className="min-w-[5.5rem] rounded-xl border border-border bg-card px-2.5 py-1.5">
-      <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">{label}</p>
+      <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{label}</p>
       <p className="text-base font-semibold tabular-nums leading-tight">
         <CountUp value={value} />
       </p>
     </div>
   );
 }
+

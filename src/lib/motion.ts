@@ -2,13 +2,13 @@ import { useEffect, useState } from "react";
 
 export const MOTION = {
   duration: {
-    micro: 80,
-    fast: 120,
-    normal: 180,
+    micro: 150,
+    fast: 150,
+    normal: 200,
     slow: 280,
-    page: 90,
-    hero: 640,
-    icon: 720,
+    page: 200,
+    hero: 280,
+    icon: 280,
   },
   ease: {
     standard: "cubic-bezier(0.22, 1, 0.36, 1)",

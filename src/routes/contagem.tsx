@@ -42,19 +42,18 @@ export const Route = createFileRoute("/contagem")({
   component: ContagemPage,
 });
 
-function LiveClock() {
+function LocalClock() {
   const [agora, setAgora] = useState(() => new Date());
   useEffect(() => {
     const t = window.setInterval(() => setAgora(new Date()), 1000);
     return () => window.clearInterval(t);
   }, []);
   return (
-    <span className="inline-flex items-center gap-1.5 text-[11px] text-muted-foreground">
+    <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
       <span className="relative flex h-1.5 w-1.5">
-        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary opacity-60" />
         <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-primary" />
       </span>
-      Ao vivo · {agora.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
+      Horário local · {agora.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
     </span>
   );
 }
@@ -76,6 +75,7 @@ function ContagemPage() {
   const [contado, setContado] = useState("");
   const [motivo, setMotivo] = useState("");
   const [obs, setObs] = useState("");
+  const [saved, setSaved] = useState("");
   const [undoId, setUndoId] = useState<string | null>(null);
   const [escopo, setEscopo] = useState<"pav" | "todos">("pav");
   const [periodo, setPeriodo] = useState<"hoje" | "7d" | "15d" | "30d" | "tudo">("tudo");
@@ -129,6 +129,13 @@ function ContagemPage() {
     }
     return ids;
   }, [historico, pav, verTodos]);
+
+  const alvos = new Set(contadosHoje);
+  for (const product of produtos) {
+    for (const place of verTodos ? pavilhoes : pav ? [pav] : []) {
+      if (live.stockAt(product.id, place.id) > 0) alvos.add(`${product.id}\t${place.id}`);
+    }
+  }
 
   const sugeridos = useMemo(() => {
     const term = fold(busca.trim());
@@ -225,6 +232,7 @@ function ContagemPage() {
         /* ignore */
       }
       setContador(quem);
+      setSaved(`${merc.nome}: ${formatNumber(Number(nContado))} ${merc.unidade} registrados em ${pavTitle(pav)}.`);
       setContadorNovo("");
       let total = 0;
       for (const m of db.listMercadorias(true)) total += db.stockAt(m.id, pav.id);
@@ -266,11 +274,18 @@ function ContagemPage() {
       <PageHeader
         clip="/lottie/prancheta.json"
         title="Contagem"
-        description="Conferir o que realmente tem em cada pavilhão. O histórico ao lado atualiza na hora e já mostra o estoque completo — sem precisar abrir o Estoque."
+        description="Confira o saldo físico por produto e local. Consulte as contagens anteriores no histórico."
       >
         <ViewSwitch page="contagem" />
         <CountCalc />
       </PageHeader>
+
+      <section className="rounded-xl border border-border bg-card p-4" aria-label="Progresso da contagem">
+        <p className="text-sm font-medium">{contadosHoje.size} de {alvos.size} produtos / locais conferidos hoje {verTodos ? "na empresa" : `em ${pav?.nome || "seu local"}`}</p>
+        <progress className="mt-3 h-2 w-full accent-primary" max={Math.max(1, alvos.size)} value={contadosHoje.size} aria-label="Produtos e locais conferidos hoje" />
+        <p className="mt-1 text-xs text-muted-foreground">A lista prioriza os produtos que ainda precisam ser contados.</p>
+        {saved ? <p role="status" className="mt-2 text-sm font-medium text-primary">Contagem salva · {saved}</p> : null}
+      </section>
 
       {vista !== "lista" ? (
         <ScreenCharts
@@ -298,7 +313,7 @@ function ContagemPage() {
                 verTodos ? "border-primary bg-primary text-primary-foreground" : "border-border bg-card hover:bg-muted",
               )}
             >
-              <p className="text-[11px] font-semibold uppercase tracking-wide opacity-70">Lugares</p>
+              <p className="text-xs font-semibold uppercase tracking-wide opacity-70">Lugares</p>
               <p className="text-xl font-semibold leading-tight">Todos</p>
             </button>
             {pavilhoes.map((p) => {
@@ -322,9 +337,9 @@ function ContagemPage() {
                     active ? "border-primary bg-primary text-primary-foreground" : "border-border bg-card hover:bg-muted",
                   )}
                 >
-                  <p className="text-[11px] font-semibold uppercase tracking-wide opacity-70">{(p.tipo || "").trim() || (p.codigo === "74" ? "Galpão" : "Pavilhão")}</p>
+                  <p className="text-xs font-semibold uppercase tracking-wide opacity-70">{(p.tipo || "").trim() || (p.codigo === "74" ? "Galpão" : "Pavilhão")}</p>
                   <p className="text-xl font-semibold leading-tight">{lugarNoCard(p)}</p>
-                  {active ? <p className="text-[11px] font-medium tabular-nums opacity-80">Total {formatNumber(totalLugar)}</p> : null}
+                  {active ? <p className="text-xs font-medium tabular-nums opacity-80">Total {formatNumber(totalLugar)}</p> : null}
                 </button>
               );
             })}
@@ -365,7 +380,7 @@ function ContagemPage() {
                       </button>
                     ) : null}
                   </div>
-                  <p className="text-[11px] text-muted-foreground">
+                  <p className="text-xs text-muted-foreground">
                     {sugeridos.length === 0
                       ? verTodos
                         ? "Nenhum produto com estoque na empresa."
@@ -389,7 +404,7 @@ function ContagemPage() {
                                 <span className="block font-medium">
                                   {formatNumber(qtd)} {m.unidade}
                                 </span>
-                                <span className="block text-[11px] text-muted-foreground">empresa {formatNumber(total)}</span>
+                                <span className="block text-xs text-muted-foreground">empresa {formatNumber(total)}</span>
                               </span>
                             </button>
                           </li>
@@ -422,7 +437,7 @@ function ContagemPage() {
                                 <span className="block font-medium">
                                   {formatNumber(qtd)} {m.unidade}
                                 </span>
-                                <span className="block text-[11px] text-muted-foreground">
+                                <span className="block text-xs text-muted-foreground">
                                   {contadosHoje.has(row.id) ? "já contado hoje" : `empresa ${formatNumber(total)}`}
                                 </span>
                               </span>
@@ -440,7 +455,7 @@ function ContagemPage() {
                     <div className="flex items-center gap-3 rounded-xl border border-border bg-muted/40 px-3 py-3">
                       <ProductIcon nome={merc.nome} size="lg" />
                       <div className="min-w-0 flex-1">
-                        <p className="font-mono text-[11px] font-bold tabular-nums">{merc.codigo}</p>
+                        <p className="font-mono text-xs font-bold tabular-nums">{merc.codigo}</p>
                         <p className="truncate text-sm">{merc.nome}</p>
                         <p className="text-xs text-muted-foreground">
                           No sistema neste pavilhão:{" "}
@@ -454,7 +469,7 @@ function ContagemPage() {
                     <StockSplit mercadoriaId={merc.id} highlightId={pav.id} delta={validNum ? delta : 0} />
 
                     <div className="space-y-1.5">
-                      <Label htmlFor="qtd-contado">Quanto tem de verdade</Label>
+                      <Label htmlFor="qtd-contado">Quantidade contada · {merc.unidade}</Label>
                       <Input
                         id="qtd-contado"
                         inputMode="decimal"
@@ -471,11 +486,11 @@ function ContagemPage() {
                       />
                     </div>
 
-                    {validNum ? (
-                      <p className="text-center text-3xl font-semibold tabular-nums leading-none">
-                        {formatNumber(nContado)} <span className="text-base font-normal text-muted-foreground">{merc.unidade}</span>
-                      </p>
-                    ) : null}
+                    <dl className="grid grid-cols-3 gap-3 rounded-xl border border-border bg-muted/40 p-4">
+                      <div><dt className="text-xs text-muted-foreground">Registrado</dt><dd className="mt-1 text-xl font-semibold tabular-nums">{formatNumber(esperado)}</dd></div>
+                      <div><dt className="text-xs text-muted-foreground">Contado</dt><dd className="mt-1 text-xl font-semibold tabular-nums">{validNum ? formatNumber(Number(nContado)) : "—"}</dd></div>
+                      <div><dt className="text-xs text-muted-foreground">Diferença</dt><dd className={cn("mt-1 text-xl font-semibold tabular-nums", divergiu && "text-destructive")}>{validNum ? `${delta > 0 ? "+" : ""}${formatNumber(delta)}` : "—"}</dd></div>
+                    </dl>
 
                     {divergiu ? (
                       <div className="space-y-2">
@@ -573,8 +588,8 @@ function ContagemPage() {
           <div className="shrink-0 space-y-3 border-b border-border px-4 py-3">
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
-                <h2 className="text-sm font-semibold">Histórico ao vivo</h2>
-                <LiveClock />
+                <h2 className="text-lg font-semibold">Histórico de contagens</h2>
+                <LocalClock />
               </div>
               <span className="shrink-0 text-xs tabular-nums text-muted-foreground">{recentes.length} registros</span>
             </div>
@@ -643,7 +658,7 @@ function ContagemPage() {
                 return (
                   <li key={c.id} className="px-3 py-3">
                     <div className="flex items-start gap-2.5">
-                      <span className="w-5 shrink-0 pt-1 text-right text-[11px] tabular-nums text-muted-foreground">{i + 1}</span>
+                      <span className="w-5 shrink-0 pt-1 text-right text-xs tabular-nums text-muted-foreground">{i + 1}</span>
                       <button type="button" onClick={() => abrirDoHistorico(c)} className="min-w-0 flex-1 text-left">
                         {prod ? (
                           <ProductLabel nome={prod.nome} codigo={prod.codigo} extra={pavLabel} className="min-w-0" />
@@ -658,19 +673,19 @@ function ContagemPage() {
 
                     <dl className="mt-2 grid grid-cols-3 gap-1.5 pl-7">
                       <div className="rounded-lg bg-muted/50 px-2 py-1.5">
-                        <dt className="text-[10px] uppercase tracking-wide text-muted-foreground">Sistema</dt>
+                        <dt className="text-xs uppercase tracking-wide text-muted-foreground">Sistema</dt>
                         <dd className="text-sm font-medium tabular-nums">
-                          {formatNumber(c.esperado)} <span className="text-[11px] font-normal text-muted-foreground">{short}</span>
+                          {formatNumber(c.esperado)} <span className="text-xs font-normal text-muted-foreground">{short}</span>
                         </dd>
                       </div>
                       <div className="rounded-lg bg-muted/50 px-2 py-1.5">
-                        <dt className="text-[10px] uppercase tracking-wide text-muted-foreground">Contado</dt>
+                        <dt className="text-xs uppercase tracking-wide text-muted-foreground">Contado</dt>
                         <dd className="text-sm font-semibold tabular-nums">
-                          {formatNumber(c.contado)} <span className="text-[11px] font-normal text-muted-foreground">{short}</span>
+                          {formatNumber(c.contado)} <span className="text-xs font-normal text-muted-foreground">{short}</span>
                         </dd>
                       </div>
                       <div className="rounded-lg bg-muted/50 px-2 py-1.5">
-                        <dt className="text-[10px] uppercase tracking-wide text-muted-foreground">Diferença</dt>
+                        <dt className="text-xs uppercase tracking-wide text-muted-foreground">Diferença</dt>
                         <dd className="text-sm font-semibold tabular-nums">
                           {c.delta === 0 ? "Bateu" : c.delta > 0 ? `+${formatNumber(c.delta)}` : formatNumber(c.delta)}
                         </dd>
@@ -696,7 +711,7 @@ function ContagemPage() {
                               <span
                                 key={p.id}
                                 className={cn(
-                                  "inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-[11px] leading-tight",
+                                  "inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-xs leading-tight",
                                   p.id === c.pavilhao_id ? "border-primary/40 bg-primary/10" : "border-border bg-muted/40",
                                 )}
                               >
@@ -708,7 +723,7 @@ function ContagemPage() {
                             ))}
                         </div>
                       ) : null}
-                      <p className="text-[11px] text-muted-foreground">
+                      <p className="text-xs text-muted-foreground">
                         {c.contador || c.usuario_nome} · {formatDateTimeBR(c.created_at)}
                         {c.motivo ? ` · ${motivoContagemLabel(c.motivo)}` : ""}
                       </p>

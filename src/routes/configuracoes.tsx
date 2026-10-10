@@ -305,9 +305,9 @@ function EspacoBanco() {
       {aberto ? (
         <div className="px-4 py-3">
           <div className="grid grid-cols-[1fr_auto_auto] gap-x-4 gap-y-2 text-sm">
-            <span className="text-[11px] uppercase tracking-wide text-muted-foreground">Item</span>
-            <span className="text-right text-[11px] uppercase tracking-wide text-muted-foreground">No sistema</span>
-            <span className="text-right text-[11px] uppercase tracking-wide text-muted-foreground">Ainda cabe</span>
+            <span className="text-xs uppercase tracking-wide text-muted-foreground">Item</span>
+            <span className="text-right text-xs uppercase tracking-wide text-muted-foreground">No sistema</span>
+            <span className="text-right text-xs uppercase tracking-wide text-muted-foreground">Ainda cabe</span>
             {linhas.map((linha) => (
               <span key={linha.nome} className="contents">
                 <span>{linha.nome}</span>
@@ -399,7 +399,7 @@ function NumField({ label, value, onCommit }: { label: string; value: number; on
 function SettingsGroup({ title, children }: { title: string; children: ReactNode }) {
   return (
     <section>
-      <h2 className="mb-2 px-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">{title}</h2>
+      <h2 className="mb-2 px-1 text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">{title}</h2>
       <div className="divide-y divide-border overflow-hidden rounded-xl border border-border bg-card">{children}</div>
     </section>
   );
@@ -419,8 +419,9 @@ function SettingRow({ label, hint, onClick, children }: { label: string; hint: s
 
 function StatusPill({ on }: { on: boolean }) {
   return (
-    <span className={cn("shrink-0 rounded-md px-2 py-1 text-[11px] font-semibold uppercase tracking-wide", on ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground")}>
+    <span className={cn("shrink-0 rounded-md px-2 py-1 text-xs font-semibold uppercase tracking-wide", on ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground")}>
       {on ? "Ligado" : "Desligado"}
     </span>
   );
 }
+

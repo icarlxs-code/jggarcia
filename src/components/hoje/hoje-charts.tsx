@@ -113,7 +113,7 @@ export function HojeCharts() {
 
       {setup ? (
         <SpotlightCard className="p-4">
-          <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Este perfil</p>
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Este perfil</p>
           <p className="mt-1 text-sm">
             {perfil?.nome || "Sua conta"} escolhe o que aparece. Outro login não herda nem altera estes gráficos.
           </p>
@@ -140,7 +140,7 @@ export function HojeCharts() {
                     </span>
                     <span>
                       <span className="block text-sm font-medium">{w.label}</span>
-                      <span className="block text-[11px] text-muted-foreground">{w.hint}</span>
+                      <span className="block text-xs text-muted-foreground">{w.hint}</span>
                     </span>
                   </button>
                 </li>
@@ -214,8 +214,8 @@ export function HojeCharts() {
       <div className="grid gap-2 lg:grid-cols-2">
       {show("comparativo") ? (
         <SpotlightCard className="p-3">
-          <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Entrada × saída</p>
-          <p className="text-[10px] text-muted-foreground">Verde entrou · dourado saiu</p>
+          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Entrada × saída</p>
+          <p className="text-xs text-muted-foreground">Verde entrou · dourado saiu</p>
           {flow.comparativo.length === 0 ? (
             <p className="mt-2 text-xs text-muted-foreground">Sem lançamentos para comparar.</p>
           ) : (
@@ -244,7 +244,7 @@ export function HojeCharts() {
         <SpotlightCard className="p-3">
           <div className="flex items-center gap-1.5">
             <Trophy className="h-3.5 w-3.5 text-primary" />
-            <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Empilhadores</p>
+            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Empilhadores</p>
           </div>
           {lift.fastest ? (
             <p className="mt-1.5 truncate text-[13px]">
@@ -265,7 +265,7 @@ export function HojeCharts() {
                   <li key={r.nome}>
                     <div className="flex items-baseline justify-between gap-2 text-[13px]">
                       <span className="min-w-0 truncate">
-                        <span className="mr-1.5 inline-block w-3.5 text-[11px] tabular-nums text-muted-foreground">{i + 1}</span>
+                        <span className="mr-1.5 inline-block w-3.5 text-xs tabular-nums text-muted-foreground">{i + 1}</span>
                         {r.nome}
                         <span className="text-muted-foreground"> · {r.trips}</span>
                       </span>
@@ -290,7 +290,7 @@ export function HojeCharts() {
 function LiveClock({ now }: { now: Date }) {
   const clock = now.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
   return (
-    <span className="inline-flex h-8 items-center gap-2 rounded-full border border-border bg-card px-2.5 text-[11px] text-muted-foreground">
+    <span className="inline-flex h-8 items-center gap-2 rounded-full border border-border bg-card px-2.5 text-xs text-muted-foreground">
       <span className="relative flex h-1.5 w-1.5">
         <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary opacity-50" />
         <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-primary" />
@@ -327,14 +327,14 @@ function HeroStat({
 }) {
   return (
     <SpotlightCard className={cn("hoje-hero px-3 py-2.5", tone === "in" ? "is-in" : "is-out")}>
-      <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">{kicker}</p>
+      <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{kicker}</p>
       {item ? (
         <div className="mt-1.5 flex items-center gap-2">
           <ProductIcon nome={item.nome} codigo={item.codigo} size="xs" />
           <div className="min-w-0 flex-1">
             <p className="truncate text-[13px] font-medium leading-tight">{item.nome}</p>
             <p className={cn("text-base font-semibold tabular-nums leading-tight", tone === "out" && "text-gold-ink")}>
-              {formatNumber(item.qtd)} <span className="text-[10px] font-medium text-muted-foreground">{rankUnit(item.unidade)}</span>
+              {formatNumber(item.qtd)} <span className="text-xs font-medium text-muted-foreground">{rankUnit(item.unidade)}</span>
             </p>
           </div>
         </div>
@@ -359,7 +359,7 @@ function RankCard({
   const max = rows[0]?.qtd || 1;
   return (
     <SpotlightCard className={cn("hoje-rank p-3", tone === "in" ? "is-in" : "is-out")}>
-      <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">{title}</p>
+      <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{title}</p>
       {rows.length === 0 ? (
         <p className="mt-2 text-xs text-muted-foreground">{empty}</p>
       ) : (
@@ -367,7 +367,7 @@ function RankCard({
           {rows.slice(0, 10).map((r, i) => (
             <li key={r.id} className="min-w-0 rounded-lg border border-border bg-card px-2 py-1.5">
               <div className="flex items-center gap-1.5">
-                <span className="w-3 shrink-0 text-center text-[10px] tabular-nums text-muted-foreground">{i + 1}</span>
+                <span className="w-3 shrink-0 text-center text-xs tabular-nums text-muted-foreground">{i + 1}</span>
                 <ProductIcon nome={r.nome} codigo={r.codigo} size="xs" />
                 <p className="min-w-0 flex-1 truncate text-xs font-medium leading-tight">{r.nome}</p>
               </div>
@@ -378,7 +378,7 @@ function RankCard({
                     style={{ width: `${Math.max(6, Math.round((r.qtd / max) * 100))}%` }}
                   />
                 </div>
-                <p className="shrink-0 text-[11px] font-semibold tabular-nums leading-none">
+                <p className="shrink-0 text-xs font-semibold tabular-nums leading-none">
                   {formatNumber(r.qtd)} <span className="font-medium text-muted-foreground">{rankUnit(r.unidade)}</span>
                 </p>
               </div>
@@ -396,7 +396,7 @@ function MiniBar({ value, max, className, label }: { value: number; max: number;
       <div className="h-1 min-w-0 flex-1 overflow-hidden rounded-full bg-muted">
         <div className={cn("h-full rounded-full", className)} style={{ width: `${Math.max(value ? 6 : 0, Math.round((value / max) * 100))}%` }} />
       </div>
-      <span className="shrink-0 text-right text-[10px] tabular-nums text-muted-foreground">{label}</span>
+      <span className="shrink-0 text-right text-xs tabular-nums text-muted-foreground">{label}</span>
     </div>
   );
 }
@@ -432,7 +432,7 @@ function MovementCard({ series }: { series: DayPoint[] }) {
     <SpotlightCard className="hoje-movimento p-3">
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div>
-          <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Movimento</p>
+          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Movimento</p>
           <p className="text-sm font-medium">Entradas e saídas no período</p>
         </div>
         <div className="flex gap-3 pt-1 text-xs text-muted-foreground">
@@ -507,7 +507,7 @@ function FlowTooltip({ active, payload, label }: { active?: boolean; payload?: {
   if (!active || !payload?.length) return null;
   return (
     <div className="rounded-xl border border-border bg-card px-3 py-2.5 text-xs shadow-[0_16px_40px_-24px_rgb(0_0_0/0.45)]">
-      <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{label}</p>
+      <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">{label}</p>
       {payload.map((p) => (
         <p key={p.name} className="flex items-baseline justify-between gap-4 tabular-nums">
           <span className="text-muted-foreground">

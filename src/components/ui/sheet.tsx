@@ -26,16 +26,16 @@ const SheetContent = React.forwardRef<
       style={{
         animation:
           side === "right"
-            ? "drawer-in 320ms cubic-bezier(0.16, 1, 0.3, 1)"
+            ? "drawer-in 240ms cubic-bezier(0.16, 1, 0.3, 1)"
             : side === "bottom"
-              ? "sheet-up 340ms cubic-bezier(0.16, 1, 0.3, 1)"
-              : "drawer-left 320ms cubic-bezier(0.16, 1, 0.3, 1)",
+              ? "sheet-up 240ms cubic-bezier(0.16, 1, 0.3, 1)"
+              : "drawer-left 240ms cubic-bezier(0.16, 1, 0.3, 1)",
         ...style,
       }}
       {...props}
     >
       {children}
-      <DialogPrimitive.Close className="absolute right-3 top-3 rounded-md p-1 text-muted-foreground hover:bg-muted">
+      <DialogPrimitive.Close className="absolute right-2 top-2 flex h-11 w-11 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted">
         <X className="h-4 w-4" />
         <span className="sr-only">Fechar</span>
       </DialogPrimitive.Close>

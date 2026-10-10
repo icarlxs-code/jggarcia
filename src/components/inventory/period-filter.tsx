@@ -51,6 +51,7 @@ export function PeriodFilter({
           <button
             key={c.id}
             type="button"
+            aria-pressed={value === c.id}
             onClick={() => onChange(c.id, day || todayISO(), { from, to })}
             className={cn(
               "inline-flex h-8 shrink-0 items-center rounded-full border px-3 text-xs font-medium transition-colors",

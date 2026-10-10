@@ -142,7 +142,7 @@ function ClientePerfil() {
             <p className="text-2xl font-semibold tabular-nums leading-none">
               <CountUp value={mine?.qtd ?? 0} />
             </p>
-            <p className="text-[11px] text-muted-foreground">un. neste mês · traço por dia</p>
+            <p className="text-xs text-muted-foreground">un. neste mês · traço por dia</p>
           </div>
       </SpotlightCard>
 
@@ -242,3 +242,4 @@ function ClientePerfil() {
     </PageStage>
   );
 }
+

@@ -610,12 +610,12 @@ export function AppContextMenu() {
               </>
             ) : (
               <>
-                <p className="truncate px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{menu.title}</p>
+                <p className="truncate px-3 py-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">{menu.title}</p>
                 {menu.groups.map((group, gi) => {
                   const start = menu.groups.slice(0, gi).reduce((n, g) => n + g.items.length, 0);
                   return (
                     <div key={`${group.title || "g"}-${gi}`}>
-                      {group.title ? <p className="px-3 pb-0.5 pt-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">{group.title}</p> : null}
+                      {group.title ? <p className="px-3 pb-0.5 pt-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">{group.title}</p> : null}
                       <MenuList
                         nodes={group.items}
                         focus={focus - start}
@@ -813,8 +813,8 @@ function MenuList({
             void item.run?.();
           }}
         >
-          <span className="min-w-0 truncate">{item.label}{item.hint ? <span className="ml-2 text-[11px] text-muted-foreground">{item.hint}</span> : null}</span>
-          <span className="shrink-0 text-[10px] text-muted-foreground">{item.children?.length ? "›" : item.shortcut || ""}</span>
+          <span className="min-w-0 truncate">{item.label}{item.hint ? <span className="ml-2 text-xs text-muted-foreground">{item.hint}</span> : null}</span>
+          <span className="shrink-0 text-xs text-muted-foreground">{item.children?.length ? "›" : item.shortcut || ""}</span>
         </button>
       ))}
     </div>
@@ -875,7 +875,7 @@ function SaldoBox({ id, nome, unidade, atual }: { id: string; nome: string; unid
               <span className="text-muted-foreground">{k}</span>
               <span className="tabular-nums font-medium">{formatNumber(v)} {unidade}</span>
             </div>
-            {quando ? <p className="text-[11px] text-muted-foreground">{quando}</p> : null}
+            {quando ? <p className="text-xs text-muted-foreground">{quando}</p> : null}
           </li>
         ))}
         {ajustes !== 0 ? (
@@ -908,7 +908,7 @@ function SaldoBox({ id, nome, unidade, atual }: { id: string; nome: string; unid
           })}
         </ul>
       ) : null}
-      <p className="mt-2 text-[11px] text-muted-foreground">O saldo da empresa é entrada menos saída, mais ajuste. Transferência muda o pavilhão, não o total.</p>
+      <p className="mt-2 text-xs text-muted-foreground">O saldo da empresa é entrada menos saída, mais ajuste. Transferência muda o pavilhão, não o total.</p>
     </div>
   );
 }

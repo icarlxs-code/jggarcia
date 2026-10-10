@@ -214,7 +214,7 @@ function Requisicoes() {
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full min-w-[1080px] text-left text-sm">
-              <thead className="border-b border-border bg-muted/40 text-[11px] uppercase tracking-wide text-muted-foreground">
+              <thead className="border-b border-border bg-muted/40 text-xs uppercase tracking-wide text-muted-foreground">
                 <tr>
                   {["Nº Requisição", "Data", "Fornecedor", "Mercadoria", "Quantidade", "Valor", "Carregador", "Vendedor", "Responsável", "Ações"].map((h) => (
                     <th key={h} className={cn("px-3 py-2 font-semibold", h === "Ações" && "text-right")}>
@@ -229,7 +229,7 @@ function Requisicoes() {
                     <td className="whitespace-nowrap px-3 py-2 font-mono text-xs font-semibold">{r.numero}</td>
                     <td className="whitespace-nowrap px-3 py-2 tabular-nums text-muted-foreground">
                       {formatDateBR(r.data)}
-                      <span className="block text-[11px]">{r.horario}</span>
+                      <span className="block text-xs">{r.horario}</span>
                     </td>
                     <td className="max-w-[180px] truncate px-3 py-2 font-medium">{r.fornecedor}</td>
                     <td className="max-w-[180px] truncate px-3 py-2">{r.mercadoria_codigo ? `${r.mercadoria_codigo} — ${r.mercadoria}` : r.mercadoria}</td>
@@ -440,7 +440,7 @@ function Field({
 function Info({ k, v }: { k: string; v: string }) {
   return (
     <div className="rounded-lg border border-border px-3 py-2">
-      <dt className="text-[11px] uppercase tracking-wide text-muted-foreground">{k}</dt>
+      <dt className="text-xs uppercase tracking-wide text-muted-foreground">{k}</dt>
       <dd className="mt-0.5 font-medium">{v}</dd>
     </div>
   );
@@ -449,10 +449,11 @@ function Info({ k, v }: { k: string; v: string }) {
 function SignView({ label, src }: { label: string; src?: string }) {
   return (
     <div>
-      <p className="mb-1 text-[11px] uppercase tracking-wide text-muted-foreground">{label}</p>
+      <p className="mb-1 text-xs uppercase tracking-wide text-muted-foreground">{label}</p>
       <div className="flex h-24 items-center justify-center rounded-lg border border-dashed border-border bg-white">
         {src ? <img src={src} alt="" className="max-h-20 max-w-full object-contain" /> : <span className="text-xs text-muted-foreground">Sem assinatura</span>}
       </div>
     </div>
   );
 }
+

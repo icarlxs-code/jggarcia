@@ -56,7 +56,7 @@ function AssistentePainel({ onClose }: { onClose: () => void }) {
       <header className="flex items-center justify-between gap-3 border-b border-border px-3 py-2.5">
         <div>
           <p className="text-sm font-semibold">Assistente</p>
-          <p className="text-[11px] text-muted-foreground">Pergunte sobre a operação ou qualquer assunto.</p>
+          <p className="text-xs text-muted-foreground">Pergunte sobre a operação ou qualquer assunto.</p>
         </div>
         <button type="button" className="rounded-md p-1 text-muted-foreground hover:bg-muted" onClick={onClose} aria-label="Fechar assistente">
           <X className="h-4 w-4" />

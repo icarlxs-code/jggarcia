@@ -85,7 +85,7 @@ export function CountCalc() {
         style={{ right: "1rem", bottom: "1rem", animation: "overlay-in 80ms var(--ease-enter)" }}
       >
         <div className="mb-1.5 flex items-center gap-0.5">
-          <p className="min-w-0 flex-1 px-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Calculadora</p>
+          <p className="min-w-0 flex-1 px-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Calculadora</p>
           <button
             type="button"
             className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground"

@@ -1,8 +1,8 @@
-import { useState, type ComponentProps } from "react";
+import { useEffect, useRef, useState, type ComponentProps } from "react";
 import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { MOTION, prefersReducedMotion } from "@/lib/motion";
 import { cn } from "@/lib/utils";
+import { notify } from "@/lib/notify";
 
 type Phase = "idle" | "busy" | "done";
 
@@ -22,23 +22,28 @@ export function ActionButton({
   onAction: () => Promise<boolean> | boolean;
 }) {
   const [phase, setPhase] = useState<Phase>("idle");
+  const mounted = useRef(true);
+  const timer = useRef(0);
+  useEffect(() => {
+    mounted.current = true;
+    return () => { mounted.current = false; window.clearTimeout(timer.current); };
+  }, []);
 
   async function run() {
     if (phase !== "idle") return;
     setPhase("busy");
-    const t0 = performance.now();
     try {
       const ok = await onAction();
-      const min = prefersReducedMotion() ? 0 : 720;
-      const wait = Math.max(0, min - (performance.now() - t0));
-      if (wait) await new Promise((r) => window.setTimeout(r, wait));
+      if (!mounted.current) return;
       if (!ok) {
         setPhase("idle");
         return;
       }
       setPhase("done");
-      window.setTimeout(() => setPhase("idle"), prefersReducedMotion() ? 0 : MOTION.duration.hero);
-    } catch {
+      timer.current = window.setTimeout(() => setPhase("idle"), 1200);
+    } catch (error) {
+      if (!mounted.current) return;
+      notify.error(error instanceof Error ? error.message : "Não foi possível salvar. Tente novamente.");
       setPhase("idle");
     }
   }
@@ -47,6 +52,8 @@ export function ActionButton({
     <Button
       {...props}
       disabled={disabled || phase !== "idle"}
+      aria-busy={phase === "busy"}
+      aria-live="polite"
       onClick={() => void run()}
       className={cn("liquid-btn", `is-${phase}`, className)}
     >

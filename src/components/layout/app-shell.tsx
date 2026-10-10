@@ -94,8 +94,9 @@ const COLLAPSE_KEY = "jg-nav-collapsed";
 
 function Brand({ collapsed, home = "/" }: { collapsed?: boolean; home?: "/" | "/fretes" }) {
   return (
-    <Link to={home} className={cn("side-brand flex items-center px-3 py-4", collapsed ? "justify-center" : "justify-center")}>
-      <img src="/logo.png" alt="JG Garcia" className={cn("w-auto object-contain", collapsed ? "h-8" : "h-12")} />
+    <Link to={home} className={cn("side-brand flex items-center gap-3 px-4 py-5", collapsed && "justify-center")}>
+      <img src="/logo.png" alt={collapsed ? "JG Garcia" : ""} className="h-10 w-12 shrink-0 object-contain" />
+      {collapsed ? null : <span className="min-w-0"><span className="block text-lg font-semibold text-sidebar-foreground">JG Garcia</span><span className="block text-xs text-sidebar-foreground/75">Operação e estoque</span></span>}
     </Link>
   );
 }
@@ -103,37 +104,8 @@ function Brand({ collapsed, home = "/" }: { collapsed?: boolean; home?: "/" | "/
 function NavList({ onNavigate, collapsed }: { onNavigate?: () => void; collapsed?: boolean }) {
   const { isAdmin } = useSession();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
-  const navRef = useRef<HTMLElement>(null);
-  const [pill, setPill] = useState({ top: 0, height: 40, opacity: 0 });
-
-  useLayoutEffect(() => {
-    const nav = navRef.current;
-    const el = nav?.querySelector('[data-active="true"]') as HTMLElement | null;
-    if (!nav || !el) {
-      setPill((p) => ({ ...p, opacity: 0 }));
-      return;
-    }
-    const nr = nav.getBoundingClientRect();
-    const er = el.getBoundingClientRect();
-    setPill({
-      top: er.top - nr.top + nav.scrollTop,
-      height: er.height,
-      opacity: 1,
-    });
-  }, [pathname, isAdmin, collapsed]);
-
   return (
-    <nav ref={navRef} className={cn("relative flex flex-1 flex-col gap-5 overflow-y-auto pb-4", collapsed ? "px-2" : "px-3")}>
-      <div
-        className="nav-pill"
-        style={{
-          transform: `translate3d(0, ${pill.top}px, 0)`,
-          height: pill.height,
-          opacity: pill.opacity,
-          left: collapsed ? "0.35rem" : "0.75rem",
-          right: collapsed ? "0.35rem" : "0.75rem",
-        }}
-      />
+    <nav aria-label="Menu principal" className={cn("relative flex flex-1 flex-col gap-5 overflow-y-auto pb-4", collapsed ? "px-2" : "px-3")}>
       {NAV_GROUPS.map((group) => {
         const items = group.items.filter((i) => (!i.adminOnly || isAdmin) && (isAdmin || operadorPodeVer(i.to)));
         if (items.length === 0) return null;
@@ -154,9 +126,10 @@ function NavList({ onNavigate, collapsed }: { onNavigate?: () => void; collapsed
                     preload="intent"
                     viewTransition={false}
                     data-active={active ? "true" : "false"}
+                    aria-current={active ? "page" : undefined}
                     onClick={onNavigate}
                     className={cn(
-                      "nav-link relative z-[1] flex min-h-10 items-center rounded-lg text-sm font-medium transition-[color] duration-150",
+                      "nav-link relative z-[1] flex min-h-11 items-center rounded-lg text-sm font-medium transition-[color,background-color] duration-200",
                       collapsed ? "justify-center px-0" : "gap-2.5 px-3",
                       active ? "text-sidebar-foreground" : "text-sidebar-foreground/70 hover:text-sidebar-foreground",
                     )}
@@ -311,12 +284,14 @@ export function AppShell() {
 
   return (
     <TooltipProvider delayDuration={250}>
-      <div className={cn("command-deck agro-glass flex h-dvh w-full overflow-hidden bg-background", isPhone && "is-phone-shell")}>
+      <div className={cn("command-deck flex h-dvh w-full overflow-hidden bg-background", isPhone && "is-phone-shell")}>
+        <a href="#main-content" className="skip-link">Ir para o conteúdo</a>
         <aside
+          id="main-sidebar"
           className={cn(
-            "jg-sidebar shrink-0 flex-col bg-sidebar transition-[width] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)]",
+            "jg-sidebar shrink-0 flex-col bg-sidebar transition-[width] duration-200 ease-out",
             isPhone ? "hidden" : "flex",
-            collapsed ? "w-[4.25rem]" : "w-56",
+            collapsed ? "w-[4.25rem]" : "w-64",
           )}
         >
           <Brand collapsed={collapsed} home={isAdmin ? "/" : "/fretes"} />
@@ -337,13 +312,13 @@ export function AppShell() {
         </aside>
 
         <div className="flex min-w-0 flex-1 flex-col">
-          <header className="jg-topbar flex h-12 shrink-0 items-center gap-1.5 border-b border-border bg-card px-2 sm:h-14 sm:gap-2 sm:px-3 lg:px-5">
+          <header className="jg-topbar flex h-16 shrink-0 items-center gap-2 border-b border-border bg-card px-4 lg:px-8">
             {isPhone ? (
               <img src="/logo.png" alt="JG Garcia" className="h-7 w-auto shrink-0 object-contain" />
             ) : (
             <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
               <SheetTrigger asChild>
-                <Button variant="ghost" size="icon" className="lg:hidden">
+                <Button variant="ghost" size="icon" className="lg:hidden" aria-label="Abrir menu">
                   <Menu className="h-5 w-5" />
                 </Button>
               </SheetTrigger>
@@ -357,7 +332,7 @@ export function AppShell() {
 
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button variant="ghost" size="icon" className={cn(isPhone ? "hidden" : "inline-flex")} onClick={toggleCollapsed} aria-label="Recolher menu">
+                <Button variant="ghost" size="icon" className={cn(isPhone ? "hidden" : "inline-flex")} onClick={toggleCollapsed} aria-label={collapsed ? "Expandir menu" : "Recolher menu"} aria-expanded={!collapsed} aria-controls="main-sidebar">
                   <PanelLeft className="h-4 w-4" />
                 </Button>
               </TooltipTrigger>
@@ -380,7 +355,7 @@ export function AppShell() {
               {isPhone ? null : (
                 <>
                   <span className="truncate">Buscar…</span>
-                  <kbd className="ml-auto hidden rounded border border-border bg-card px-1.5 py-0.5 text-[10px] sm:inline">Ctrl K</kbd>
+                  <kbd className="ml-auto hidden rounded border border-border bg-card px-1.5 py-0.5 text-xs sm:inline">Ctrl K</kbd>
                 </>
               )}
             </button>
@@ -394,7 +369,7 @@ export function AppShell() {
 
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <button className="flex min-h-10 items-center gap-2 rounded-full border border-border bg-card py-0.5 pl-0.5 pr-2.5 transition-colors hover:bg-muted">
+                  <button aria-label={`Conta de ${perfil?.nome || "usuário"}`} className="flex min-h-11 items-center gap-2 rounded-full border border-border bg-card py-0.5 pl-0.5 pr-2.5 transition-colors hover:bg-muted">
                     <Avatar className="h-8 w-8">
                       <AvatarFallback>{initials}</AvatarFallback>
                     </Avatar>
@@ -428,13 +403,13 @@ export function AppShell() {
             </div>
           </header>
 
-          <main className={cn("jg-main min-h-0 flex-1 overflow-y-auto p-3 sm:p-4 lg:p-6", isPhone && "pb-[calc(4.5rem+env(safe-area-inset-bottom))]")}>
+          <main id="main-content" tabIndex={-1} className={cn("jg-main min-h-0 flex-1 overflow-y-auto p-4 lg:p-8", isPhone && "pb-[calc(4.5rem+env(safe-area-inset-bottom))]")}>
             {liberado ? <Outlet /> : null}
           </main>
         </div>
         {isPhone ? (
           <>
-            <nav ref={tabNavRef} className="jg-tabbar">
+            <nav ref={tabNavRef} className="jg-tabbar" aria-label="Navegação da operação">
               <span ref={tabBlobRef} className="jg-tab-blob" aria-hidden />
               {abas.map((item) => {
                 const active = pathname === item.to || (item.to !== "/" && pathname.startsWith(item.to));
@@ -445,6 +420,7 @@ export function AppShell() {
                     preload="viewport"
                     viewTransition={false}
                     data-entrada-dock={item.to === "/entradas" ? "true" : undefined}
+                    aria-current={active ? "page" : undefined}
                     className={cn("jg-tab", active && "is-active")}
                   >
                     <AnimatedIcon name={item.icon} active={active} />
@@ -472,7 +448,7 @@ export function AppShell() {
                     if (!items.length) return null;
                     return (
                       <div key={group.label} className="mb-2">
-                        <p className="px-3 pb-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">{group.label}</p>
+                        <p className="px-3 pb-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground">{group.label}</p>
                         {items.map((item) => (
                           <Link
                             key={item.to}
@@ -533,7 +509,7 @@ function AlertsMenu() {
             >
               <Bell className="h-4 w-4" />
               {alerts.length > 0 ? (
-                <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-semibold text-destructive-foreground">
+                <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-destructive px-1 text-xs font-semibold text-destructive-foreground">
                   {alerts.length > 9 ? "9+" : alerts.length}
                 </span>
               ) : null}
@@ -561,13 +537,13 @@ function AlertsMenu() {
                   <p className="text-xs text-muted-foreground">{a.detail}</p>
                 </Link>
               )}
-              <button type="button" className="mt-1 px-1 text-[11px] font-medium text-muted-foreground hover:text-foreground" onClick={() => hide(a.id)}>
+              <button type="button" className="mt-1 px-1 text-xs font-medium text-muted-foreground hover:text-foreground" onClick={() => hide(a.id)}>
                 Não mostrar mais
               </button>
             </div>
           ))
         )}
-        {extra > 0 ? <p className="px-3 py-2 text-[11px] text-muted-foreground">Mais {extra} no sino. Cada um só aparece de novo se contar outra vez e não bater.</p> : null}
+        {extra > 0 ? <p className="px-3 py-2 text-xs text-muted-foreground">Mais {extra} no sino. Cada um só aparece de novo se contar outra vez e não bater.</p> : null}
       </DropdownMenuContent>
     </DropdownMenu>
   );

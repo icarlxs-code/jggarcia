@@ -25,8 +25,8 @@ export function ProductCharts({ mercadoriaId, unidade }: { mercadoriaId: string;
       <h2 className="text-sm font-semibold">Leitura deste produto</h2>
       <div className="grid gap-2 lg:grid-cols-2">
         <div className="rounded-2xl border border-border bg-card p-3">
-          <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Onde está o saldo</p>
-          <p className="text-[11px] text-muted-foreground">Cada barra é a quantidade real neste pavilhão.</p>
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Onde está o saldo</p>
+          <p className="text-xs text-muted-foreground">Cada barra é a quantidade real neste pavilhão.</p>
           {total <= 0 ? (
             <p className="mt-3 text-sm text-muted-foreground">Sem saldo em nenhum pavilhão.</p>
           ) : (
@@ -52,8 +52,8 @@ export function ProductCharts({ mercadoriaId, unidade }: { mercadoriaId: string;
           )}
         </div>
         <div className="rounded-2xl border border-border bg-card p-3">
-          <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Últimos 14 dias</p>
-          <p className="text-[11px] text-muted-foreground">
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Últimos 14 dias</p>
+          <p className="text-xs text-muted-foreground">
             Entrou {formatNumber(entrou)} · saiu {formatNumber(saiu)} {unidade}. Transferência interna não entra nessa saída.
             {cobertura == null ? " Sem dados suficientes para estimar a cobertura." : ` Cobertura estimada: ${cobertura.toLocaleString("pt-BR", { maximumFractionDigits: 1 })} dias, saldo dividido pela média diária das saídas externas destes 14 dias.`}
           </p>

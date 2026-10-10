@@ -3,7 +3,7 @@ import { cn } from "@/lib/utils";
 
 const Table = React.forwardRef<HTMLTableElement, React.HTMLAttributes<HTMLTableElement>>(
   ({ className, ...props }, ref) => (
-    <div className="relative w-full max-w-full overflow-x-auto jg-table-wrap">
+    <div className="relative w-full max-w-full overflow-x-auto jg-table-wrap" tabIndex={0} role="region" aria-label="Tabela com rolagem horizontal">
       <table ref={ref} className={cn("w-full caption-bottom text-sm", className)} {...props} />
     </div>
   ),
@@ -37,7 +37,8 @@ const TableHead = React.forwardRef<HTMLTableCellElement, React.ThHTMLAttributes<
   ({ className, ...props }, ref) => (
     <th
       ref={ref}
-      className={cn("h-11 px-3 text-left align-middle text-xs font-semibold uppercase tracking-wide text-muted-foreground", className)}
+      scope="col"
+      className={cn("h-12 px-4 text-left align-middle text-xs font-semibold text-muted-foreground", className)}
       {...props}
     />
   ),
@@ -46,7 +47,7 @@ TableHead.displayName = "TableHead";
 
 const TableCell = React.forwardRef<HTMLTableCellElement, React.TdHTMLAttributes<HTMLTableCellElement>>(
   ({ className, ...props }, ref) => (
-    <td ref={ref} className={cn("px-3 py-3 align-middle text-foreground", className)} {...props} />
+    <td ref={ref} className={cn("px-4 py-3 align-middle text-foreground", className)} {...props} />
   ),
 );
 TableCell.displayName = "TableCell";

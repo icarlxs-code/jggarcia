@@ -59,7 +59,7 @@ function ProdutoPerfil() {
         <ProductStage nome={merc.nome} codigo={merc.codigo} />
         <div className="flex items-end justify-between gap-3 px-5 pb-5 pt-2">
           <div className="min-w-0">
-            <p className="font-mono text-[11px] font-bold tabular-nums">{merc.codigo}</p>
+            <p className="font-mono text-xs font-bold tabular-nums">{merc.codigo}</p>
             <p className="truncate font-medium">{merc.nome}</p>
             <p className="text-xs text-muted-foreground">{merc.categoria || merc.unidade}</p>
           </div>
@@ -67,7 +67,7 @@ function ProdutoPerfil() {
             <p className="text-2xl font-semibold tabular-nums leading-none">
               <CountUp value={merc.estoque} />
             </p>
-            <p className="text-[11px] text-muted-foreground">{merc.unidade} no total</p>
+            <p className="text-xs text-muted-foreground">{merc.unidade} no total</p>
           </div>
         </div>
       </SpotlightCard>
@@ -132,12 +132,12 @@ function ProdutoPerfil() {
                             <span className="font-medium">{c.contador || c.usuario_nome}</span> contou {formatNumber(c.contado)} {c.unidade}
                             {pav ? ` no ${pavTitle(pav)}` : ""}
                           </p>
-                          <p className="text-[11px] text-muted-foreground">
+                          <p className="text-xs text-muted-foreground">
                             Sistema tinha {formatNumber(c.esperado)}
                             {c.motivo && c.motivo !== "conferencia" ? ` · ${motivoContagemLabel(c.motivo)}` : ""}
                             {c.observacao ? ` · ${c.observacao}` : ""}
                           </p>
-                          <p className="text-[11px] text-muted-foreground">{formatDateTimeBR(c.created_at)}</p>
+                          <p className="text-xs text-muted-foreground">{formatDateTimeBR(c.created_at)}</p>
                         </div>
                         <span
                           className={cn(
@@ -171,7 +171,7 @@ function ProdutoPerfil() {
                   <li key={`${ev.kind}-${ev.id}`} className="flex items-start gap-3 px-4 py-3">
                     <span
                       className={cn(
-                        "mt-0.5 shrink-0 whitespace-nowrap rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide",
+                        "mt-0.5 shrink-0 whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-semibold uppercase tracking-wide",
                         ev.kind === "entrada" && "bg-mint text-primary",
                         ev.kind === "saida" && "bg-secondary text-secondary-foreground",
                         ev.kind === "transferencia" && "bg-gold/20 text-gold-ink",
@@ -209,8 +209,8 @@ function ProdutoPerfil() {
                         )}
                         {ev.kind === "log" && <>{ev.extra}</>}
                       </p>
-                      {ev.kind === "contagem" && ev.extra ? <p className="text-[11px] text-muted-foreground">{ev.extra}</p> : null}
-                      <p className="text-[11px] text-muted-foreground">{formatDateTimeBR(ev.at)}</p>
+                      {ev.kind === "contagem" && ev.extra ? <p className="text-xs text-muted-foreground">{ev.extra}</p> : null}
+                      <p className="text-xs text-muted-foreground">{formatDateTimeBR(ev.at)}</p>
                     </div>
                   </li>
                 ))}
@@ -222,3 +222,4 @@ function ProdutoPerfil() {
     </PageStage>
   );
 }
+

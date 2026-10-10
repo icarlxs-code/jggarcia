@@ -240,7 +240,7 @@ export function FretePage({ kind = "pagamento" }: { kind?: "pagamento" | "despes
         >
           <span>
             <span className="block text-sm font-semibold">{notasTitulo}</span>
-            <span className="text-[11px] text-muted-foreground">{list.length} {list.length === 1 ? "nota" : "notas"}</span>
+            <span className="text-xs text-muted-foreground">{list.length} {list.length === 1 ? "nota" : "notas"}</span>
           </span>
           <span className="inline-flex items-center gap-1 text-xs font-medium text-muted-foreground">
             {notasOpen ? "Recolher" : "Expandir"}
@@ -277,7 +277,7 @@ export function FretePage({ kind = "pagamento" }: { kind?: "pagamento" | "despes
                   type="button"
                   onClick={() => setStatusF(s)}
                   className={cn(
-                    "h-7 rounded-full border px-2.5 text-[11px] font-medium",
+                    "h-7 rounded-full border px-2.5 text-xs font-medium",
                     statusF === s ? "border-primary bg-primary text-primary-foreground" : "border-border bg-background text-muted-foreground",
                   )}
                 >
@@ -290,7 +290,7 @@ export function FretePage({ kind = "pagamento" }: { kind?: "pagamento" | "despes
             ) : (
               <div className="mt-2 max-h-52 overflow-auto rounded-lg border border-border">
                 <table className="w-full min-w-[720px] text-left text-sm">
-                  <thead className="sticky top-0 border-b border-border bg-card text-[11px] uppercase tracking-wide text-muted-foreground">
+                  <thead className="sticky top-0 border-b border-border bg-card text-xs uppercase tracking-wide text-muted-foreground">
                     <tr>
                       <th className="px-2 py-1.5 font-semibold">Data</th>
                       <th className="px-2 py-1.5 font-semibold">Fornecedor</th>
@@ -312,7 +312,7 @@ export function FretePage({ kind = "pagamento" }: { kind?: "pagamento" | "despes
                         <td className="whitespace-nowrap px-2 py-1.5 font-semibold tabular-nums">{f.valor ? formatBRL(f.valor) : "—"}</td>
                         <td className="max-w-[160px] truncate px-2 py-1.5">{f.motorista || "—"}</td>
                         <td className="px-2 py-1.5">
-                          <span className={cn("inline-flex rounded-full px-2 py-0.5 text-[11px] font-semibold", f.status === "gerado" ? "bg-primary/15 text-primary" : "bg-gold/20 text-gold-ink")}>
+                          <span className={cn("inline-flex rounded-full px-2 py-0.5 text-xs font-semibold", f.status === "gerado" ? "bg-primary/15 text-primary" : "bg-gold/20 text-gold-ink")}>
                             {f.status === "gerado" ? "Gerado" : "Rascunho"}
                           </span>
                         </td>
@@ -343,16 +343,16 @@ export function FretePage({ kind = "pagamento" }: { kind?: "pagamento" | "despes
       <SpotlightCard className="p-4 sm:p-5">
         <div className="flex items-start justify-between gap-3">
           <div>
-            <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{cadastroTitulo}</p>
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{cadastroTitulo}</p>
             <p className="mt-1 text-sm font-medium">{editingId ? `Editando o comprovante nº ${form.numero || "—"}` : "Novo comprovante"}</p>
           </div>
-          <span className="rounded-full bg-primary/15 px-2.5 py-1 text-[11px] font-semibold text-primary">Ao vivo</span>
+          <span className="rounded-full bg-primary/15 px-2.5 py-1 text-xs font-semibold text-primary">Ao vivo</span>
         </div>
 
         <div className="mt-4 space-y-6">
           <fieldset className="space-y-3">
             <legend className="mb-1 flex items-center gap-2 text-sm font-semibold">
-              <span className="flex h-6 w-6 items-center justify-center rounded-md bg-primary text-[11px] font-bold text-primary-foreground">1</span>
+              <span className="flex h-6 w-6 items-center justify-center rounded-md bg-primary text-xs font-bold text-primary-foreground">1</span>
               Dados do frete
             </legend>
             <div className="grid gap-3 sm:grid-cols-2">
@@ -415,7 +415,7 @@ export function FretePage({ kind = "pagamento" }: { kind?: "pagamento" | "despes
 
           <fieldset className="space-y-3">
             <legend className="mb-1 flex items-center gap-2 text-sm font-semibold">
-              <span className="flex h-6 w-6 items-center justify-center rounded-md bg-primary text-[11px] font-bold text-primary-foreground">2</span>
+              <span className="flex h-6 w-6 items-center justify-center rounded-md bg-primary text-xs font-bold text-primary-foreground">2</span>
               Dados do veículo e motorista
             </legend>
             <div className="grid gap-3 sm:grid-cols-3">
@@ -442,7 +442,7 @@ export function FretePage({ kind = "pagamento" }: { kind?: "pagamento" | "despes
 
           <fieldset className="space-y-3">
             <legend className="mb-1 flex items-center gap-2 text-sm font-semibold">
-              <span className="flex h-6 w-6 items-center justify-center rounded-md bg-primary text-[11px] font-bold text-primary-foreground">3</span>
+              <span className="flex h-6 w-6 items-center justify-center rounded-md bg-primary text-xs font-bold text-primary-foreground">3</span>
               Pagamento
             </legend>
             <div className="grid gap-3 sm:grid-cols-2">
@@ -464,7 +464,7 @@ export function FretePage({ kind = "pagamento" }: { kind?: "pagamento" | "despes
               </div>
               {form.forma_pagamento === "PIX" ? (
                 <div className="rounded-2xl border border-primary/30 bg-mint/40 p-3 sm:col-span-2">
-                  <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Qual PIX?</p>
+                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Qual PIX?</p>
                   <p className="mt-0.5 text-xs text-muted-foreground">Escolha o tipo da chave e informe quem recebe.</p>
                   <div className="mt-2 flex flex-wrap gap-1.5">
                     {PIX_TIPOS.map((t) => {
@@ -581,7 +581,7 @@ export function FretePage({ kind = "pagamento" }: { kind?: "pagamento" | "despes
       <aside className="xl:sticky xl:top-4">
         <div className="overflow-hidden rounded-2xl border border-border bg-card shadow-card">
           <div className="flex items-center justify-between gap-2 border-b border-border bg-forest px-3 py-2 text-primary-foreground">
-            <p className="truncate font-mono text-[11px] font-medium">{arquivo}{docNo}.pdf</p>
+            <p className="truncate font-mono text-xs font-medium">{arquivo}{docNo}.pdf</p>
             <Button
               type="button"
               size="sm"
@@ -598,7 +598,7 @@ export function FretePage({ kind = "pagamento" }: { kind?: "pagamento" | "despes
             className="h-[min(78vh,920px)] w-full bg-white"
           />
         </div>
-        <p className="mt-2 text-center text-[11px] text-muted-foreground">A nota sai com linha de caneta para Assinatura do motorista e Autorização de Pagamento.</p>
+        <p className="mt-2 text-center text-xs text-muted-foreground">A nota sai com linha de caneta para Assinatura do motorista e Autorização de Pagamento.</p>
       </aside>
       </div>
 
@@ -678,3 +678,4 @@ export function FretePage({ kind = "pagamento" }: { kind?: "pagamento" | "despes
 function Fretes() {
   return <FretePage kind="pagamento" />;
 }
+

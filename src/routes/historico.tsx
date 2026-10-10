@@ -154,7 +154,7 @@ function Historico() {
               <div className="space-y-2">
                 <Label htmlFor="eh-c">Horário de chegada</Label>
                 <TimeField id="eh-c" value={horaChegada} onChange={setHoraChegada} />
-                <p className="text-[11px] text-muted-foreground">Opcional. Se ainda não chegou, deixe em branco.</p>
+                <p className="text-xs text-muted-foreground">Opcional. Se ainda não chegou, deixe em branco.</p>
               </div>
             </div>
             <NameRecall
@@ -230,3 +230,4 @@ function Historico() {
     </PageStage>
   );
 }
+
