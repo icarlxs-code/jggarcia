@@ -42,10 +42,10 @@ export function statusLabel(status: MovimentoStatus) {
   return "Registrada";
 }
 
-export function estoqueLabel(s: Pick<Saida, "desconta_estoque" | "destino_pavilhao_id" | "tipo">) {
+export function estoqueLabel(s: Pick<Saida, "desconta_estoque" | "destino_pavilhao_id" | "tipo" | "soma_destino">) {
   if ((s.tipo ?? "saida") === "entrada") return "Entrou no estoque";
   if (s.desconta_estoque === false) return "Somente registro";
-  if (isPavTransfer(s)) return "Baixa realizada";
+  if (isPavTransfer(s) && s.soma_destino === false) return "Baixou na origem · destino só registro";
   return "Baixa realizada";
 }
 

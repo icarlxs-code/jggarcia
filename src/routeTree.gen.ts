@@ -10,10 +10,13 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AnalisesRouteImport } from './routes/analises'
 import { Route as AuditoriaRouteImport } from './routes/auditoria'
+import { Route as CentralEmpilhadoresRouteImport } from './routes/central-empilhadores'
 import { Route as ClientesRouteImport } from './routes/clientes'
 import { Route as ConfiguracoesRouteImport } from './routes/configuracoes'
 import { Route as ContagemRouteImport } from './routes/contagem'
+import { Route as DespesasFreteRouteImport } from './routes/despesas-frete'
 import { Route as DestinosRouteImport } from './routes/destinos'
 import { Route as EmpilhadoresRouteImport } from './routes/empilhadores'
 import { Route as EntradasRouteImport } from './routes/entradas'
@@ -26,21 +29,38 @@ import { Route as LotesRouteImport } from './routes/lotes'
 import { Route as MercadoriasRouteImport } from './routes/mercadorias'
 import { Route as MovimentacoesRouteImport } from './routes/movimentacoes'
 import { Route as NovaSaidaRouteImport } from './routes/nova-saida'
+import { Route as OperarRouteImport } from './routes/operar'
 import { Route as PavilhoesRouteImport } from './routes/pavilhoes'
 import { Route as QrAcessoRouteImport } from './routes/qr-acesso'
 import { Route as RelatoriosRouteImport } from './routes/relatorios'
+import { Route as RequisicoesRouteImport } from './routes/requisicoes'
 import { Route as UsuariosRouteImport } from './routes/usuarios'
+import { Route as ApiAcessoRouteImport } from './routes/api/acesso'
+import { Route as ApiIpRouteImport } from './routes/api/ip'
+import { Route as ApiLoginRouteImport } from './routes/api/login'
+import { Route as ApiVersaoRouteImport } from './routes/api/versao'
 import { Route as ClientesIdRouteImport } from './routes/clientes.$id'
 import { Route as ProdutoIdRouteImport } from './routes/produto.$id'
+import { Route as ApiEstoqueZerarRouteImport } from './routes/api/estoque/zerar'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AnalisesRoute = AnalisesRouteImport.update({
+  id: '/analises',
+  path: '/analises',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AuditoriaRoute = AuditoriaRouteImport.update({
   id: '/auditoria',
   path: '/auditoria',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CentralEmpilhadoresRoute = CentralEmpilhadoresRouteImport.update({
+  id: '/central-empilhadores',
+  path: '/central-empilhadores',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ClientesRoute = ClientesRouteImport.update({
@@ -56,6 +76,11 @@ const ConfiguracoesRoute = ConfiguracoesRouteImport.update({
 const ContagemRoute = ContagemRouteImport.update({
   id: '/contagem',
   path: '/contagem',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DespesasFreteRoute = DespesasFreteRouteImport.update({
+  id: '/despesas-frete',
+  path: '/despesas-frete',
   getParentRoute: () => rootRouteImport,
 } as any)
 const DestinosRoute = DestinosRouteImport.update({
@@ -118,6 +143,11 @@ const NovaSaidaRoute = NovaSaidaRouteImport.update({
   path: '/nova-saida',
   getParentRoute: () => rootRouteImport,
 } as any)
+const OperarRoute = OperarRouteImport.update({
+  id: '/operar',
+  path: '/operar',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const PavilhoesRoute = PavilhoesRouteImport.update({
   id: '/pavilhoes',
   path: '/pavilhoes',
@@ -133,9 +163,34 @@ const RelatoriosRoute = RelatoriosRouteImport.update({
   path: '/relatorios',
   getParentRoute: () => rootRouteImport,
 } as any)
+const RequisicoesRoute = RequisicoesRouteImport.update({
+  id: '/requisicoes',
+  path: '/requisicoes',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const UsuariosRoute = UsuariosRouteImport.update({
   id: '/usuarios',
   path: '/usuarios',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiAcessoRoute = ApiAcessoRouteImport.update({
+  id: '/api/acesso',
+  path: '/api/acesso',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiIpRoute = ApiIpRouteImport.update({
+  id: '/api/ip',
+  path: '/api/ip',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiLoginRoute = ApiLoginRouteImport.update({
+  id: '/api/login',
+  path: '/api/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiVersaoRoute = ApiVersaoRouteImport.update({
+  id: '/api/versao',
+  path: '/api/versao',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ClientesIdRoute = ClientesIdRouteImport.update({
@@ -148,13 +203,21 @@ const ProdutoIdRoute = ProdutoIdRouteImport.update({
   path: '/produto/$id',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiEstoqueZerarRoute = ApiEstoqueZerarRouteImport.update({
+  id: '/api/estoque/zerar',
+  path: '/api/estoque/zerar',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/analises': typeof AnalisesRoute
   '/auditoria': typeof AuditoriaRoute
+  '/central-empilhadores': typeof CentralEmpilhadoresRoute
   '/clientes': typeof ClientesRouteWithChildren
   '/configuracoes': typeof ConfiguracoesRoute
   '/contagem': typeof ContagemRoute
+  '/despesas-frete': typeof DespesasFreteRoute
   '/destinos': typeof DestinosRoute
   '/empilhadores': typeof EmpilhadoresRoute
   '/entradas': typeof EntradasRoute
@@ -167,19 +230,29 @@ export interface FileRoutesByFullPath {
   '/mercadorias': typeof MercadoriasRoute
   '/movimentacoes': typeof MovimentacoesRoute
   '/nova-saida': typeof NovaSaidaRoute
+  '/operar': typeof OperarRoute
   '/pavilhoes': typeof PavilhoesRoute
   '/qr-acesso': typeof QrAcessoRoute
   '/relatorios': typeof RelatoriosRoute
+  '/requisicoes': typeof RequisicoesRoute
   '/usuarios': typeof UsuariosRoute
+  '/api/acesso': typeof ApiAcessoRoute
+  '/api/ip': typeof ApiIpRoute
+  '/api/login': typeof ApiLoginRoute
+  '/api/versao': typeof ApiVersaoRoute
   '/clientes/$id': typeof ClientesIdRoute
   '/produto/$id': typeof ProdutoIdRoute
+  '/api/estoque/zerar': typeof ApiEstoqueZerarRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/analises': typeof AnalisesRoute
   '/auditoria': typeof AuditoriaRoute
+  '/central-empilhadores': typeof CentralEmpilhadoresRoute
   '/clientes': typeof ClientesRouteWithChildren
   '/configuracoes': typeof ConfiguracoesRoute
   '/contagem': typeof ContagemRoute
+  '/despesas-frete': typeof DespesasFreteRoute
   '/destinos': typeof DestinosRoute
   '/empilhadores': typeof EmpilhadoresRoute
   '/entradas': typeof EntradasRoute
@@ -192,20 +265,30 @@ export interface FileRoutesByTo {
   '/mercadorias': typeof MercadoriasRoute
   '/movimentacoes': typeof MovimentacoesRoute
   '/nova-saida': typeof NovaSaidaRoute
+  '/operar': typeof OperarRoute
   '/pavilhoes': typeof PavilhoesRoute
   '/qr-acesso': typeof QrAcessoRoute
   '/relatorios': typeof RelatoriosRoute
+  '/requisicoes': typeof RequisicoesRoute
   '/usuarios': typeof UsuariosRoute
+  '/api/acesso': typeof ApiAcessoRoute
+  '/api/ip': typeof ApiIpRoute
+  '/api/login': typeof ApiLoginRoute
+  '/api/versao': typeof ApiVersaoRoute
   '/clientes/$id': typeof ClientesIdRoute
   '/produto/$id': typeof ProdutoIdRoute
+  '/api/estoque/zerar': typeof ApiEstoqueZerarRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/analises': typeof AnalisesRoute
   '/auditoria': typeof AuditoriaRoute
+  '/central-empilhadores': typeof CentralEmpilhadoresRoute
   '/clientes': typeof ClientesRouteWithChildren
   '/configuracoes': typeof ConfiguracoesRoute
   '/contagem': typeof ContagemRoute
+  '/despesas-frete': typeof DespesasFreteRoute
   '/destinos': typeof DestinosRoute
   '/empilhadores': typeof EmpilhadoresRoute
   '/entradas': typeof EntradasRoute
@@ -218,21 +301,31 @@ export interface FileRoutesById {
   '/mercadorias': typeof MercadoriasRoute
   '/movimentacoes': typeof MovimentacoesRoute
   '/nova-saida': typeof NovaSaidaRoute
+  '/operar': typeof OperarRoute
   '/pavilhoes': typeof PavilhoesRoute
   '/qr-acesso': typeof QrAcessoRoute
   '/relatorios': typeof RelatoriosRoute
+  '/requisicoes': typeof RequisicoesRoute
   '/usuarios': typeof UsuariosRoute
+  '/api/acesso': typeof ApiAcessoRoute
+  '/api/ip': typeof ApiIpRoute
+  '/api/login': typeof ApiLoginRoute
+  '/api/versao': typeof ApiVersaoRoute
   '/clientes/$id': typeof ClientesIdRoute
   '/produto/$id': typeof ProdutoIdRoute
+  '/api/estoque/zerar': typeof ApiEstoqueZerarRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/analises'
     | '/auditoria'
+    | '/central-empilhadores'
     | '/clientes'
     | '/configuracoes'
     | '/contagem'
+    | '/despesas-frete'
     | '/destinos'
     | '/empilhadores'
     | '/entradas'
@@ -245,19 +338,29 @@ export interface FileRouteTypes {
     | '/mercadorias'
     | '/movimentacoes'
     | '/nova-saida'
+    | '/operar'
     | '/pavilhoes'
     | '/qr-acesso'
     | '/relatorios'
+    | '/requisicoes'
     | '/usuarios'
+    | '/api/acesso'
+    | '/api/ip'
+    | '/api/login'
+    | '/api/versao'
     | '/clientes/$id'
     | '/produto/$id'
+    | '/api/estoque/zerar'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/analises'
     | '/auditoria'
+    | '/central-empilhadores'
     | '/clientes'
     | '/configuracoes'
     | '/contagem'
+    | '/despesas-frete'
     | '/destinos'
     | '/empilhadores'
     | '/entradas'
@@ -270,19 +373,29 @@ export interface FileRouteTypes {
     | '/mercadorias'
     | '/movimentacoes'
     | '/nova-saida'
+    | '/operar'
     | '/pavilhoes'
     | '/qr-acesso'
     | '/relatorios'
+    | '/requisicoes'
     | '/usuarios'
+    | '/api/acesso'
+    | '/api/ip'
+    | '/api/login'
+    | '/api/versao'
     | '/clientes/$id'
     | '/produto/$id'
+    | '/api/estoque/zerar'
   id:
     | '__root__'
     | '/'
+    | '/analises'
     | '/auditoria'
+    | '/central-empilhadores'
     | '/clientes'
     | '/configuracoes'
     | '/contagem'
+    | '/despesas-frete'
     | '/destinos'
     | '/empilhadores'
     | '/entradas'
@@ -295,20 +408,30 @@ export interface FileRouteTypes {
     | '/mercadorias'
     | '/movimentacoes'
     | '/nova-saida'
+    | '/operar'
     | '/pavilhoes'
     | '/qr-acesso'
     | '/relatorios'
+    | '/requisicoes'
     | '/usuarios'
+    | '/api/acesso'
+    | '/api/ip'
+    | '/api/login'
+    | '/api/versao'
     | '/clientes/$id'
     | '/produto/$id'
+    | '/api/estoque/zerar'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AnalisesRoute: typeof AnalisesRoute
   AuditoriaRoute: typeof AuditoriaRoute
+  CentralEmpilhadoresRoute: typeof CentralEmpilhadoresRoute
   ClientesRoute: typeof ClientesRouteWithChildren
   ConfiguracoesRoute: typeof ConfiguracoesRoute
   ContagemRoute: typeof ContagemRoute
+  DespesasFreteRoute: typeof DespesasFreteRoute
   DestinosRoute: typeof DestinosRoute
   EmpilhadoresRoute: typeof EmpilhadoresRoute
   EntradasRoute: typeof EntradasRoute
@@ -321,11 +444,18 @@ export interface RootRouteChildren {
   MercadoriasRoute: typeof MercadoriasRoute
   MovimentacoesRoute: typeof MovimentacoesRoute
   NovaSaidaRoute: typeof NovaSaidaRoute
+  OperarRoute: typeof OperarRoute
   PavilhoesRoute: typeof PavilhoesRoute
   QrAcessoRoute: typeof QrAcessoRoute
   RelatoriosRoute: typeof RelatoriosRoute
+  RequisicoesRoute: typeof RequisicoesRoute
   UsuariosRoute: typeof UsuariosRoute
+  ApiAcessoRoute: typeof ApiAcessoRoute
+  ApiIpRoute: typeof ApiIpRoute
+  ApiLoginRoute: typeof ApiLoginRoute
+  ApiVersaoRoute: typeof ApiVersaoRoute
   ProdutoIdRoute: typeof ProdutoIdRoute
+  ApiEstoqueZerarRoute: typeof ApiEstoqueZerarRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -337,11 +467,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/analises': {
+      id: '/analises'
+      path: '/analises'
+      fullPath: '/analises'
+      preLoaderRoute: typeof AnalisesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/auditoria': {
       id: '/auditoria'
       path: '/auditoria'
       fullPath: '/auditoria'
       preLoaderRoute: typeof AuditoriaRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/central-empilhadores': {
+      id: '/central-empilhadores'
+      path: '/central-empilhadores'
+      fullPath: '/central-empilhadores'
+      preLoaderRoute: typeof CentralEmpilhadoresRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/clientes': {
@@ -363,6 +507,13 @@ declare module '@tanstack/react-router' {
       path: '/contagem'
       fullPath: '/contagem'
       preLoaderRoute: typeof ContagemRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/despesas-frete': {
+      id: '/despesas-frete'
+      path: '/despesas-frete'
+      fullPath: '/despesas-frete'
+      preLoaderRoute: typeof DespesasFreteRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/destinos': {
@@ -449,6 +600,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof NovaSaidaRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/operar': {
+      id: '/operar'
+      path: '/operar'
+      fullPath: '/operar'
+      preLoaderRoute: typeof OperarRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/pavilhoes': {
       id: '/pavilhoes'
       path: '/pavilhoes'
@@ -470,11 +628,46 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof RelatoriosRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/requisicoes': {
+      id: '/requisicoes'
+      path: '/requisicoes'
+      fullPath: '/requisicoes'
+      preLoaderRoute: typeof RequisicoesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/usuarios': {
       id: '/usuarios'
       path: '/usuarios'
       fullPath: '/usuarios'
       preLoaderRoute: typeof UsuariosRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/acesso': {
+      id: '/api/acesso'
+      path: '/api/acesso'
+      fullPath: '/api/acesso'
+      preLoaderRoute: typeof ApiAcessoRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/ip': {
+      id: '/api/ip'
+      path: '/api/ip'
+      fullPath: '/api/ip'
+      preLoaderRoute: typeof ApiIpRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/login': {
+      id: '/api/login'
+      path: '/api/login'
+      fullPath: '/api/login'
+      preLoaderRoute: typeof ApiLoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/versao': {
+      id: '/api/versao'
+      path: '/api/versao'
+      fullPath: '/api/versao'
+      preLoaderRoute: typeof ApiVersaoRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/clientes/$id': {
@@ -489,6 +682,13 @@ declare module '@tanstack/react-router' {
       path: '/produto/$id'
       fullPath: '/produto/$id'
       preLoaderRoute: typeof ProdutoIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/estoque/zerar': {
+      id: '/api/estoque/zerar'
+      path: '/api/estoque/zerar'
+      fullPath: '/api/estoque/zerar'
+      preLoaderRoute: typeof ApiEstoqueZerarRouteImport
       parentRoute: typeof rootRouteImport
     }
   }
@@ -508,10 +708,13 @@ const ClientesRouteWithChildren = ClientesRoute._addFileChildren(
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AnalisesRoute: AnalisesRoute,
   AuditoriaRoute: AuditoriaRoute,
+  CentralEmpilhadoresRoute: CentralEmpilhadoresRoute,
   ClientesRoute: ClientesRouteWithChildren,
   ConfiguracoesRoute: ConfiguracoesRoute,
   ContagemRoute: ContagemRoute,
+  DespesasFreteRoute: DespesasFreteRoute,
   DestinosRoute: DestinosRoute,
   EmpilhadoresRoute: EmpilhadoresRoute,
   EntradasRoute: EntradasRoute,
@@ -524,11 +727,18 @@ const rootRouteChildren: RootRouteChildren = {
   MercadoriasRoute: MercadoriasRoute,
   MovimentacoesRoute: MovimentacoesRoute,
   NovaSaidaRoute: NovaSaidaRoute,
+  OperarRoute: OperarRoute,
   PavilhoesRoute: PavilhoesRoute,
   QrAcessoRoute: QrAcessoRoute,
   RelatoriosRoute: RelatoriosRoute,
+  RequisicoesRoute: RequisicoesRoute,
   UsuariosRoute: UsuariosRoute,
+  ApiAcessoRoute: ApiAcessoRoute,
+  ApiIpRoute: ApiIpRoute,
+  ApiLoginRoute: ApiLoginRoute,
+  ApiVersaoRoute: ApiVersaoRoute,
   ProdutoIdRoute: ProdutoIdRoute,
+  ApiEstoqueZerarRoute: ApiEstoqueZerarRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

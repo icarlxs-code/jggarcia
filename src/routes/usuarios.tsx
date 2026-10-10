@@ -55,7 +55,12 @@ function Usuarios() {
 
   return (
     <PageStage className="space-y-4">
-      <PageHeader icon="users" title="Equipe" description="Administradores e operadores com acesso ao sistema.">
+      <PageHeader
+        clip="/lottie/equipe.json"
+        clipClassName="lottie-clip h-14 w-20 shrink-0"
+        title="Equipe"
+        description="Administradores e operadores com acesso ao sistema."
+      >
         <Button
           onClick={() => {
             setEditing(null);

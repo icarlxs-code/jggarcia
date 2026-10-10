@@ -24,7 +24,12 @@ const SheetContent = React.forwardRef<
         className,
       )}
       style={{
-        animation: side === "right" ? "drawer-in 220ms cubic-bezier(0.16, 1, 0.3, 1)" : side === "bottom" ? "sheet-up 220ms cubic-bezier(0.16, 1, 0.3, 1)" : undefined,
+        animation:
+          side === "right"
+            ? "drawer-in 320ms cubic-bezier(0.16, 1, 0.3, 1)"
+            : side === "bottom"
+              ? "sheet-up 340ms cubic-bezier(0.16, 1, 0.3, 1)"
+              : "drawer-left 320ms cubic-bezier(0.16, 1, 0.3, 1)",
         ...style,
       }}
       {...props}

@@ -1,8 +1,9 @@
 import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useState, type ReactNode } from "react";
 import type { Usuario } from "./types";
 import { db, hydrateFromCloud } from "./store";
-import { authenticateRemote, clearAuthSession, importRemoteUsers, listTeamLogin, releasePhoneSeat } from "./qr-auth";
-import { devicePrint, readLocalDevice } from "./device-print";
+import { setActiveUserId } from "./ui-prefs";
+import { syncTeamFromServer } from "./team-sync";
+import { clearPlainUser, readPlainUser, savePlainUser } from "./plain-login";
 
 interface SessionValue {
   perfil: Usuario | null;
@@ -15,13 +16,10 @@ interface SessionValue {
 
 const SessionContext = createContext<SessionValue | null>(null);
 
-export async function syncTeamFromServer() {
-  try {
-    const remote = await listTeamLogin({ data: {} });
-    db.applyDeleted(remote.apagados ?? []);
-    for (const user of remote.users ?? []) db.acceptRemoteUser(user);
-  } catch {
-    /* offline */
+declare global {
+  interface Window {
+    __jgEntrar?: (user: Usuario) => void;
+    __jgPendingUser?: Usuario | null;
   }
 }
 
@@ -29,116 +27,99 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   const [perfil, setPerfil] = useState<Usuario | null>(null);
 
   useLayoutEffect(() => {
-    setPerfil(db.getSessionUser());
+    try {
+      sessionStorage.removeItem("jg-session-recover");
+    } catch {
+      /* ignore */
+    }
+    window.__jgEntrar = (user) => {
+      if (!user?.id) return;
+      savePlainUser(user);
+      try {
+        db.openSession(user, undefined, true);
+      } catch {
+        /* a tela não pode cair se a sessão local atrasar */
+      }
+      setPerfil(user);
+    };
+    const pendente = window.__jgPendingUser || readPlainUser();
+    window.__jgPendingUser = null;
+    if (pendente?.id) {
+      try {
+        db.openSession(pendente, undefined, true);
+      } catch {
+        /* a tela não pode cair se a sessão local atrasar */
+      }
+      setPerfil(pendente);
+    }
+    return () => {
+      delete window.__jgEntrar;
+    };
   }, []);
 
-  useEffect(() => {
-    void (async () => {
-      await hydrateFromCloud();
-    })();
-  }, []);
+  useLayoutEffect(() => {
+    if (!perfil) return;
+    try {
+      setActiveUserId(perfil.id);
+    } catch {
+      /* tema não pode impedir a entrada */
+    }
+  }, [perfil?.id]);
 
   useEffect(() => {
     if (!perfil) return;
-    void (async () => {
-      await syncTeamFromServer();
-      if (perfil.nivel_acesso !== "admin") return;
-      const users = db.exportUsers().map((u) => ({ user: u, senha: u.senha }));
-      void importRemoteUsers({ data: { users } }).catch(() => undefined);
-    })();
-  }, [perfil]);
+    const timer = window.setTimeout(() => {
+      void hydrateFromCloud().then(() => syncTeamFromServer());
+    }, 2000);
+    return () => window.clearTimeout(timer);
+  }, [perfil?.id]);
 
   const signInUser = useCallback((user: Usuario, senha?: string, remember = false) => {
     const next = db.openSession(user, senha, remember);
     setPerfil(next);
   }, []);
 
-  const signIn = useCallback(
-    async (identificador: string, senha: string, remember = false) => {
-      const saved = readLocalDevice();
-      try {
-        const remote = await authenticateRemote({
-          data: {
-            identificador,
-            senha,
-            print: devicePrint(),
-            deviceId: saved.deviceId,
-            deviceSecret: saved.deviceSecret,
-            rememberDevice: remember,
-          },
-        });
-        if (remote.ok) {
-          if ("deviceId" in remote && remote.deviceId && remote.secret) {
-            try {
-              localStorage.setItem("jg-device", JSON.stringify({ deviceId: remote.deviceId, secret: remote.secret }));
-            } catch {
-              /* ignore */
-            }
-          }
-          if (remember) db.saveRemember(identificador, senha);
-          else db.clearRemember();
-          signInUser(remote.user, remote.senha, remember);
-          const meta = "meta" in remote ? remote.meta : null;
-          const ip = "ip" in remote ? String(remote.ip || "") : "";
-          db.recordAccess({
-            usuario_id: remote.user.id,
-            acao: "freshDevice" in remote && remote.freshDevice ? "reconheceu" : "login",
-            resumo:
-              "freshDevice" in remote && remote.freshDevice
-                ? `${remote.user.nome} — Novo dispositivo reconhecido — ${meta?.os ?? ""} / ${meta?.browser ?? ""}`
-                : `${remote.user.nome} — Login realizado — ${meta?.browser ?? "Navegador"} / ${meta?.os ?? ""} — IP ${ip || "—"}`,
-            detalhe: [meta?.deviceKind, ip].filter(Boolean).join(" · "),
-          });
-          return null;
+  const signIn = useCallback((identificador: string, senha: string, remember = false) => {
+    return fetch("/api/login", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      credentials: "same-origin",
+      body: JSON.stringify({ identificador: identificador.trim(), senha, remember }),
+    })
+      .then(async (res) => {
+        const data = (await res.json().catch(() => null)) as { ok?: boolean; user?: Usuario; error?: string } | null;
+        if (!res.ok || !data?.ok || !data.user?.id) {
+          return data?.error || (res.status === 429 ? "Muitas tentativas. Espere e tente de novo." : "E-mail ou senha inválidos.");
         }
+        savePlainUser(data.user);
         try {
-          const user = db.login(identificador, senha, remember);
-          if (remember) db.saveRemember(identificador, senha);
-          else db.clearRemember();
-          setPerfil(user);
-          void importRemoteUsers({
-            data: { users: db.exportUsers().map((u) => ({ user: u, senha: u.senha })) },
-          }).catch(() => undefined);
-          return null;
+          db.openSession(data.user, senha, remember);
         } catch {
-          return remote.error;
+          /* a sessão da tela já segue */
         }
-      } catch {
-        try {
-          const user = db.login(identificador, senha, remember);
-          if (remember) db.saveRemember(identificador, senha);
-          else db.clearRemember();
-          setPerfil(user);
-          return null;
-        } catch (localErr) {
-          return localErr instanceof Error ? localErr.message : "Falha ao entrar.";
-        }
-      }
-    },
-    [signInUser],
-  );
+        setPerfil(data.user);
+        void syncTeamFromServer();
+        return null;
+      })
+      .catch(() => "Não foi possível entrar. Tente de novo.");
+  }, []);
 
   const signOut = useCallback(() => {
+    clearPlainUser();
     try {
-      const raw = localStorage.getItem("jg-device");
-      const parsed = raw ? (JSON.parse(raw) as { deviceId?: string; secret?: string }) : null;
-      void releasePhoneSeat({ data: { deviceId: parsed?.deviceId, deviceSecret: parsed?.secret } }).catch(() => undefined);
+      db.logout();
     } catch {
-      void releasePhoneSeat({ data: {} }).catch(() => undefined);
+      /* sair não pode travar a próxima entrada */
     }
-    void clearAuthSession({ data: {} }).catch(() => undefined);
-    db.logout();
     try {
       sessionStorage.removeItem("jg-opened");
     } catch {
       /* ignore */
     }
     setPerfil(null);
-    try {
-      window.location.replace("/");
-    } catch {
-      /* ignore */
-    }
+    void import("./qr-auth")
+      .then(({ clearAuthSession }) => clearAuthSession({ data: {} }))
+      .catch(() => undefined);
   }, []);
 
   const value = useMemo(

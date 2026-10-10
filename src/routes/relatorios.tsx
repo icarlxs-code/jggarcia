@@ -1,10 +1,10 @@
 import { useMemo, useState, type ReactNode } from "react";
 import { createFileRoute, Link, Navigate } from "@tanstack/react-router";
-import { FileText, Search } from "lucide-react";
+import { FileText, MapPin, Search, UserRound } from "lucide-react";
 import { useSession } from "@/lib/session";
 import { useDb } from "@/lib/use-db";
 import { pavTitle } from "@/lib/catalog";
-import { formatDateBR, formatMinutes, formatNumber, formatTime, todayISO } from "@/lib/format";
+import { formatDateBR, formatMinutes, formatNumber, todayISO } from "@/lib/format";
 import { forkliftRanking, forkliftTrips } from "@/lib/forklift";
 import {
   collectReport,
@@ -14,10 +14,10 @@ import {
   exportReportPdf,
   exportSaidasClientesPdf,
   type ReportKind,
+  type ReportRow,
 } from "@/lib/reports";
 import { fold, cn } from "@/lib/utils";
 import { notify } from "@/lib/notify";
-import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { PageHeader } from "@/components/page-header";
@@ -25,7 +25,7 @@ import { PageStage } from "@/components/motion/page-stage";
 import { ActionButton } from "@/components/motion/action-button";
 import { CountUp } from "@/components/motion/count-up";
 import { SpotlightCard } from "@/components/motion/spotlight-card";
-import { ProductLabel } from "@/components/inventory/product-icon";
+import { ProductIcon } from "@/components/inventory/product-icon";
 
 export const Route = createFileRoute("/relatorios")({ component: Relatorios });
 
@@ -116,97 +116,46 @@ function Relatorios() {
   const selectedProd = mercadorias.find((m) => m.id === prodId);
 
   return (
-    <PageStage className="space-y-4">
+    <PageStage className="space-y-2">
       <PageHeader
-        icon="chart"
+        clip="/lottie/grafico.json"
         title="Relatórios"
-        description="Abas por tipo de recorte. Dá para baixar o dia inteiro ou só a entrada e a saída de um produto, de um pavilhão."
+        description="Baixe o dia inteiro ou só a entrada e a saída de um produto ou pavilhão."
       />
 
-      <div className="flex gap-2 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+      <div className="flex gap-1.5 overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {TABS.map((t) => (
           <button
             key={t.id}
             type="button"
+            title={t.hint}
             onClick={() => setTab(t.id)}
             className={cn(
-              "inline-flex h-11 shrink-0 flex-col justify-center rounded-xl border px-3.5 text-left transition-colors",
+              "inline-flex h-8 shrink-0 items-center rounded-full border px-3 text-xs font-semibold",
               tab === t.id ? "border-primary bg-primary text-primary-foreground" : "border-border bg-card hover:bg-muted",
             )}
           >
-            <span className="text-sm font-semibold leading-none">{t.label}</span>
-            <span className={cn("mt-1 text-[10px] leading-none", tab === t.id ? "text-primary-foreground/80" : "text-muted-foreground")}>
-              {t.hint}
-            </span>
+            {t.label}
           </button>
         ))}
       </div>
 
-      <SpotlightCard className="p-4 sm:p-5">
-        <div className="grid gap-3 sm:grid-cols-2">
-          <div className="space-y-1.5">
-            <Label htmlFor="from">De</Label>
-            <Input id="from" type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="to">Até</Label>
-            <Input id="to" type="date" value={to} onChange={(e) => setTo(e.target.value)} />
-          </div>
-        </div>
-      </SpotlightCard>
+      <div className="flex flex-wrap items-center gap-2 rounded-xl border border-border bg-card px-2 py-1.5">
+        <Label htmlFor="from" className="text-[11px] text-muted-foreground">De</Label>
+        <Input id="from" type="date" value={from} onChange={(e) => setFrom(e.target.value)} className="h-8 w-[9.5rem]" />
+        <Label htmlFor="to" className="text-[11px] text-muted-foreground">Até</Label>
+        <Input id="to" type="date" value={to} onChange={(e) => setTo(e.target.value)} className="h-8 w-[9.5rem]" />
+      </div>
 
       {tab === "movimento" ? (
         <>
-          <div>
-            <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">O que entra no PDF</p>
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-              {kinds.map((k) => (
-                <button
-                  key={k.id}
-                  type="button"
-                  onClick={() => setKind(k.id)}
-                  className={cn(
-                    "min-h-16 rounded-2xl border px-3 py-2.5 text-left transition-colors",
-                    kind === k.id ? "border-primary bg-primary text-primary-foreground" : "border-border bg-background hover:bg-muted",
-                  )}
-                >
-                  <p className="text-sm font-semibold">{k.label}</p>
-                  <p className={cn("text-[11px]", kind === k.id ? "text-primary-foreground/80" : "text-muted-foreground")}>{k.hint}</p>
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <button
-            type="button"
-            onClick={() => {
-              setPav("todos");
-              pdf("todos");
-            }}
-            className="w-full rounded-2xl border border-primary bg-primary px-4 py-4 text-left text-primary-foreground shadow-card"
-          >
-            <p className="text-[11px] font-semibold uppercase tracking-wide opacity-80">Todos de uma vez</p>
-            <p className="mt-1 text-base font-semibold">O que aconteceu no período · {kinds.find((k) => k.id === kind)?.label}</p>
-            <p className="text-xs opacity-80">Pavilhões 11, 13, 23, 44 e Galpão 74 juntos</p>
-          </button>
-          <button
-            type="button"
-            onClick={() => exportDiaCompletoPdf(from === to ? from : to)}
-            className="w-full rounded-2xl border border-border bg-card px-4 py-4 text-left shadow-card hover:bg-muted"
-          >
-            <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Encerrar o dia</p>
-            <p className="mt-1 text-base font-semibold">PDF completo · entradas, saídas, quem lançou, quem contou, empilhador e estoque</p>
-            <p className="mt-1 text-xs text-muted-foreground">{from === to ? formatDateBR(from) : `${formatDateBR(from)} — ${formatDateBR(to)} (usa o último dia)`}</p>
-          </button>
-
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-            <Kpi label="Lançamentos" value={rows.length} />
-            <Kpi label="Entrou" value={sum(ins)} />
-            <Kpi label="Saiu" value={sum(outs)} />
-            <Kpi label="Contagens" value={counts.length} />
-          </div>
-
-          <div className="flex gap-2 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          <div className="flex flex-wrap items-center gap-1.5">
+            {kinds.map((k) => (
+              <Chip key={k.id} on={kind === k.id} onClick={() => setKind(k.id)}>
+                {k.label}
+              </Chip>
+            ))}
+            <span className="mx-1 hidden h-4 w-px bg-border sm:block" />
             <Chip on={pav === "todos"} onClick={() => setPav("todos")}>
               Todos
             </Chip>
@@ -215,6 +164,34 @@ function Relatorios() {
                 {pavTitle(p)}
               </Chip>
             ))}
+          </div>
+
+          <div className="flex flex-wrap items-stretch gap-1.5">
+            <button
+              type="button"
+              onClick={() => {
+                setPav("todos");
+                pdf("todos");
+              }}
+              className="min-w-[11rem] flex-1 rounded-xl border border-primary bg-primary px-3 py-2 text-left text-primary-foreground"
+            >
+              <span className="block text-sm font-semibold leading-tight">PDF de todos</span>
+              <span className="text-[11px] opacity-80">{kinds.find((k) => k.id === kind)?.label} · todos os lugares</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => exportDiaCompletoPdf(from === to ? from : to)}
+              className="min-w-[11rem] flex-1 rounded-xl border border-border bg-card px-3 py-2 text-left hover:bg-muted"
+            >
+              <span className="block text-sm font-semibold leading-tight">PDF do dia</span>
+              <span className="text-[11px] text-muted-foreground">{from === to ? formatDateBR(from) : formatDateBR(to)}</span>
+            </button>
+            <div className="grid min-w-[18rem] flex-[1.4] grid-cols-4 gap-1.5">
+              <Kpi label="Lançamentos" value={rows.length} />
+              <Kpi label="Entrou" value={sum(ins)} />
+              <Kpi label="Saiu" value={sum(outs)} />
+              <Kpi label="Contagens" value={counts.length} />
+            </div>
           </div>
 
           <div className="relative">
@@ -227,40 +204,13 @@ function Relatorios() {
             />
           </div>
 
-          <Card>
-            <CardContent className="p-0">
-              {filtered.length === 0 ? (
-                <p className="px-4 py-10 text-center text-sm text-muted-foreground">Nada neste filtro. Mude o dia, o pavilhão ou a busca.</p>
-              ) : (
-                <ul className="divide-y divide-border">
-                  {filtered.slice(0, 80).map((r) => (
-                    <li key={`${r.kind}-${r.id}`} className="flex items-start gap-3 px-4 py-3">
-                      <span
-                        className={cn(
-                          "mt-0.5 shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide",
-                          r.kind === "entrada" && "bg-mint text-primary",
-                          r.kind === "saida" && "bg-secondary text-secondary-foreground",
-                          r.kind === "contagem" && "bg-muted text-muted-foreground",
-                        )}
-                      >
-                        {r.kind === "entrada" ? "Entrou" : r.kind === "saida" ? "Saiu" : "Contou"}
-                      </span>
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-medium">{r.produto}</p>
-                        <p className="text-[11px] text-muted-foreground">
-                          {formatDateBR(r.data)} · {formatTime(r.hora) !== "—" ? formatTime(r.hora) : ""} {r.lugar}
-                          {r.cliente ? ` → ${r.cliente}` : ""} · {r.usuario}
-                        </p>
-                      </div>
-                      <p className="shrink-0 text-sm font-semibold tabular-nums">
-                        {formatNumber(r.quantidade)} {r.unidade}
-                      </p>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </CardContent>
-          </Card>
+          {filtered.length === 0 ? (
+            <p className="rounded-2xl border border-dashed border-border px-4 py-10 text-center text-sm text-muted-foreground">
+              Nada neste filtro. Mude o dia, o pavilhão ou a busca.
+            </p>
+          ) : (
+            <ReportGrid rows={filtered} />
+          )}
         </>
       ) : null}
 
@@ -302,11 +252,15 @@ function Relatorios() {
                       setProdQuery(m.nome);
                     }}
                     className={cn(
-                      "flex w-full items-center rounded-xl border px-2 py-1.5 text-left",
+                      "flex w-full items-center gap-2 rounded-xl border px-2 py-1.5 text-left",
                       prodId === m.id ? "border-primary bg-mint" : "border-border hover:bg-muted",
                     )}
                   >
-                    <ProductLabel nome={m.nome} codigo={m.codigo} extra={m.unidade} />
+                    <ProductIcon nome={m.nome} codigo={m.codigo} size="sm" />
+                    <span className="min-w-0">
+                      <span className="block truncate font-mono text-[11px] font-bold tabular-nums">{m.codigo}</span>
+                      <span className="block truncate text-sm">{m.nome}</span>
+                    </span>
                   </button>
                 </li>
               ))}
@@ -377,43 +331,13 @@ function Relatorios() {
             <FileText /> Baixar PDF deste produto
           </ActionButton>
 
-          <Card>
-            <CardContent className="p-0">
-              {prodRows.length === 0 ? (
-                <p className="px-4 py-10 text-center text-sm text-muted-foreground">
-                  Nada neste recorte. Tente “uva” + Pavilhão 13, ou mude o período.
-                </p>
-              ) : (
-                <ul className="divide-y divide-border">
-                  {prodRows.slice(0, 80).map((r) => (
-                    <li key={`${r.kind}-${r.id}`} className="flex items-start gap-3 px-4 py-3">
-                      <span
-                        className={cn(
-                          "mt-0.5 shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide",
-                          r.kind === "entrada" && "bg-mint text-primary",
-                          r.kind === "saida" && "bg-secondary text-secondary-foreground",
-                          r.kind === "contagem" && "bg-muted text-muted-foreground",
-                        )}
-                      >
-                        {r.kind === "entrada" ? "Entrou" : r.kind === "saida" ? "Saiu" : "Contou"}
-                      </span>
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-medium">{r.produto}</p>
-                        <p className="text-[11px] text-muted-foreground">
-                          {formatDateBR(r.data)} · {formatTime(r.hora) !== "—" ? formatTime(r.hora) : ""} {r.lugar}
-                          {r.cliente ? ` → ${r.cliente}` : ""} · {r.usuario}
-                          {r.operador ? ` · Empilhador ${r.operador}` : ""}
-                        </p>
-                      </div>
-                      <p className="shrink-0 text-sm font-semibold tabular-nums">
-                        {formatNumber(r.quantidade)} {r.unidade}
-                      </p>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </CardContent>
-          </Card>
+          {prodRows.length === 0 ? (
+            <p className="rounded-2xl border border-dashed border-border px-4 py-10 text-center text-sm text-muted-foreground">
+              Nada neste recorte. Tente “uva” + Pavilhão 13, ou mude o período.
+            </p>
+          ) : (
+            <ReportGrid rows={prodRows} showOperador />
+          )}
         </section>
       ) : null}
 
@@ -615,40 +539,13 @@ function Relatorios() {
                     <FileText /> PDF saídas agrupadas
                   </ActionButton>
                 </div>
-                <Card>
-                  <CardContent className="p-0">
-                    {cliRows.length === 0 ? (
-                      <p className="px-4 py-10 text-center text-sm text-muted-foreground">
-                        {cliId ? "Nada neste cliente no período." : "Escolha um cliente para ver o movimento."}
-                      </p>
-                    ) : (
-                      <ul className="divide-y divide-border">
-                        {cliRows.slice(0, 80).map((r) => (
-                          <li key={`${r.kind}-${r.id}`} className="flex items-start gap-3 px-4 py-3">
-                            <span
-                              className={cn(
-                                "mt-0.5 shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide",
-                                r.kind === "entrada" ? "bg-mint text-primary" : "bg-secondary text-secondary-foreground",
-                              )}
-                            >
-                              {r.kind === "entrada" ? "Entrou" : "Saiu"}
-                            </span>
-                            <div className="min-w-0 flex-1">
-                              <p className="truncate text-sm font-medium">{r.produto}</p>
-                              <p className="text-[11px] text-muted-foreground">
-                                {formatDateBR(r.data)} · {r.lugar}
-                                {r.cliente ? ` → ${r.cliente}` : ""}
-                              </p>
-                            </div>
-                            <p className="shrink-0 text-sm font-semibold tabular-nums">
-                              {formatNumber(r.quantidade)} {r.unidade}
-                            </p>
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-                  </CardContent>
-                </Card>
+                {cliRows.length === 0 ? (
+                  <p className="rounded-2xl border border-dashed border-border px-4 py-10 text-center text-sm text-muted-foreground">
+                    {cliId ? "Nada neste cliente no período." : "Escolha um cliente para ver o movimento."}
+                  </p>
+                ) : (
+                  <ReportGrid rows={cliRows} />
+                )}
               </>
             );
           })()}
@@ -658,13 +555,98 @@ function Relatorios() {
   );
 }
 
+function clockOf(raw: string) {
+  if (!raw) return "";
+  const iso = raw.match(/T(\d{2}:\d{2})/);
+  if (iso) return iso[1];
+  const hm = raw.match(/^(\d{1,2}:\d{2})/);
+  return hm ? hm[1] : "";
+}
+
+function ReportGrid({ rows, showOperador }: { rows: ReportRow[]; showOperador?: boolean }) {
+  const shown = rows.slice(0, 96);
+  const rest = rows.length - shown.length;
+  return (
+    <div className="space-y-3">
+      <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+        {shown.map((r) => {
+          const hora = clockOf(r.hora);
+          const kind = r.kind === "entrada" ? "Entrou" : r.kind === "saida" ? "Saiu" : "Contou";
+          return (
+            <li
+              key={`${r.kind}-${r.id}`}
+              className="flex min-h-full flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-card"
+            >
+              <div
+                className={cn(
+                  "h-1",
+                  r.kind === "entrada" && "bg-primary",
+                  r.kind === "saida" && "bg-gold",
+                  r.kind === "contagem" && "bg-forest",
+                )}
+              />
+              <div className="flex items-start justify-between gap-2 px-3 pt-2.5">
+                <span
+                  className={cn(
+                    "rounded-full px-2 py-0.5 text-xs font-semibold uppercase tracking-wide",
+                    r.kind === "entrada" && "bg-mint text-primary",
+                    r.kind === "saida" && "bg-secondary text-secondary-foreground",
+                    r.kind === "contagem" && "bg-muted text-forest",
+                  )}
+                >
+                  {kind}
+                </span>
+                <p className="text-right leading-none">
+                  <span className="block text-lg font-semibold tabular-nums">{formatNumber(r.quantidade)}</span>
+                  <span className="mt-0.5 block text-xs font-medium text-muted-foreground">{r.unidade}</span>
+                </p>
+              </div>
+              <div className="mx-3 mt-2 flex h-24 items-center justify-center rounded-xl bg-muted">
+                <ProductIcon nome={r.produto} codigo={r.codigo} size="lg" className="h-20 w-20" />
+              </div>
+              <div className="flex flex-1 flex-col px-3 pb-3 pt-2">
+                <p className="line-clamp-2 text-sm font-semibold leading-snug">{r.produto}</p>
+                {r.codigo ? (
+                  <p className="truncate font-mono text-xs font-semibold tabular-nums text-muted-foreground">{r.codigo}</p>
+                ) : null}
+                <div className="mt-2 space-y-1 text-xs text-muted-foreground">
+                  <p>
+                    {formatDateBR(r.data)}
+                    {hora ? ` · ${hora}` : ""}
+                  </p>
+                  <p className="flex items-center gap-1.5 text-foreground">
+                    <MapPin className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                    <span className="truncate">{r.lugar}</span>
+                  </p>
+                  {r.cliente ? <p className="truncate">Cliente · {r.cliente}</p> : null}
+                  <p className="flex items-center gap-1.5">
+                    <UserRound className="h-3.5 w-3.5 shrink-0" />
+                    <span className="truncate">{r.usuario}</span>
+                  </p>
+                  {showOperador && r.operador ? <p className="truncate">Empilhador · {r.operador}</p> : null}
+                  {r.extra ? <p className="line-clamp-2 text-foreground">{r.extra}</p> : null}
+                </div>
+              </div>
+            </li>
+          );
+        })}
+      </ul>
+      {rest > 0 ? (
+        <p className="text-center text-xs text-muted-foreground">
+          Mostrando {shown.length} de {formatNumber(rows.length)}. Use a busca para ver o resto.
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
 function Chip({ on, onClick, children }: { on: boolean; onClick: () => void; children: ReactNode }) {
   return (
     <button
       type="button"
       onClick={onClick}
       className={cn(
-        "inline-flex h-9 shrink-0 items-center rounded-full border px-3 text-xs font-medium",
+        "inline-flex h-8 shrink-0 items-center rounded-full border px-2.5 text-xs font-medium",
         on ? "border-primary bg-primary text-primary-foreground" : "border-border bg-card text-muted-foreground hover:bg-muted",
       )}
     >
@@ -675,9 +657,9 @@ function Chip({ on, onClick, children }: { on: boolean; onClick: () => void; chi
 
 function Kpi({ label, value }: { label: string; value: number }) {
   return (
-    <div className="rounded-2xl border border-border bg-card p-3">
-      <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{label}</p>
-      <p className="mt-1 text-xl font-semibold tabular-nums leading-none">
+    <div className="min-w-[5.5rem] rounded-xl border border-border bg-card px-2.5 py-1.5">
+      <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">{label}</p>
+      <p className="text-base font-semibold tabular-nums leading-tight">
         <CountUp value={value} />
       </p>
     </div>

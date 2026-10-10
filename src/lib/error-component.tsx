@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import type { ErrorComponentProps } from "@tanstack/react-router";
 import { TriangleAlert } from "lucide-react";
 
@@ -10,6 +11,19 @@ function errorMessage(error: unknown): string {
 }
 
 export function AppErrorComponent({ error }: ErrorComponentProps) {
+  const message = errorMessage(error);
+
+  useEffect(() => {
+    if (!message.includes("SessionProvider")) return;
+    try {
+      if (sessionStorage.getItem("jg-session-recover")) return;
+      sessionStorage.setItem("jg-session-recover", "1");
+    } catch {
+      return;
+    }
+    window.location.reload();
+  }, [message]);
+
   return (
     <main
       className={
@@ -21,9 +35,14 @@ export function AppErrorComponent({ error }: ErrorComponentProps) {
         <TriangleAlert className="size-10" strokeWidth={2} />
       </span>
       <h1 className="text-lg font-semibold">Something went wrong</h1>
-      <p className="max-w-md text-sm break-words text-zinc-500 dark:text-zinc-400">
-        {errorMessage(error)}
-      </p>
+      <p className="max-w-md text-sm break-words text-zinc-500 dark:text-zinc-400">{message}</p>
+      <button
+        type="button"
+        className="mt-2 rounded-md border border-zinc-300 px-4 py-2 text-sm dark:border-zinc-700"
+        onClick={() => window.location.reload()}
+      >
+        Recarregar
+      </button>
     </main>
   );
 }

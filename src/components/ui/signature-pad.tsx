@@ -8,11 +8,15 @@ export function SignaturePad({
   hint,
   value,
   onChange,
+  flowStep,
+  onFlowEnter,
 }: {
   label: string;
   hint?: string;
   value: string;
   onChange: (dataUrl: string) => void;
+  flowStep?: number;
+  onFlowEnter?: (event: React.KeyboardEvent<HTMLCanvasElement>) => void;
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const drawing = useRef(false);
@@ -120,11 +124,14 @@ export function SignaturePad({
       </div>
       <canvas
         ref={canvasRef}
-        className={cn("h-28 w-full touch-none rounded-xl border border-border bg-card", "cursor-crosshair")}
+        tabIndex={flowStep ? 0 : undefined}
+        data-step={flowStep}
+        className={cn("h-28 w-full touch-none rounded-xl border border-border bg-card outline-none focus-visible:ring-2 focus-visible:ring-ring", "cursor-crosshair")}
         onPointerDown={start}
         onPointerMove={move}
         onPointerUp={end}
         onPointerLeave={end}
+        onKeyDown={onFlowEnter}
       />
       {hint ? <p className="text-xs text-muted-foreground">{hint}</p> : null}
     </div>

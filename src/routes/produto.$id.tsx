@@ -15,8 +15,10 @@ import { CountUp } from "@/components/motion/count-up";
 import { SpotlightCard } from "@/components/motion/spotlight-card";
 import { ProductStage } from "@/components/motion/product-stage";
 import { StockSplit } from "@/components/inventory/stock-split";
+import { ProductCharts } from "@/components/inventory/product-charts";
 import { StockBadge } from "@/components/inventory/stock-badge";
 import { EmptyState } from "@/components/empty-state";
+import { OpNote } from "@/components/motion/lottie-clip";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/produto/$id")({ component: ProdutoPerfil });
@@ -48,7 +50,7 @@ function ProdutoPerfil() {
   }
 
   return (
-    <PageStage className="mx-auto max-w-3xl space-y-4">
+    <PageStage className="mx-auto max-w-3xl space-y-4" data-ctx="produto" data-id={merc.id} data-nome={merc.nome} data-codigo={merc.codigo}>
       <PageHeader icon="package" title={merc.nome} description={`Código ${merc.codigo} · histórico, estoque por pavilhão e diferenças de contagem`}>
         <StockBadge alert={stockAlert(merc)} />
       </PageHeader>
@@ -71,6 +73,7 @@ function ProdutoPerfil() {
       </SpotlightCard>
 
       <StockSplit mercadoriaId={merc.id} />
+      <ProductCharts mercadoriaId={merc.id} unidade={merc.unidade} />
 
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
         <Button asChild variant="outline" className="h-11">
@@ -109,9 +112,11 @@ function ProdutoPerfil() {
       <section className="space-y-2">
         <h2 className="text-sm font-semibold">Sobra e falta</h2>
         {diffs.length === 0 ? (
-          <p className="rounded-2xl border border-dashed border-border px-4 py-8 text-center text-sm text-muted-foreground">
-            Nenhuma diferença registrada. As contagens bateram, ou ainda não houve conferência.
-          </p>
+          <OpNote
+            src="/lottie/prancheta.json"
+            title="Nenhuma diferença registrada"
+            detail="As contagens bateram, ou ainda não houve conferência."
+          />
         ) : (
           <Card>
             <CardContent className="p-0">
@@ -166,7 +171,7 @@ function ProdutoPerfil() {
                   <li key={`${ev.kind}-${ev.id}`} className="flex items-start gap-3 px-4 py-3">
                     <span
                       className={cn(
-                        "mt-0.5 w-16 shrink-0 rounded-full px-2 py-0.5 text-center text-[10px] font-semibold uppercase tracking-wide",
+                        "mt-0.5 shrink-0 whitespace-nowrap rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide",
                         ev.kind === "entrada" && "bg-mint text-primary",
                         ev.kind === "saida" && "bg-secondary text-secondary-foreground",
                         ev.kind === "transferencia" && "bg-gold/20 text-gold-ink",

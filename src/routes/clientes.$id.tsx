@@ -14,6 +14,8 @@ import { Label } from "@/components/ui/label";
 import { PageHeader } from "@/components/page-header";
 import { PageStage } from "@/components/motion/page-stage";
 import { CountUp } from "@/components/motion/count-up";
+import { Spark } from "@/components/motion/live-gears";
+import { dailySeries } from "@/lib/dashboard-stats";
 import { SpotlightCard } from "@/components/motion/spotlight-card";
 import { EmptyState } from "@/components/empty-state";
 import { notify } from "@/lib/notify";
@@ -132,10 +134,15 @@ function ClientePerfil() {
             <p className="text-xs text-muted-foreground">Toque na marca para enviar a logo do mercado.</p>
           </div>
           <div className="text-right">
+            <Spark
+              values={dailySeries(mes, from, to).map((d) => d.saidas)}
+              tone="out"
+              label="Quantidade retirada por dia neste mês"
+            />
             <p className="text-2xl font-semibold tabular-nums leading-none">
               <CountUp value={mine?.qtd ?? 0} />
             </p>
-            <p className="text-[11px] text-muted-foreground">un. neste mês</p>
+            <p className="text-[11px] text-muted-foreground">un. neste mês · traço por dia</p>
           </div>
       </SpotlightCard>
 

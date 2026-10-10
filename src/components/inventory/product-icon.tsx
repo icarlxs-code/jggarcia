@@ -1,5 +1,7 @@
-import { cloneElement, isValidElement, type ReactElement, type ReactNode } from "react";
+import { cloneElement, isValidElement, useEffect, useState, type ReactElement, type ReactNode } from "react";
 import { photoOfProduct } from "@/lib/product-photos";
+import { overrideOfProduct, subscribeProductPhotos } from "@/lib/product-photo-overrides";
+import { activePrefs, subscribePrefs } from "@/lib/ui-prefs";
 import { cn } from "@/lib/utils";
 
 function fold(s: string) {
@@ -656,23 +658,45 @@ export function resolveProductGlyph(nome: string): ReactNode {
   return FALLBACK;
 }
 
+export function useSistemaLite() {
+  const [lite, setLite] = useState(() => activePrefs().sistemaLite);
+  useEffect(() => subscribePrefs(() => setLite(activePrefs().sistemaLite)), []);
+  return lite;
+}
+
 export function ProductIcon({
   nome,
   codigo,
+  foto,
   size = "md",
   className,
 }: {
   nome: string;
   codigo?: string;
+  /** data/blob URL, a catalog path, or "" to force the catalog photo. Omit to follow the saved replacement. */
+  foto?: string | null;
   size?: "xs" | "sm" | "md" | "lg";
   className?: string;
 }) {
   const box = size === "xs" ? "h-8 w-8" : size === "sm" ? "h-9 w-9" : size === "lg" ? "h-14 w-14" : "h-11 w-11";
-  const photo = photoOfProduct(nome, codigo);
-  if (photo) {
+  const lite = useSistemaLite();
+  const catalog = lite ? undefined : photoOfProduct(nome, codigo);
+  const [live, setLive] = useState<string | undefined>(undefined);
+  useEffect(() => {
+    if (lite || foto != null) return;
+    const read = () => {
+      const next = overrideOfProduct(nome, codigo);
+      setLive((prev) => (prev === next ? prev : next));
+    };
+    read();
+    return subscribeProductPhotos(read);
+  }, [nome, codigo, foto, lite]);
+  const photo = lite ? "" : (foto != null ? foto : live) || catalog || "";
+  const src = photo.startsWith("media:") ? catalog || "" : photo;
+  if (!lite && src) {
     return (
       <span className={cn("product-icon product-icon-photo inline-flex shrink-0 items-center justify-center overflow-visible bg-transparent p-0 shadow-none ring-0", box, className)} aria-hidden>
-        <img src={photo} alt="" draggable={false} loading={size === "lg" ? "eager" : "lazy"} decoding="async" className="h-full w-full bg-transparent object-contain" />
+        <img src={src} alt="" draggable={false} decoding="async" className="h-full w-full bg-transparent object-contain" />
       </span>
     );
   }
@@ -687,22 +711,24 @@ export function ProductIcon({
 export function ProductLabel({
   nome,
   codigo,
+  foto,
   size = "sm",
   extra,
   className,
 }: {
   nome: string;
   codigo?: string;
+  foto?: string | null;
   size?: "sm" | "md" | "lg";
   extra?: string;
   className?: string;
 }) {
   return (
     <div className={cn("flex min-w-0 items-center gap-2.5", className)}>
-      <ProductIcon nome={nome} codigo={codigo} size={size} />
+      <ProductIcon nome={nome} codigo={codigo} foto={foto} size={size} />
       <div className="min-w-0">
-        {codigo ? <div className="truncate font-mono text-[11px] font-bold tabular-nums tracking-wide text-foreground">{codigo}</div> : null}
-        <div className="truncate text-sm font-normal leading-tight text-foreground/85">{nome}</div>
+        {codigo ? <div data-part="codigo" className="truncate font-mono text-[11px] font-bold tabular-nums tracking-wide text-foreground">{codigo}</div> : null}
+        <div data-part="nome" className="truncate text-sm font-normal leading-tight text-foreground/85">{nome}</div>
         {extra ? <div className="truncate text-[11px] text-muted-foreground">{extra}</div> : null}
       </div>
     </div>

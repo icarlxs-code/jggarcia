@@ -24,12 +24,14 @@ export interface SearchHit {
   unidade?: string;
   total?: number;
   positions?: StockPos[];
-  run?: "theme" | "logout";
+  run?: "theme" | "logout" | "atalho";
+  atalhoId?: string;
+  search?: Record<string, string | undefined>;
 }
 
 export const PAGES: SearchHit[] = [
   { id: "p-home", kind: "pagina", title: "Visão geral", hint: "Dashboard", to: "/", group: "Páginas" },
-  { id: "p-hoje", kind: "pagina", title: "Hoje", hint: "Atalhos e movimento da tarde", to: "/hoje", group: "Páginas" },
+  { id: "p-hoje", kind: "pagina", title: "Hoje", hint: "Movimento do dia", to: "/hoje", group: "Páginas" },
   { id: "p-ent", kind: "pagina", title: "Entradas", hint: "Chegada do Ceasa", to: "/entradas", group: "Páginas" },
   { id: "p-sai", kind: "pagina", title: "Saídas", hint: "Expedição", to: "/historico", group: "Páginas" },
   { id: "p-mov", kind: "pagina", title: "Movimentações", hint: "Entradas, saídas e transferências", to: "/movimentacoes", group: "Páginas" },
@@ -38,21 +40,25 @@ export const PAGES: SearchHit[] = [
   { id: "p-prod", kind: "pagina", title: "Produtos", to: "/mercadorias", group: "Páginas" },
   { id: "p-cli", kind: "pagina", title: "Clientes", hint: "Ficha, logo e ranking", to: "/clientes", group: "Páginas" },
   { id: "p-forn", kind: "pagina", title: "Fornecedores", to: "/fornecedores", group: "Páginas" },
-  { id: "p-emp", kind: "pagina", title: "Empilhadores", hint: "Cadastro de nomes", to: "/empilhadores", group: "Páginas" },
+  { id: "p-emp", kind: "pagina", title: "Empilhadores", hint: "Equipe, transportes e celular", to: "/empilhadores", group: "Páginas" },
   { id: "p-pav", kind: "pagina", title: "Pavilhões", to: "/pavilhoes", group: "Páginas" },
   { id: "p-aud", kind: "pagina", title: "Log de alterações", to: "/auditoria", group: "Páginas" },
   { id: "p-rel", kind: "pagina", title: "Relatórios", to: "/relatorios", group: "Páginas" },
   { id: "p-frete", kind: "pagina", title: "Pagamento de fretes", hint: "Comprovante e PDF", to: "/fretes", group: "Páginas" },
+  { id: "p-despesa-frete", kind: "pagina", title: "Despesa de frete", hint: "Pagar o motorista", to: "/despesas-frete", group: "Páginas" },
+  { id: "p-req", kind: "pagina", title: "Requisição de fornecedor", hint: "Pedido com número de série", to: "/requisicoes", group: "Páginas" },
   { id: "p-usr", kind: "pagina", title: "Equipe", to: "/usuarios", group: "Páginas" },
   { id: "p-cfg", kind: "pagina", title: "Configurações", to: "/configuracoes", group: "Páginas" },
 ];
 
 export const ACTIONS: SearchHit[] = [
-  { id: "a-hoje", kind: "acao", title: "Criar atalho", hint: "Rota de pavilhão ou cliente", to: "/hoje", group: "Ações" },
+  { id: "a-hoje", kind: "acao", title: "Criar atalho", hint: "Abre nesta busca, sem ocupar a página", to: "/", group: "Ações", run: "atalho" },
   { id: "a-ent", kind: "acao", title: "Registrar entrada", hint: "Chegada do Ceasa", to: "/entradas", group: "Ações" },
   { id: "a-sai", kind: "acao", title: "Registrar saída", hint: "Expedição", to: "/nova-saida", group: "Ações" },
   { id: "a-cnt", kind: "acao", title: "Nova contagem", hint: "Conferir pavilhão", to: "/contagem", group: "Ações" },
   { id: "a-frete", kind: "acao", title: "Pagamento de frete", hint: "Gerar comprovante", to: "/fretes", group: "Ações" },
+  { id: "a-despesa-frete", kind: "acao", title: "Despesa de frete", hint: "Pagar motorista", to: "/despesas-frete", group: "Ações" },
+  { id: "a-req", kind: "acao", title: "Nova requisição", hint: "Requisição de fornecedor", to: "/requisicoes", group: "Ações" },
   { id: "a-dest", kind: "acao", title: "Cadastrar cliente", to: "/clientes", group: "Ações" },
   { id: "a-user", kind: "acao", title: "Cadastrar usuário", to: "/usuarios", group: "Ações" },
   { id: "a-low", kind: "alerta", title: "Estoque baixo", hint: "Itens no mínimo", to: "/estoque", group: "Ações" },
@@ -88,6 +94,28 @@ function productHit(m: Mercadoria): SearchHit {
   };
 }
 
+function atalhoHits(q: string): SearchHit[] {
+  const rows = db.listAtalhos().filter((a) => !q || matchesFold(q, a.nome));
+  return rows.slice(0, q ? 6 : 4).map((a) => ({
+    id: `atalho-${a.id}`,
+    kind: "acao" as const,
+    title: a.nome,
+    hint: a.kind === "entrada" ? "Entrada" : a.kind === "transferencia" ? "Pavilhão → pavilhão" : "Saída cliente",
+    to: a.kind === "entrada" ? "/entradas" : "/nova-saida",
+    group: "Atalhos",
+    atalhoId: a.id,
+    search:
+      a.kind === "entrada"
+        ? { pav: a.origem_pavilhao_id, produto: a.mercadoria_id }
+        : {
+            pav: a.origem_pavilhao_id,
+            dest: a.kind === "saida" ? a.destino_id : undefined,
+            destPav: a.kind === "transferencia" ? a.destino_pavilhao_id : undefined,
+            produto: a.mercadoria_id,
+          },
+  }));
+}
+
 export function globalSearch(query: string): SearchHit[] {
   const q = query.trim();
   if (!q) {
@@ -104,7 +132,7 @@ export function globalSearch(query: string): SearchHit[] {
         hit.kind = "alerta";
         return hit;
       });
-    return [...ACTIONS.slice(0, 5), ...alerts, ...PAGES.slice(0, 7)];
+    return [...atalhoHits(""), ...ACTIONS.slice(0, 5), ...alerts, ...PAGES.slice(0, 6)];
   }
 
   const produtos = db.listMercadorias();
@@ -183,6 +211,7 @@ export function globalSearch(query: string): SearchHit[] {
 
   const pageHits = fuseOf(PAGES, ["title", "hint"]).search(q).slice(0, 6).map((r) => r.item);
   const actionHits = fuseOf(ACTIONS, ["title", "hint"]).search(q).slice(0, 6).map((r) => r.item);
+  const savedHits = atalhoHits(q);
 
   const pavilhoesAll = db.listPavilhoes(true);
   const movHits = db
@@ -214,5 +243,5 @@ export function globalSearch(query: string): SearchHit[] {
       };
     });
 
-  return [...prodHits, ...movHits, ...actionHits, ...pavHits, ...userHits, ...loteHits, ...destHits, ...fornHits, ...pageHits].slice(0, 28);
+  return [...prodHits, ...savedHits, ...movHits, ...actionHits, ...pavHits, ...userHits, ...loteHits, ...destHits, ...fornHits, ...pageHits].slice(0, 28);
 }

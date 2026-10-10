@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { prefersReducedMotion } from "@/lib/motion";
+import { activePrefs } from "@/lib/ui-prefs";
 
 export type CeremonyKind = "create" | "delete" | "dispatch";
 export type CeremonyMark = "product" | "person" | "client" | "truck" | "store";
@@ -31,6 +32,8 @@ let seq = 0;
 
 export function playCeremony(payload: CeremonyPayload) {
   if (typeof window === "undefined") return;
+  if (activePrefs().sistemaLite || prefersReducedMotion()) return;
+  if (!activePrefs().som) return;
   seq += 1;
   const event: CeremonyEvent = { ...payload, id: String(seq) };
   listeners.forEach((fn) => fn(event));

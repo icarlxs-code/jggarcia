@@ -37,7 +37,7 @@ export function ActionButton({
         return;
       }
       setPhase("done");
-      window.setTimeout(() => setPhase("idle"), prefersReducedMotion() ? 200 : MOTION.duration.hero);
+      window.setTimeout(() => setPhase("idle"), prefersReducedMotion() ? 0 : MOTION.duration.hero);
     } catch {
       setPhase("idle");
     }

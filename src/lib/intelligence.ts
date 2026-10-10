@@ -1,108 +1,85 @@
-import type { Mercadoria, Saida } from "./types";
+import type { Contagem, Lote, Mercadoria, Pavilhao } from "./types";
+import { pavTitle } from "./catalog";
+import { formatNumber } from "./format";
 
-export type SmartAlert = {
+export type AttentionAlert = {
   id: string;
-  level: "warn" | "crit";
   title: string;
   detail: string;
-  at: string;
+  to: "/contagem" | "/lotes";
+  search?: { pav: string; produto: string };
 };
 
-function median(nums: number[]) {
-  if (!nums.length) return 0;
-  const s = [...nums].sort((a, b) => a - b);
-  const mid = Math.floor(s.length / 2);
-  return s.length % 2 ? s[mid] : (s[mid - 1] + s[mid]) / 2;
-}
+const MUTE_KEY = "jg-alert-mute-v1";
 
-function ts(s: Saida) {
-  return Date.parse(s.created_at) || 0;
-}
-
-export function detectIssues(movs: Saida[], produtos: Mercadoria[]): SmartAlert[] {
-  const alerts: SmartAlert[] = [];
-  const now = Date.now();
-  const day = 24 * 60 * 60 * 1000;
-  const recent = movs.filter((m) => now - ts(m) < day).sort((a, b) => ts(b) - ts(a));
-
-  for (const m of recent.slice(0, 40)) {
-    const tipo = m.tipo ?? "saida";
-    const twins = recent.filter(
-      (o) =>
-        o.id !== m.id &&
-        o.mercadoria_id === m.mercadoria_id &&
-        (o.tipo ?? "saida") === tipo &&
-        Math.abs(ts(o) - ts(m)) < 4 * 60 * 1000 &&
-        Math.abs(o.quantidade - m.quantidade) / Math.max(o.quantidade, m.quantidade, 1) < 0.08,
-    );
-    if (twins.length) {
-      alerts.push({
-        id: `dup-${m.id}`,
-        level: "warn",
-        title: "Possível lançamento duplicado",
-        detail: `${m.mercadoria?.nome ?? "Produto"} · ${m.quantidade} ${m.unidade} lançado de novo em poucos minutos.`,
-        at: m.created_at,
-      });
-    }
-
-    const hist = movs
-      .filter((o) => o.id !== m.id && o.mercadoria_id === m.mercadoria_id && (o.tipo ?? "saida") === tipo)
-      .slice(0, 20)
-      .map((o) => o.quantidade)
-      .filter((n) => n > 0);
-    if (hist.length >= 5) {
-      const med = median(hist);
-      if (med >= 8 && m.quantidade >= med * 3.2) {
-        alerts.push({
-          id: `alto-${m.id}`,
-          level: "crit",
-          title: tipo === "entrada" ? "Entrada bem acima do normal" : "Saída bem acima do normal",
-          detail: `${m.mercadoria?.nome ?? "Produto"} · ${m.quantidade} ${m.unidade}. O usual deste item é cerca de ${Math.round(med)} ${m.unidade}.`,
-          at: m.created_at,
-        });
-      }
-    }
-
-    if (tipo === "saida" && m.desconta_estoque !== false && !m.destino_pavilhao_id) {
-      const prod = produtos.find((p) => p.id === m.mercadoria_id);
-      if (prod && prod.estoque <= 0 && m.quantidade > 0) {
-        alerts.push({
-          id: `zero-${m.id}`,
-          level: "crit",
-          title: "Saída zerou o estoque",
-          detail: `${m.mercadoria?.nome ?? "Produto"} ficou em 0 após a saída de ${m.quantidade} ${m.unidade}.`,
-          at: m.created_at,
-        });
-      }
-    }
-  }
-
-  const seen = new Set<string>();
-  return alerts.filter((a) => {
-    if (seen.has(a.id)) return false;
-    seen.add(a.id);
-    return true;
-  });
-}
-
-const SEEN_KEY = "jg-smart-alerts-seen";
-
-export function loadSeenAlerts(): Set<string> {
+function readMutes(): Record<string, string[]> {
   try {
-    const raw = localStorage.getItem(SEEN_KEY);
-    const arr = raw ? (JSON.parse(raw) as string[]) : [];
-    return new Set(arr);
+    const raw = localStorage.getItem(MUTE_KEY);
+    const parsed = raw ? (JSON.parse(raw) as Record<string, string[]>) : {};
+    return parsed && typeof parsed === "object" ? parsed : {};
   } catch {
-    return new Set();
+    return {};
   }
 }
 
-export function markAlertSeen(id: string) {
-  const set = loadSeenAlerts();
-  set.add(id);
+export function loadMutedAlerts(userId?: string | null): Set<string> {
+  const id = userId || "_anon";
+  return new Set(readMutes()[id] ?? []);
+}
+
+export function muteAlert(userId: string | null | undefined, alertId: string) {
+  const id = userId || "_anon";
+  const all = readMutes();
+  const next = new Set(all[id] ?? []);
+  next.add(alertId);
+  all[id] = [...next].slice(-200);
   try {
-    localStorage.setItem(SEEN_KEY, JSON.stringify([...set].slice(-80)));
+    localStorage.setItem(MUTE_KEY, JSON.stringify(all));
   } catch {
     /* ignore */
   }
+}
+
+/** Só a última contagem de cada produto no lugar, e só se não bateu. */
+export function attentionAlerts(opts: {
+  contagens: Contagem[];
+  mercadorias: Mercadoria[];
+  pavilhoes: Pavilhao[];
+  lotes?: Lote[];
+}): AttentionAlert[] {
+  const latest = new Map<string, Contagem>();
+  for (const c of opts.contagens) {
+    if (c.deleted_at) continue;
+    const key = `${c.mercadoria_id}\t${c.pavilhao_id}`;
+    const prev = latest.get(key);
+    if (!prev || (c.created_at || "") > (prev.created_at || "")) latest.set(key, c);
+  }
+
+  const alerts: AttentionAlert[] = [];
+  const open = [...latest.values()].filter((c) => c.delta !== 0).sort((a, b) => (b.created_at || "").localeCompare(a.created_at || ""));
+  for (const c of open) {
+    const merc = opts.mercadorias.find((m) => m.id === c.mercadoria_id);
+    const pav = opts.pavilhoes.find((p) => p.id === c.pavilhao_id);
+    const falta = c.delta < 0;
+    const nome = merc?.nome ?? "Produto";
+    const onde = pav ? pavTitle(pav) : "lugar";
+    alerts.push({
+      id: `diverge-${c.id}`,
+      title: falta ? "Não bateu · falta" : "Não bateu · sobra",
+      detail: `${nome} · ${onde} · no sistema ${formatNumber(c.esperado)}, contado ${formatNumber(c.contado)} ${c.unidade}.`,
+      to: "/contagem",
+      search: { pav: c.pavilhao_id, produto: c.mercadoria_id },
+    });
+  }
+
+  for (const l of opts.lotes ?? []) {
+    alerts.push({
+      id: `lote-${l.id}`,
+      title: "Lote vencido",
+      detail: `${l.codigo} venceu e ainda está no controle.`,
+      to: "/lotes",
+    });
+  }
+
+  return alerts;
 }

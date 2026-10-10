@@ -1,4 +1,4 @@
-import { type FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { CheckCircle2, Eye, EyeOff, Loader2, Lock, Smartphone, User } from "lucide-react";
 import { approveQrDevice, claimQrPairing, linkQrDevice, loginThisDevice, rememberQrStation } from "@/lib/qr-auth";
@@ -77,12 +77,12 @@ function QrAcesso() {
   const [identificador, setIdentificador] = useState("");
   const [senha, setSenha] = useState("");
   const [show, setShow] = useState(false);
-  const [busy, setBusy] = useState(true);
+  const [busy, setBusy] = useState(false);
   const [done, setDone] = useState(false);
   const [who, setWho] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [needLink, setNeedLink] = useState(false);
-  const once = useRef(false);
+  const [needLink, setNeedLink] = useState(true);
+  const [status, setStatus] = useState("Lendo o IP deste telefone…");
 
   async function enterApp(user: { id: string; nome: string }, senha = "", deviceId?: string, secret?: string) {
     if (deviceId && secret) saveDevice(deviceId, secret);
@@ -100,11 +100,7 @@ function QrAcesso() {
     }, 400);
   }
 
-  async function askLogin() {
-    setNeedLink(true);
-  }
-
-  async function unlockHere(deviceId?: string, secret?: string) {
+  async function unlockHere(deviceId?: string, secret?: string, quiet = false) {
     const print = devicePrint();
     if (ticket) {
       const res = await approveQrDevice({
@@ -123,19 +119,24 @@ function QrAcesso() {
       data: { deviceId, deviceSecret: secret, print },
     });
     if (!local.ok) {
-      setError("occupied" in local && local.occupied ? local.error : null);
+      if (!quiet) setError("occupied" in local && local.occupied ? local.error : null);
       return false;
     }
-    await enterApp(local.user, local.senha, local.deviceId, local.secret);
+    await enterApp(local.user, local.senha || "", local.deviceId, local.secret);
     return true;
   }
 
   useEffect(() => {
-    if (once.current) return;
-    once.current = true;
+    let cancel = false;
+    const timer = window.setTimeout(() => {
+      if (cancel) return;
+      setStatus("");
+      setNeedLink(true);
+    }, 4000);
     void (async () => {
       try {
         const saved = readDevice();
+        const print = devicePrint();
         if (p) {
           const linked = await claimQrPairing({
             data: {
@@ -143,32 +144,45 @@ function QrAcesso() {
               label: deviceLabel(),
               deviceId: saved?.deviceId,
               deviceSecret: saved?.secret,
-              print: devicePrint(),
+              print,
             },
           });
+          if (cancel) return;
           if (!linked.ok) {
             setError(linked.error);
-            await askLogin();
+            setNeedLink(true);
             return;
           }
           saveDevice(linked.deviceId, linked.secret);
-          const ok = await unlockHere(linked.deviceId, linked.secret);
-          if (!ok) await askLogin();
+          const ok = await unlockHere(linked.deviceId, linked.secret, true);
+          if (!cancel && !ok) setNeedLink(true);
           return;
         }
-        const ok = await unlockHere(saved?.deviceId, saved?.secret);
-        if (!ok) await askLogin();
+        const ok = await unlockHere(saved?.deviceId, saved?.secret, true);
+        if (!cancel && !ok) {
+          setNeedLink(true);
+          setStatus("Este telefone ainda não está vinculado. Entre com e-mail e senha.");
+        }
       } catch {
-        setError("Não foi possível falar com o sistema. Tente de novo.");
-        await askLogin();
+        if (!cancel) {
+          setNeedLink(true);
+          setStatus("");
+        }
       } finally {
-        setBusy(false);
+        window.clearTimeout(timer);
+        if (!cancel) setStatus("");
       }
     })();
-  }, [p, ticket]);
+    return () => {
+      cancel = true;
+      window.clearTimeout(timer);
+    };
+    // Reconhece uma vez ao abrir. O formulário já está na tela.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [p]);
 
-  async function vincular(e: FormEvent) {
-    e.preventDefault();
+  async function vincular(e?: { preventDefault(): void }) {
+    e?.preventDefault();
     if (!identificador.trim() || !senha) {
       setError("Na primeira vez neste celular, confirme e-mail e senha.");
       return;
@@ -196,19 +210,15 @@ function QrAcesso() {
   }
 
   return (
-    <div className="flex min-h-dvh items-center justify-center bg-[#fcfcfc] px-5 py-10">
-      <div className="w-full max-w-sm space-y-5">
-        <img src="/logo.png" alt="JG Garcia" className="mx-auto h-16 w-auto object-contain" />
+    <div className="gate-screen">
+      <div className="gate-card">
+        <img src="/logo.png" alt="JG Garcia" className="login-logo" />
         <div className="text-center">
           <h1 className="text-xl font-semibold tracking-tight">
-            {done ? "Acesso liberado" : needLink ? "Primeiro acesso" : "Reconhecendo dispositivo"}
+            {done ? "Acesso liberado" : "Entrar"}
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            {needLink
-              ? "Este telefone ainda não está reconhecido. Entre com o e-mail e a senha cadastrados pelo administrador. O IP fica gravado neste aparelho."
-              : ticket
-                ? "Reconhecendo o telefone para liberar o computador…"
-                : "Reconhecendo este aparelho…"}
+            {status || (ticket ? "Confirme a conta para liberar o acesso." : "O IP deste telefone é lido ao abrir a página.")}
           </p>
         </div>
 
@@ -221,7 +231,15 @@ function QrAcesso() {
             </p>
           </div>
         ) : needLink ? (
-          <form onSubmit={vincular} className="space-y-4">
+          <form
+            method="post"
+            action="#"
+            onSubmit={(e) => {
+              e.preventDefault();
+              void vincular(e);
+            }}
+            className="login-auth-form"
+          >
             {error ? (
               <div role="alert" className="rounded-lg border border-destructive/25 bg-destructive/8 px-3 py-2.5 text-sm text-destructive">
                 {error}
@@ -229,7 +247,7 @@ function QrAcesso() {
             ) : null}
             <div className="space-y-2">
               <Label htmlFor="qr-email">E-mail</Label>
-              <div className="relative">
+              <div className="login-zoom relative">
                 <User className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                 <Input
                   id="qr-email"
@@ -238,12 +256,13 @@ function QrAcesso() {
                   className="pl-10"
                   autoComplete="username"
                   autoCapitalize="none"
+                  placeholder="e-mail da equipe"
                 />
               </div>
             </div>
             <div className="space-y-2">
               <Label htmlFor="qr-senha">Senha</Label>
-              <div className="relative">
+              <div className="login-zoom relative">
                 <Lock className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                 <Input
                   id="qr-senha"
@@ -252,10 +271,11 @@ function QrAcesso() {
                   onChange={(e) => setSenha(e.target.value)}
                   className="pl-10 pr-11"
                   autoComplete="current-password"
+                  placeholder="senha"
                 />
                 <button
                   type="button"
-                  className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-2 text-muted-foreground"
+                  className="login-eye absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-2 text-muted-foreground"
                   onClick={() => setShow((v) => !v)}
                   aria-label={show ? "Ocultar senha" : "Mostrar senha"}
                 >
@@ -263,13 +283,15 @@ function QrAcesso() {
                 </button>
               </div>
             </div>
-            <Button type="submit" className="h-11 w-full active:scale-100" disabled={busy}>
-              {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-              {busy ? "Vinculando" : "Vincular este celular"}
+            <Button
+              type="button"
+              className="login-submit h-11 w-full active:scale-100"
+              disabled={busy}
+              onClick={() => void vincular()}
+            >
+              {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Smartphone className="h-4 w-4" />}
+              {busy ? "Confirmando" : "Entrar"}
             </Button>
-            <p className="flex items-center justify-center gap-1.5 text-xs text-muted-foreground">
-              <Smartphone className="h-3.5 w-3.5" /> O IP do aparelho fica gravado na ficha
-            </p>
           </form>
         ) : (
           <div className="flex items-center justify-center gap-2 py-8 text-sm text-muted-foreground">

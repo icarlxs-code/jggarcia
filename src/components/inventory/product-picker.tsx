@@ -5,6 +5,7 @@ import { formatNumber } from "@/lib/format";
 import { cn, fold } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
 import { ProductLabel } from "@/components/inventory/product-icon";
+import { enterNext } from "@/lib/field-flow";
 
 export function ProductPicker({
   items,
@@ -14,6 +15,7 @@ export function ProductPicker({
   inputId = "busca-prod-saida",
   listId = "lista-produtos-saida",
   inline = false,
+  flowStep,
 }: {
   items: Mercadoria[];
   value: string;
@@ -22,6 +24,7 @@ export function ProductPicker({
   inputId?: string;
   listId?: string;
   inline?: boolean;
+  flowStep?: number;
 }) {
   const selected = items.find((m) => m.id === value);
   const selectedLabel = selected ? `${selected.codigo} · ${selected.nome}` : "";
@@ -77,20 +80,28 @@ export function ProductPicker({
         }}
         onFocus={() => setAberto(true)}
         onBlur={() => window.setTimeout(() => setAberto(false), 140)}
+        data-step={flowStep}
         onKeyDown={(e) => {
-          if (!aberto || filtradas.length === 0) return;
-          if (e.key === "ArrowDown") {
+          if (e.key === "ArrowDown" && aberto && filtradas.length > 0) {
             e.preventDefault();
             setDestaque((n) => Math.min(n + 1, filtradas.length - 1));
-          } else if (e.key === "ArrowUp") {
+            return;
+          }
+          if (e.key === "ArrowUp" && aberto && filtradas.length > 0) {
             e.preventDefault();
             setDestaque((n) => Math.max(n - 1, 0));
-          } else if (e.key === "Enter") {
+            return;
+          }
+          if (e.key === "Escape") {
+            setAberto(false);
+            return;
+          }
+          if (e.key !== "Enter" || e.shiftKey) return;
+          if (aberto && filtradas.length > 0) {
             e.preventDefault();
             escolher(filtradas[destaque] ?? filtradas[0]);
-          } else if (e.key === "Escape") {
-            setAberto(false);
           }
+          enterNext(e);
         }}
       />
       {aberto ? (

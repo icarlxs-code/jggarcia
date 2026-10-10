@@ -86,7 +86,11 @@ export function MovementDetail({
             {isPavTransfer(view) && view.estoque_destino_antes != null ? (
               <Row
                 label="Saldo no destino"
-                value={`${formatNumber(view.estoque_destino_antes)} → ${formatNumber(view.estoque_destino_depois ?? view.estoque_destino_antes)}`}
+                value={
+                  view.soma_destino === false
+                    ? `${formatNumber(view.estoque_destino_antes)} · registrado, sem somar`
+                    : `${formatNumber(view.estoque_destino_antes)} → ${formatNumber(view.estoque_destino_depois ?? view.estoque_destino_antes)}`
+                }
               />
             ) : null}
             <Row label="Criado" value={dataHoraLine(view.created_at.slice(0, 10), view.created_at.slice(11, 16))} />

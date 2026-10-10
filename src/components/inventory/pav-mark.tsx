@@ -17,12 +17,14 @@ export function PavMark({
 }) {
   const dim =
     size === "xl" ? "h-16 w-16" : size === "lg" ? "h-14 w-14" : size === "sm" ? "h-8 w-8" : "h-11 w-11";
-  const src = p.logo || logoOfPavilhao(p);
+  const src = p.logo || logoOfPavilhao(p) || "";
   if (src) {
     return (
       <img
         src={src}
         alt=""
+        draggable={false}
+        decoding="async"
         className={cn("pav-mark", dim, className)}
       />
     );
@@ -41,6 +43,8 @@ export function PavPicker({
   excludeId,
   stockOf,
   unidade,
+  flowStep,
+  onAdvance,
 }: {
   items: PavLike[];
   value: string;
@@ -48,10 +52,12 @@ export function PavPicker({
   excludeId?: string;
   stockOf?: (id: string) => number;
   unidade?: string;
+  flowStep?: number;
+  onAdvance?: () => void;
 }) {
   const list = excludeId ? items.filter((p) => p.id !== excludeId) : items;
   return (
-    <div className="pav-picker">
+    <div className="pav-picker" data-step={flowStep}>
       {list.map((p) => {
         const on = value === p.id;
         const stock = stockOf ? stockOf(p.id) : null;
@@ -59,9 +65,15 @@ export function PavPicker({
           <button
             key={p.id}
             type="button"
+            data-ctx="pavilhao"
+            data-id={p.id}
+            data-nome={p.nome || pavTitle(p)}
             className={cn("pav-pick", on && "is-on")}
             aria-pressed={on}
-            onClick={() => onChange(p.id)}
+            onClick={(e) => {
+              onChange(p.id);
+              if (e.detail === 0) onAdvance?.();
+            }}
           >
             <PavMark p={p} size="lg" />
             <span className="pav-pick-name">{pavTitle(p)}</span>

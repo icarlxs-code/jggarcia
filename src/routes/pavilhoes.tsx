@@ -6,7 +6,7 @@ import { useDb } from "@/lib/use-db";
 import { notify } from "@/lib/notify";
 import { formatNumber } from "@/lib/format";
 import type { Pavilhao } from "@/lib/types";
-import { inferTipoLugar, TIPOS_LUGAR } from "@/lib/constants";
+import { TIPOS_LUGAR } from "@/lib/constants";
 import { pavTitle } from "@/lib/catalog";
 import { readLogoAsset } from "@/lib/reports";
 import { Badge } from "@/components/ui/badge";
@@ -19,6 +19,7 @@ import { PageHeader } from "@/components/page-header";
 import { PageStage } from "@/components/motion/page-stage";
 import { playCeremony, ceremonyDock } from "@/lib/ceremony";
 import { PavMark } from "@/components/inventory/pav-mark";
+import { useQueuedEdit } from "@/lib/ctx-edit";
 import { cn, fold } from "@/lib/utils";
 
 export const Route = createFileRoute("/pavilhoes")({ component: Pavilhoes });
@@ -31,12 +32,18 @@ function Pavilhoes() {
   const [edit, setEdit] = useState<Pavilhao | null>(null);
   const [codigo, setCodigo] = useState("");
   const [nome, setNome] = useState("");
-  const [tipo, setTipo] = useState("Pavilhão");
+  const [tipo, setTipo] = useState("");
   const [logo, setLogo] = useState("");
   const [pngInfo, setPngInfo] = useState<{ png: boolean; transparent: boolean } | null>(null);
   const [ativo, setAtivo] = useState(true);
+  const [drop, setDrop] = useState<Pavilhao | null>(null);
   const [tipoQ, setTipoQ] = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
+
+  useQueuedEdit("pavilhao", (id) => {
+    const p = list.find((x) => x.id === id);
+    if (p) startEdit(p);
+  });
 
   const tiposFiltrados = useMemo(() => {
     const term = fold(tipoQ.trim());
@@ -48,7 +55,7 @@ function Pavilhoes() {
     setEdit(null);
     setCodigo("");
     setNome("");
-    setTipo("Pavilhão");
+    setTipo("");
     setLogo("");
     setPngInfo(null);
     setTipoQ("");
@@ -60,7 +67,7 @@ function Pavilhoes() {
     setEdit(p);
     setCodigo(p.codigo);
     setNome(p.nome);
-    setTipo(inferTipoLugar(p));
+    setTipo(p.tipo || "");
     setLogo(p.logo || "");
     setPngInfo(p.logo?.startsWith("data:image/png") ? { png: true, transparent: true } : null);
     setTipoQ("");
@@ -86,8 +93,8 @@ function Pavilhoes() {
       notify.error("Informe o código do lugar.");
       return;
     }
-    const tipoFinal = tipo.trim() || "Pavilhão";
-    const nomeFinal = nome.trim() || `${tipoFinal} ${codigo.trim()}`;
+    const tipoFinal = tipo.trim();
+    const nomeFinal = nome.trim() || (tipoFinal ? `${tipoFinal} ${codigo.trim()}` : codigo.trim());
     if (edit) {
       db.updatePavilhao(edit.id, {
         codigo: codigo.trim(),
@@ -108,7 +115,7 @@ function Pavilhoes() {
       notify.success("Lugar cadastrado.");
       playCeremony({
         kind: "create",
-        title: `${tipoFinal} ${codigo.trim()}`,
+        title: nomeFinal,
         subtitle: "No mapa da operação",
         mark: "store",
         dock: ceremonyDock("/pavilhoes"),
@@ -120,7 +127,8 @@ function Pavilhoes() {
   return (
     <PageStage className="space-y-4">
       <PageHeader
-        icon="store"
+        clip="/lottie/galpao.json"
+        clipClassName="lottie-clip h-14 w-24 shrink-0"
         title="Pavilhões"
         description="Estoque real de cada lugar: pavilhão, galpão, carreta, câmara, doca… Conte o que tem no chão e corrija se não bater."
       >
@@ -133,13 +141,13 @@ function Pavilhoes() {
           <Plus /> Novo lugar
         </Button>
       </PageHeader>
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
         {list.map((p) => {
           const comSaldo = produtos.filter((m) => live.stockAt(m.id, p.id) > 0);
           const totalItens = comSaldo.reduce((a, m) => a + live.stockAt(m.id, p.id), 0);
           const title = pavTitle(p);
           return (
-            <Card key={p.id} className={cn(!p.ativo && "opacity-70")}>
+            <Card key={p.id} data-ctx="pavilhao" data-id={p.id} data-nome={title} className={cn(!p.ativo && "opacity-70")}>
               <CardHeader className="flex-row items-start justify-between gap-2 space-y-0">
                 <div className="min-w-0">
                   <CardTitle className="text-base leading-tight">{title}</CardTitle>
@@ -154,9 +162,9 @@ function Pavilhoes() {
                     produtos com saldo · {formatNumber(totalItens)} volumes
                   </p>
                 </div>
-                <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="space-y-2">
                   <Badge variant={p.ativo ? "success" : "muted"}>{p.ativo ? "Operação ativa" : "Inativo"}</Badge>
-                  <div className="flex gap-1">
+                  <div className="flex flex-wrap gap-1">
                     <Button size="sm" variant="outline" asChild>
                       <Link to="/contagem" search={{ pav: p.id }}>
                         Contar
@@ -176,6 +184,10 @@ function Pavilhoes() {
                     >
                       {p.ativo ? "Desativar" : "Ativar"}
                     </Button>
+                    <Button size="sm" variant="ghost" className="text-destructive" onClick={() => setDrop(p)}>
+                      <Trash2 className="h-3.5 w-3.5" />
+                      Excluir
+                    </Button>
                   </div>
                 </div>
               </CardContent>
@@ -188,7 +200,7 @@ function Pavilhoes() {
         <DialogContent className="max-w-xl">
           <DialogHeader>
             <DialogTitle>{edit ? "Editar lugar" : "Novo lugar"}</DialogTitle>
-            <DialogDescription>Escolha o tipo (pavilhão, carreta, câmara…) e envie a foto. PNG mantém o fundo transparente.</DialogDescription>
+            <DialogDescription>O tipo é opcional. Pode deixar só o código e o nome. PNG mantém o fundo transparente.</DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
             <div className="flex items-start gap-3">
@@ -253,12 +265,12 @@ function Pavilhoes() {
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="pn">Nome (opcional)</Label>
-                <Input id="pn" placeholder={`${tipo} ${codigo || ""}`.trim()} value={nome} onChange={(e) => setNome(e.target.value)} />
+                <Input id="pn" placeholder={tipo ? `${tipo} ${codigo || ""}`.trim() : codigo || "Nome livre"} value={nome} onChange={(e) => setNome(e.target.value)} />
               </div>
             </div>
 
             <div className="space-y-1.5">
-              <Label htmlFor="tipo-busca">Tipo de lugar</Label>
+              <Label htmlFor="tipo-busca">Tipo de lugar (opcional)</Label>
               <div className="relative">
                 <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                 <Input
@@ -277,7 +289,7 @@ function Pavilhoes() {
                     <button
                       key={t}
                       type="button"
-                      onClick={() => setTipo(t)}
+                      onClick={() => setTipo((cur) => (cur === t ? "" : t))}
                       className={cn(
                         "min-h-9 rounded-lg px-2 py-1.5 text-left text-xs font-medium leading-tight",
                         tipo === t ? "bg-primary text-primary-foreground" : "text-foreground hover:bg-muted",
@@ -289,8 +301,14 @@ function Pavilhoes() {
                 )}
               </div>
               <p className="text-xs text-muted-foreground">
-                Selecionado: <span className="font-medium text-foreground">{tipo}</span>
-                {codigo.trim() ? ` · vai aparecer como ${tipo} ${codigo.trim()}` : null}
+                {tipo ? (
+                  <>
+                    Selecionado: <span className="font-medium text-foreground">{tipo}</span>
+                    {codigo.trim() ? ` · vai aparecer como ${nome.trim() || `${tipo} ${codigo.trim()}`}` : ". Toque de novo para tirar."}
+                  </>
+                ) : (
+                  "Nenhum tipo. O lugar aparece pelo nome ou só pelo código."
+                )}
               </p>
             </div>
 
@@ -304,6 +322,30 @@ function Pavilhoes() {
               Cancelar
             </Button>
             <Button onClick={save}>{edit ? "Salvar" : "Cadastrar"}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      <Dialog open={!!drop} onOpenChange={(v) => !v && setDrop(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Excluir {drop ? pavTitle(drop) : "lugar"}</DialogTitle>
+            <DialogDescription>
+              O lugar sai das listas, dos filtros e dos lançamentos novos. O histórico antigo permanece. Essa exclusão não volta sozinha.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDrop(null)}>Cancelar</Button>
+            <Button
+              variant="destructive"
+              onClick={() => {
+                if (!drop) return;
+                db.deletePavilhao(drop.id);
+                notify.success("Lugar excluído.");
+                setDrop(null);
+              }}
+            >
+              Excluir
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

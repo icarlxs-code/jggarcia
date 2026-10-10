@@ -1,6 +1,6 @@
-import { useState } from "react";
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { ArrowDownToLine, ArrowLeftRight, ArrowUpFromLine, Bookmark, FileText, Plus, Trash2 } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { createFileRoute, Link } from "@tanstack/react-router";
+import { Bookmark, FileText, Search } from "lucide-react";
 import { db } from "@/lib/store";
 import { useDb } from "@/lib/use-db";
 import { useSession } from "@/lib/session";
@@ -8,100 +8,51 @@ import { destinoDaSaida, isPavTransfer, lugarDaSaida } from "@/lib/catalog";
 import { statusLabel, statusOf, tipoMovimentacaoOf } from "@/lib/movement";
 import { MovementDetail } from "@/components/inventory/movement-detail";
 import { formatDateBR, formatNumber, todayISO } from "@/lib/format";
+import { PeriodFilter, periodRange, type PeriodKey } from "@/components/inventory/period-filter";
 import { notify } from "@/lib/notify";
-import type { Atalho, AtalhoKind } from "@/lib/types";
 import { exportDiaCompletoPdf } from "@/lib/reports";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { PageHeader } from "@/components/page-header";
+import { fold, cn } from "@/lib/utils";
 import { PageStage } from "@/components/motion/page-stage";
+import { KpiMark, type KpiKind } from "@/components/motion/kpi-mark";
+import { Spark } from "@/components/motion/live-gears";
+import { countsByHour } from "@/lib/dashboard-stats";
+import { MOTION } from "@/lib/motion";
 import { Badge } from "@/components/ui/badge";
-import { ProductLabel } from "@/components/inventory/product-icon";
-import { PavPicker } from "@/components/inventory/pav-mark";
-import { ProductPicker } from "@/components/inventory/product-picker";
-import { ConfirmDialog } from "@/components/feedback/confirm-dialog";
-import { HojeCharts } from "@/components/hoje/hoje-charts";
-import { cn } from "@/lib/utils";
+import { ProductIcon } from "@/components/inventory/product-icon";
+import { ViewSwitch, useChartView } from "@/components/analytics/view-switch";
+import { ScreenCharts } from "@/components/analytics/screen-charts";
 
 export const Route = createFileRoute("/hoje")({ component: Hoje });
 
 function Hoje() {
   const live = useDb();
-  const { perfil } = useSession();
-  const navigate = useNavigate();
+  const { perfil, isAdmin } = useSession();
   const hoje = todayISO();
+  const [period, setPeriod] = useState<PeriodKey>("hoje");
+  const [day, setDay] = useState(hoje);
+  const [span, setSpan] = useState({ from: hoje, to: hoje });
+  const range = periodRange(period, day, span);
   const pavilhoes = live.listPavilhoes();
-  const destinos = live.listDestinos(true);
-  const mercadorias = live.listMercadorias(true);
-  const atalhos = live.listAtalhos();
-  const movs = live.listSaidas({ from: hoje, to: hoje });
+  const movs = live.listSaidas({ from: range.from, to: range.to });
   const entradas = movs.filter((s) => (s.tipo ?? "saida") === "entrada");
   const saidas = movs.filter((s) => (s.tipo ?? "saida") === "saida");
 
-  const [open, setOpen] = useState(false);
-  const [kind, setKind] = useState<AtalhoKind>("transferencia");
-  const [nome, setNome] = useState("");
-  const [origem, setOrigem] = useState("");
-  const [destPav, setDestPav] = useState("");
-  const [destId, setDestId] = useState("");
-  const [mercId, setMercId] = useState("");
-  const [formError, setFormError] = useState("");
-  const [pending, setPending] = useState<Atalho | null>(null);
+  const [qMov, setQMov] = useState("");
   const [view, setView] = useState<(typeof movs)[number] | null>(null);
+  const { vista } = useChartView("hoje");
   const transito = saidas.filter((s) => statusOf(s) === "em_transito").length;
   const produtosMov = new Set(movs.map((s) => s.mercadoria_id)).size;
-  const contagensHoje = live.listContagens().filter((c) => c.data === hoje).length;
-
-  function resetForm() {
-    setKind("transferencia");
-    setNome("");
-    setOrigem("");
-    setDestPav("");
-    setDestId("");
-    setMercId("");
-    setFormError("");
-  }
-
-  function saveAtalho() {
-    try {
-      setFormError("");
-      const row = db.createAtalho({
-        kind,
-        nome,
-        origem_pavilhao_id: origem,
-        destino_pavilhao_id: kind === "transferencia" ? destPav : undefined,
-        destino_id: kind === "saida" ? destId : undefined,
-        mercadoria_id: mercId || undefined,
-      });
-      setOpen(false);
-      resetForm();
-      notify.success(`Atalho “${row.nome}” na lista.`);
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : "Não foi possível criar o atalho.";
-      setFormError(msg);
-      notify.error(msg);
-    }
-  }
-
-  function runAtalho(a: Atalho) {
-    db.touchAtalho(a.id);
-    if (a.kind === "entrada") {
-      void navigate({ to: "/entradas", search: { pav: a.origem_pavilhao_id, produto: a.mercadoria_id } });
-      return;
-    }
-    void navigate({
-      to: "/nova-saida",
-      search: {
-        pav: a.origem_pavilhao_id,
-        dest: a.kind === "saida" ? a.destino_id : undefined,
-        destPav: a.kind === "transferencia" ? a.destino_pavilhao_id : undefined,
-        produto: a.mercadoria_id,
-      },
-    });
-  }
+  const semCatalogo = live.listMercadorias(true).length === 0;
+  const contagens = live.listContagens().filter((c) => c.data >= range.from && c.data <= range.to);
+  const contagensHoje = contagens.length;
+  const shownMovs = useMemo(() => {
+    const term = fold(qMov.trim());
+    if (!term) return movs;
+    return movs.filter((s) => fold(`${s.mercadoria?.nome ?? ""} ${s.mercadoria?.codigo ?? ""}`).includes(term));
+  }, [movs, qMov]);
 
   function pinFromMov(s: (typeof movs)[number]) {
     try {
@@ -128,234 +79,261 @@ function Hoje() {
     }
   }
 
-  const weekday = new Date().toLocaleDateString("pt-BR", { weekday: "long" });
+  const umDia = range.from === range.to;
+  const eHoje = umDia && range.from === hoje;
+  const periodoTxt = umDia ? formatDateBR(range.from) : `${formatDateBR(range.from)} a ${formatDateBR(range.to)}`;
+  const hour = new Date().getHours();
+  const saudacao = hour < 12 ? "Bom dia" : hour < 18 ? "Boa tarde" : "Boa noite";
+  const nome = perfil?.nome?.split(" ")[0] || "Administrador";
 
   return (
-    <PageStage className="space-y-4">
-      <PageHeader
-        icon="today"
-        title="Hoje"
-        description={`${weekday} · ${formatDateBR(hoje)}. Atalhos da operação e o que já saiu ou entrou nesta tarde.`}
-      >
-        <Button variant="outline" onClick={() => exportDiaCompletoPdf(hoje)}>
-          <FileText /> PDF do dia
-        </Button>
-        <Button onClick={() => setOpen(true)}>
-          <Plus /> Novo atalho
-        </Button>
-      </PageHeader>
-
-      <section className="space-y-2">
-        <div className="flex items-end justify-between gap-3">
-          <div>
-            <h2 className="text-sm font-semibold">Atalhos</h2>
-            <p className="text-xs text-muted-foreground">Galpão a galpão, pavilhão a pavilhão, entrada e saída de cliente. Toque para lançar já preenchido.</p>
-          </div>
+    <PageStage className="hoje-glass space-y-4">
+      <div className="page-hero hoje-banner">
+        <div className="hoje-banner-copy">
+          <p className="hoje-kicker">{eHoje ? "Operação de hoje" : "Operação"}</p>
+          <h1 className="text-lg font-semibold tracking-tight sm:text-2xl">
+            {saudacao}, {nome}
+          </h1>
+          <p className="page-desc hoje-date">{periodoTxt}</p>
         </div>
-        {atalhos.length === 0 ? (
-          <p className="rounded-xl border border-dashed border-border px-3 py-2.5 text-sm text-muted-foreground">
-            Nenhum atalho ainda.{" "}
-            <button type="button" className="font-medium text-foreground underline-offset-2 hover:underline" onClick={() => setOpen(true)}>
-              Criar atalho
-            </button>
-          </p>
-        ) : (
-          <div className="grid gap-2 sm:grid-cols-2">
-            {atalhos.map((a) => (
-              <div key={a.id} className="flex items-stretch overflow-hidden rounded-2xl border border-border bg-card">
-                <button type="button" className="min-w-0 flex-1 px-4 py-3 text-left hover:bg-muted/50" onClick={() => runAtalho(a)}>
-                  <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{kindLabel(a.kind)}</p>
-                  <p className="mt-0.5 text-sm font-semibold leading-snug">{a.nome}</p>
-                  <p className="mt-1 text-[11px] text-muted-foreground">{a.usos} {a.usos === 1 ? "uso" : "usos"}</p>
-                </button>
-                <button
-                  type="button"
-                  className="flex min-w-12 shrink-0 items-center justify-center border-l border-border px-3 text-muted-foreground hover:bg-muted hover:text-destructive"
-                  aria-label="Excluir atalho"
-                  onClick={() => setPending(a)}
-                >
-                  <Trash2 className="h-4 w-4" />
-                </button>
-              </div>
-            ))}
-          </div>
-        )}
-      </section>
-
-      <section className="grid grid-cols-2 gap-2 lg:grid-cols-5">
-        <Kpi label="Entradas hoje" value={entradas.length} />
-        <Kpi label="Saídas hoje" value={saidas.length} />
-        <Kpi label="Em trânsito" value={transito} />
-        <Kpi label="Produtos movimentados" value={produtosMov} />
-        <Kpi label="Contagens" value={contagensHoje} />
-      </section>
-
-      <HojeCharts />
-
-      <section className="space-y-2">
-        <h2 className="text-sm font-semibold">Movimentações de hoje</h2>
-        <Card>
-          <CardContent className="p-0">
-            {movs.length === 0 ? (
-              <p className="px-4 py-8 text-center text-sm text-muted-foreground">
-                Ainda não lançaram nada hoje. {perfil?.nome ? `${perfil.nome.split(" ")[0]}, ` : ""}comece por um atalho ou por uma{" "}
-                <Link to="/entradas" className="font-medium text-foreground underline-offset-2 hover:underline">
-                  entrada
-                </Link>
-                .
-              </p>
-            ) : (
-              <ul className="divide-y divide-border">
-                {movs.map((s) => {
-                  const tipo = tipoMovimentacaoOf(s);
-                  return (
-                    <li key={s.id} className="flex items-start gap-3 px-4 py-3">
-                      <button type="button" className="flex min-w-0 flex-1 items-start gap-3 text-left" onClick={() => setView(s)}>
-                      <div className="mt-0.5 text-muted-foreground">
-                        {tipo === "entrada" ? <ArrowDownToLine className="h-4 w-4" /> : tipo === "transferencia" ? <ArrowLeftRight className="h-4 w-4" /> : <ArrowUpFromLine className="h-4 w-4" />}
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                          {s.hora_saida || s.created_at.slice(11, 16)} — {tipo === "entrada" ? "ENTRADA" : tipo === "transferencia" ? "TRANSFERÊNCIA" : "SAÍDA"}
-                        </p>
-                        <ProductLabel
-                          nome={s.mercadoria?.nome ?? "Produto"}
-                          codigo={s.mercadoria?.codigo}
-                          extra={`${formatNumber(s.quantidade)} ${s.unidade}`}
-                        />
-                        <p className="mt-1 truncate text-[11px] text-muted-foreground">
-                          {tipo === "entrada" ? `→ ${lugarDaSaida(pavilhoes, s)}` : `${lugarDaSaida(pavilhoes, s)} → ${destinoDaSaida(pavilhoes, s)}`}
-                          {s.operador_nome ? ` · Empilhador: ${s.operador_nome}` : ""}
-                          {s.usuario?.nome ? ` · ${s.usuario.nome}` : ""}
-                        </p>
-                        <div className="mt-1 flex flex-wrap gap-1">
-                          {tipo === "entrada" ? <Badge variant="success">Entrada</Badge> : tipo === "transferencia" ? <Badge variant="muted">Transferência</Badge> : <Badge variant="gold">Saída</Badge>}
-                          {s.desconta_estoque === false ? <Badge variant="gold">Somente registro</Badge> : null}
-                          {tipo !== "entrada" ? <Badge variant="muted">{statusLabel(statusOf(s))}</Badge> : null}
-                        </div>
-                      </div>
-                      </button>
-                      <Button variant="ghost" size="icon" aria-label="Salvar atalho" onClick={() => pinFromMov(s)}>
-                        <Bookmark className="h-4 w-4" />
-                      </Button>
-                    </li>
-                  );
-                })}
-              </ul>
-            )}
-          </CardContent>
-        </Card>
-      </section>
-
-      <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) resetForm(); }}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Novo atalho</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-3">
-            <div className="grid grid-cols-3 gap-2">
-              {([
-                ["transferencia", "Pavilhão"],
-                ["saida", "Cliente"],
-                ["entrada", "Entrada"],
-              ] as const).map(([id, label]) => (
-                <button
-                  key={id}
-                  type="button"
-                  onClick={() => setKind(id)}
-                  className={cn(
-                    "min-h-12 rounded-xl border px-2 text-sm font-medium",
-                    kind === id ? "border-primary bg-primary text-primary-foreground" : "border-border bg-card",
-                  )}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="at-nome">Nome na lista</Label>
-              <Input id="at-nome" value={nome} onChange={(e) => setNome(e.target.value)} placeholder="Se vazio, o sistema escreve a rota" />
-            </div>
-            <div className="space-y-1.5">
-              <Label>{kind === "entrada" ? "Entra em" : "Sai de"}</Label>
-              <PavPicker items={pavilhoes} value={origem} onChange={setOrigem} />
-            </div>
-            {kind === "transferencia" ? (
-              <div className="space-y-1.5">
-                <Label>Chega em</Label>
-                <PavPicker items={pavilhoes} value={destPav} onChange={setDestPav} excludeId={origem || undefined} />
-              </div>
-            ) : null}
-            {kind === "saida" ? (
-              <div className="space-y-1.5">
-                <Label>Cliente</Label>
-                {destinos.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">Cadastre um cliente em Clientes antes de criar este atalho.</p>
-                ) : (
-                  <div className="flex max-h-40 flex-col gap-1 overflow-y-auto">
-                    {destinos.map((d) => (
-                      <button
-                        key={d.id}
-                        type="button"
-                        onClick={() => setDestId(d.id)}
-                        className={cn(
-                          "rounded-xl border px-3 py-2 text-left text-sm",
-                          destId === d.id ? "border-primary bg-mint font-medium" : "border-border hover:bg-muted",
-                        )}
-                      >
-                        {d.nome}
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-            ) : null}
-            <div className="space-y-1.5">
-              <Label>Produto (opcional)</Label>
-              <ProductPicker items={mercadorias} value={mercId} onChange={(id) => setMercId(id)} placeholder="Qualquer produto — busque se quiser fixar um" />
-            </div>
-            {formError ? <p className="text-sm text-destructive">{formError}</p> : null}
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setOpen(false)}>
-              Cancelar
+        <div className="hoje-banner-tools">
+          {umDia ? (
+            <Button variant="outline" className="hoje-pdf" onClick={() => exportDiaCompletoPdf(range.from)}>
+              <FileText /> PDF do dia
             </Button>
-            <Button onClick={saveAtalho}>Criar atalho</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          ) : null}
+        </div>
+      </div>
 
-      <ConfirmDialog
-        open={!!pending}
-        onOpenChange={(v) => !v && setPending(null)}
-        title={pending ? `Tirar “${pending.nome}” da lista?` : "Excluir atalho"}
-        description="O atalho sai da lista. Os lançamentos que já foram feitos ficam no histórico."
-        onConfirm={() => {
-          const row = pending;
-          if (!row) return;
-          db.deleteAtalho(row.id);
-          setPending(null);
-          notify.success("Atalho removido.");
+      <PeriodFilter
+        allowRange
+        value={period}
+        day={day}
+        span={span}
+        onChange={(key, nextDay, nextSpan) => {
+          setPeriod(key);
+          setDay(nextDay);
+          if (nextSpan) setSpan(nextSpan);
         }}
       />
+
+      <section className="hoje-kpis grid grid-cols-2 gap-2 lg:grid-cols-5" aria-label="Indicadores do período">
+        <Kpi kind="in" label={eHoje ? "Entradas hoje" : "Entradas"} value={entradas.length} hint="lançamentos" series={countsByHour(entradas.map((s) => s.hora_saida || s.created_at))} />
+        <Kpi kind="out" label={eHoje ? "Saídas hoje" : "Saídas"} value={saidas.length} hint="lançamentos" series={countsByHour(saidas.map((s) => s.hora_saida || s.created_at))} />
+        <Kpi
+          kind="go"
+          label="Em trânsito"
+          value={transito}
+          hint="lançamentos"
+          series={countsByHour(saidas.filter((s) => statusOf(s) === "em_transito").map((s) => s.hora_saida || s.created_at))}
+        />
+        <Kpi kind="move" label="Produtos movimentados" value={produtosMov} hint="produtos" series={countsByHour(firstProductHour(movs))} />
+        <Kpi kind="count" label="Contagens" value={contagensHoje} hint="realizadas" series={countsByHour(contagens.map((c) => c.created_at))} />
+      </section>
+
+      {transito > 0 ? (
+        <div className="flex items-center gap-3 rounded-xl border border-border bg-card px-3 py-2.5">
+          <KpiMark kind="go" />
+          <div className="min-w-0">
+            <p className="text-sm font-semibold">
+              {transito} {transito === 1 ? "lançamento" : "lançamentos"} em trânsito
+            </p>
+            <p className="text-xs text-muted-foreground">Saídas deste período que ainda não registraram chegada.</p>
+          </div>
+        </div>
+      ) : null}
+
+      {movs.length === 0 ? (
+        semCatalogo ? (
+          <div className="flex flex-col items-start gap-3 rounded-xl border border-dashed border-border bg-card px-4 py-4 sm:flex-row sm:items-center">
+            <KpiMark kind="in" />
+            <div className="min-w-0">
+              <p className="text-sm font-semibold">Nenhum produto cadastrado</p>
+              <p className="mt-0.5 text-sm text-muted-foreground">O catálogo precisa existir antes da primeira entrada.</p>
+            </div>
+            {isAdmin ? (
+              <Button asChild className="sm:ml-auto">
+                <Link to="/mercadorias">Cadastrar produto</Link>
+              </Button>
+            ) : null}
+          </div>
+        ) : (
+          <div className="hoje-empty flex flex-col items-start gap-3 rounded-xl border border-dashed border-border bg-card px-4 py-4 sm:flex-row sm:items-center">
+            <KpiMark kind="in" className="is-intro" />
+            <div className="min-w-0">
+              <p className="text-sm font-medium">Nenhuma movimentação em {periodoTxt}. Escolha outro dia ou registre a primeira entrada.</p>
+            </div>
+            {isAdmin ? (
+              <Button asChild className="sm:ml-auto">
+                <Link to="/entradas">Registrar entrada</Link>
+              </Button>
+            ) : null}
+          </div>
+        )
+      ) : null}
+
+      <div className="flex justify-end">
+        <ViewSwitch page="hoje" />
+      </div>
+
+      {vista !== "lista" ? (
+        <ScreenCharts
+          screen="hoje"
+          movs={movs}
+          contagens={contagens}
+          produtos={live.listMercadorias(true)}
+          pavilhoes={pavilhoes}
+          periodLabel={periodoTxt}
+        />
+      ) : null}
+
+      {vista !== "graficos" ? (
+      <section className="space-y-2">
+        <div className="flex flex-wrap items-end justify-between gap-2">
+          <div>
+            <h2 className="text-sm font-semibold">{eHoje ? "Movimentações de hoje" : `Movimentações · ${periodoTxt}`}</h2>
+            <p className="text-xs text-muted-foreground">
+              {qMov.trim()
+                ? `${shownMovs.length} de ${movs.length}`
+                : `${movs.length} ${movs.length === 1 ? "lançamento" : "lançamentos"}`}
+              {" · mais recente primeiro"}
+            </p>
+          </div>
+          <div className="flex w-full items-center gap-2 sm:w-auto">
+            <div className="relative w-full sm:w-64">
+              <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                value={qMov}
+                onChange={(e) => setQMov(e.target.value)}
+                placeholder="Buscar produto movimentado"
+                className="h-9 pl-8"
+                aria-label="Buscar produto nas movimentações de hoje"
+              />
+            </div>
+            {qMov.trim() ? (
+              <Button type="button" variant="ghost" className="h-9 shrink-0" onClick={() => setQMov("")}>
+                Limpar busca
+              </Button>
+            ) : null}
+          </div>
+        </div>
+        {movs.length > 0 && shownMovs.length === 0 ? (
+          <p className="rounded-xl border border-dashed border-border px-4 py-6 text-center text-sm text-muted-foreground">
+            Nenhum resultado para “{qMov.trim()}”.
+            <button type="button" className="ml-1 font-medium text-foreground underline-offset-2 hover:underline" onClick={() => setQMov("")}>
+              Limpar busca
+            </button>
+          </p>
+        ) : shownMovs.length > 0 ? (
+          <ul className="grid max-h-[32rem] grid-cols-1 gap-2 overflow-y-auto pr-1 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+            {shownMovs.map((s) => {
+              const tipo = tipoMovimentacaoOf(s);
+              const accent = tipo === "entrada" ? "bg-primary" : tipo === "transferencia" ? "bg-foreground/25" : "bg-gold";
+              return (
+                <li key={s.id} className="min-w-0">
+                  <article className="flex h-full overflow-hidden rounded-xl border border-border bg-card">
+                    <div className={`w-1 shrink-0 ${accent}`} />
+                    <button
+                      type="button"
+                      data-ctx={tipo === "entrada" ? "entrada" : "saida"}
+                      data-id={s.id}
+                      data-produto={s.mercadoria_id}
+                      data-nome={s.mercadoria?.nome ?? ""}
+                      data-codigo={s.mercadoria?.codigo ?? ""}
+                      className="hoje-mov min-w-0 flex-1 rounded-none px-2.5 py-2 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      onClick={() => setView(s)}
+                    >
+                      <div className="flex items-start gap-2">
+                        <ProductIcon nome={s.mercadoria?.nome ?? "Produto"} codigo={s.mercadoria?.codigo} size="sm" />
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                            {s.hora_saida || s.created_at.slice(11, 16)} · {tipo === "entrada" ? "Entrada" : tipo === "transferencia" ? "Transferência" : "Saída"}
+                            {s.mercadoria?.codigo ? ` · ${s.mercadoria.codigo}` : ""}
+                          </p>
+                          <p className="truncate text-sm font-medium leading-tight">{s.mercadoria?.nome ?? "Produto"}</p>
+                          <p className="truncate text-[11px] text-muted-foreground">
+                            {formatNumber(s.quantidade)} {s.unidade}
+                            {" · "}
+                            {tipo === "entrada" ? lugarDaSaida(pavilhoes, s) : `${lugarDaSaida(pavilhoes, s)} → ${destinoDaSaida(pavilhoes, s)}`}
+                            {s.operador_nome ? ` · ${s.operador_nome}` : ""}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="mt-1.5 flex flex-wrap gap-1">
+                        {tipo === "entrada" ? <Badge variant="success">Entrada</Badge> : tipo === "transferencia" ? <Badge variant="muted">Transferência</Badge> : <Badge variant="gold">Saída</Badge>}
+                        {s.desconta_estoque === false ? <Badge variant="gold">Somente registro</Badge> : null}
+                        {tipo !== "entrada" ? <Badge variant="muted">{statusLabel(statusOf(s))}</Badge> : null}
+                      </div>
+                    </button>
+                    <Button variant="ghost" size="icon" className="mt-1 mr-1 h-10 w-10 shrink-0" aria-label="Salvar atalho" onClick={() => pinFromMov(s)}>
+                      <Bookmark className="h-3.5 w-3.5" />
+                    </Button>
+                  </article>
+                </li>
+              );
+            })}
+          </ul>
+        ) : null}
+      </section>
+      ) : null}
+
       <MovementDetail view={view} onClose={() => setView(null)} />
     </PageStage>
   );
 }
 
-function kindLabel(kind: AtalhoKind) {
-  if (kind === "entrada") return "Entrada";
-  if (kind === "transferencia") return "Pavilhão → pavilhão";
-  return "Saída cliente";
+function firstProductHour(movs: { mercadoria_id: string; hora_saida?: string | null; created_at: string }[]) {
+  const seen = new Set<string>();
+  const stamps: string[] = [];
+  const ordered = [...movs].sort((a, b) => (a.hora_saida || a.created_at).localeCompare(b.hora_saida || b.created_at));
+  for (const s of ordered) {
+    if (seen.has(s.mercadoria_id)) continue;
+    seen.add(s.mercadoria_id);
+    stamps.push(s.hora_saida || s.created_at);
+  }
+  return stamps;
 }
 
-function Kpi({ label, value, hint }: { label: string; value: string | number; hint?: string }) {
+function Kpi({ kind, label, value, hint, series }: { kind: KpiKind; label: string; value: number; hint: string; series: number[] }) {
+  const live = value > 0;
+  const [fresh, setFresh] = useState(false);
+  const prev = useRef(value);
+  const tone = kind === "in" ? "in" : kind === "out" ? "out" : kind === "go" ? "go" : kind === "count" ? "count" : "move";
+
+  useEffect(() => {
+    if (prev.current === value) return;
+    const rose = value > prev.current && value > 0;
+    prev.current = value;
+    if (!rose) return;
+    setFresh(true);
+    const timer = window.setTimeout(() => setFresh(false), MOTION.duration.icon);
+    return () => window.clearTimeout(timer);
+  }, [value]);
+
   return (
-    <Card>
+    <Card className={cn("hoje-kpi", `is-${kind}`, live && "is-live", fresh && "is-fresh")}>
       <CardContent className="px-3 py-2.5">
-        <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">{label}</p>
-        <p className="mt-0.5 text-base font-semibold tabular-nums leading-tight">{value}</p>
-        {hint ? <p className="mt-0.5 text-[10px] text-muted-foreground">{hint}</p> : null}
+        <div className="flex items-start justify-between gap-2">
+          <div className="min-w-0">
+            <p className="text-[11px] font-semibold uppercase leading-tight tracking-wide text-muted-foreground">{label}</p>
+            <p className="kpi-figure mt-1 font-semibold tabular-nums">
+              <span key={value} className="kpi-num">
+                {value.toLocaleString("pt-BR")}
+              </span>
+            </p>
+            <p className="mt-0.5 text-[11px] text-muted-foreground">{hint}</p>
+            {kind === "go" ? (
+              <Link to="/movimentacoes" search={{ periodo: "hoje", tipo: "transferencia" }} className="mt-1 inline-block text-[11px] font-medium underline-offset-2 hover:underline">
+                Ver registros
+              </Link>
+            ) : (
+              <Link to={kind === "in" ? "/entradas" : kind === "out" ? "/historico" : kind === "count" ? "/contagem" : "/movimentacoes"} search={kind === "move" ? { periodo: "hoje" } : undefined} className="mt-1 inline-block text-[11px] font-medium underline-offset-2 hover:underline">
+                Ver registros
+              </Link>
+            )}
+          </div>
+          <Spark values={series} tone={tone} label={`${label}: o traço reparte ${value.toLocaleString("pt-BR")} ${hint} pelas horas do dia`} />
+        </div>
       </CardContent>
     </Card>
   );

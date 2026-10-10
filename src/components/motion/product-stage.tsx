@@ -35,12 +35,12 @@ export function ProductStage({
     <div
       ref={ref}
       className={cn("product-stage", reduced && "is-still", className)}
-      onMouseMove={onMove}
-      onMouseLeave={onLeave}
+      onMouseMove={reduced ? undefined : onMove}
+      onMouseLeave={reduced ? undefined : onLeave}
       aria-hidden
     >
-      <div className="product-stage-orb" />
-      <div className="product-stage-floor" />
+      {reduced ? null : <div className="product-stage-orb" />}
+      {reduced ? null : <div className="product-stage-floor" />}
       <div className="product-stage-spin">
         <ProductIcon nome={nome} codigo={codigo} size="lg" className="h-28 w-28 rounded-none border-0 bg-transparent shadow-none ring-0" />
       </div>

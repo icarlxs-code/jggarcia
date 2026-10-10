@@ -19,7 +19,7 @@ function Lotes() {
 
   return (
     <div className="space-y-4">
-      <PageHeader icon="lot" title="Lotes e validade" description="FEFO: sai primeiro o lote que vence antes. Alerta em 7 dias." />
+      <PageHeader clip="/lottie/calendario.json" title="Lotes e validade" description="FEFO: sai primeiro o lote que vence antes. Alerta em 7 dias." />
       <div className="grid gap-3 sm:grid-cols-3">
         <Card>
           <CardHeader>
@@ -46,7 +46,7 @@ function Lotes() {
         </CardHeader>
         <CardContent>
           {lotes.length === 0 ? (
-            <EmptyState icon={CalendarClock} title="Nenhum lote" description="Registre uma entrada do Ceasa para gerar o primeiro lote." />
+            <EmptyState icon={CalendarClock} clip="/lottie/calendario.json" title="Nenhum lote" description="Registre uma entrada do Ceasa para gerar o primeiro lote." />
           ) : (
             <Table>
               <TableHeader>

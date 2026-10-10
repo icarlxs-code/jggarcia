@@ -2,8 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { MapPin, Plus, RotateCcw, BookmarkPlus } from "lucide-react";
 import { db, hydrateFromCloud, loteStatus, resolvePavilhaoId } from "@/lib/store";
-import { DuplicateLaunchDialog } from "@/components/feedback/duplicate-launch-dialog";
-import type { Mercadoria, Saida } from "@/lib/types";
+import type { Mercadoria } from "@/lib/types";
 import { useSession } from "@/lib/session";
 import { logoOfPavilhao, pavTitle } from "@/lib/catalog";
 import { calcTransportTime, completeTime, formatMinutes, formatNumber, isValidTime, todayISO } from "@/lib/format";
@@ -24,9 +23,11 @@ import { ProductPicker } from "@/components/inventory/product-picker";
 import { PavPicker } from "@/components/inventory/pav-mark";
 import { notify } from "@/lib/notify";
 import { playCeremony, ceremonyDock, initialsOf } from "@/lib/ceremony";
+import { readUiPrefs } from "@/lib/ui-prefs";
 import { prefersReducedMotion } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 import { NameRecall } from "@/components/inventory/name-recall";
+import { enterNext, focusFlow } from "@/lib/field-flow";
 
 export const Route = createFileRoute("/nova-saida")({
   validateSearch: (s: Record<string, unknown>): { produto?: string; pav?: string; dest?: string; destPav?: string } => ({
@@ -46,18 +47,19 @@ function NovaSaida() {
   const mercadorias = live.listMercadorias(true);
   const destinos = live.listDestinos(true);
   const pavilhoes = live.listPavilhoes();
-  const [origem, setOrigem] = useState("");
+  const conta = readUiPrefs(perfil?.id ?? db.getSessionUser()?.id);
+  const [origem, setOrigem] = useState(conta.pavilhaoPadraoId);
   const [mercadoriaId, setMercadoriaId] = useState("");
   const [quantidade, setQuantidade] = useState("");
+  const [destKind, setDestKind] = useState<"cliente" | "pav" | "saida">("cliente");
+  const [somaDestino, setSomaDestino] = useState(true);
   const [desconta, setDesconta] = useState(true);
-  const [destKind, setDestKind] = useState<"cliente" | "pav">("cliente");
   const [destinoId, setDestinoId] = useState("");
   const [destPavId, setDestPavId] = useState("");
   const [horaSaida, setHoraSaida] = useState("");
   const [horaChegada, setHoraChegada] = useState("");
   const [observacao, setObservacao] = useState("");
   const [overConfirm, setOverConfirm] = useState(false);
-  const skipDup = useRef(false);
   const skipOver = useRef(false);
   const [operador, setOperador] = useState("");
   const [newOpen, setNewOpen] = useState(false);
@@ -65,18 +67,19 @@ function NovaSaida() {
   const [dCodigo, setDCodigo] = useState("");
   const [dEnd, setDEnd] = useState("");
   const [dContato, setDContato] = useState("");
-  const [dup, setDup] = useState<Saida | null>(null);
 
   const mercadoria = mercadorias.find((m) => m.id === mercadoriaId) ?? null;
   const qtdLive = Number(quantidade) || 0;
   const origemId = resolvePavilhaoId(pavilhoes, origem) || origem;
   const origemOk = pavilhoes.some((p) => p.id === origemId);
   const noPav = mercadoria && origemOk ? live.stockAt(mercadoria.id, origemId) : 0;
-  const restantePav = desconta ? noPav - qtdLive : noPav;
-  const restanteTotal = mercadoria ? (desconta && destKind !== "pav" ? mercadoria.estoque - qtdLive : mercadoria.estoque) : 0;
+  const baixa = desconta;
+  const contaNoDestino = destKind === "pav" && somaDestino;
+  const restantePav = baixa ? noPav - qtdLive : noPav;
+  const restanteTotal = mercadoria ? (baixa && !contaNoDestino ? mercadoria.estoque - qtdLive : mercadoria.estoque) : 0;
   const destPav = pavilhoes.find((p) => p.id === destPavId) ?? null;
   const destPavStock = mercadoria && destPavId ? live.stockAt(mercadoria.id, destPavId) : 0;
-  const overStock = desconta && !!mercadoria && origemOk && qtdLive > noPav;
+  const overStock = baixa && !!mercadoria && origemOk && qtdLive > noPav;
   const lotes = mercadoriaId ? db.listFefoLotes(mercadoriaId) : [];
   const hs = completeTime(horaSaida);
   const hc = horaChegada.trim() ? completeTime(horaChegada) : "";
@@ -117,10 +120,9 @@ function NovaSaida() {
   }, [destPavParam, pavilhoes]);
 
   function reset() {
-    setOrigem("");
+    setOrigem(readUiPrefs(perfil?.id).pavilhaoPadraoId);
     setMercadoriaId("");
     setQuantidade("");
-    setDesconta(true);
     setDestKind("cliente");
     setDestinoId("");
     setDestPavId("");
@@ -166,7 +168,7 @@ function NovaSaida() {
       notify.error("Hora de chegada inválida. Use 4 dígitos, tipo 0300.");
       return false;
     }
-    if (desconta && qtd > noPav) {
+    if (baixa && qtd > noPav) {
       if (perfil?.nivel_acesso !== "admin") {
         const pav = pavilhoes.find((p) => p.id === origemId);
         notify.error(`Quantidade superior ao estoque disponível. No ${pav ? pavTitle(pav) : "pavilhão"} só tem ${formatNumber(noPav)} ${mercadoria.unidade}.`);
@@ -179,24 +181,13 @@ function NovaSaida() {
     }
     if (!perfil) return false;
     await hydrateFromCloud();
-    if (!skipDup.current) {
-      const hit = db.findDuplicateLaunch({
-        mercadoriaId: mercadoria.id,
-        quantidade: qtd,
-        tipo: "saida",
-        userId: perfil.id,
-      });
-      if (hit) {
-        setDup(hit);
-        return false;
-      }
-    }
     const fefo = lotes.find((l) => loteStatus(l.validade) !== "vencido" && l.quantidade > 0 && (!origemId || l.pavilhao_id === origemId));
     const pav = pavilhoes.find((p) => p.id === origemId);
     const dest = destinos.find((d) => d.id === destinoId);
     const destPavRow = pavilhoes.find((p) => p.id === destPavId);
     const origemNome = pav ? pavTitle(pav) : origemId;
-    const destNome = destKind === "pav" ? (destPavRow ? pavTitle(destPavRow) : "pavilhão") : dest?.nome ?? "destino";
+    const somente = destKind === "saida";
+    const destNome = somente ? "Sem destino" : destKind === "pav" ? (destPavRow ? pavTitle(destPavRow) : "pavilhão") : dest?.nome ?? "destino";
     const transfer = destKind === "pav";
     const stamps = arrivalStamp(todayISO(), saidaHora, chegadaHora || saidaHora);
     const tempoMin = chegadaHora ? calcTransportTime(saidaHora, chegadaHora) : null;
@@ -207,21 +198,23 @@ function NovaSaida() {
         mercadoria_id: mercadoria.id,
         quantidade: qtd,
         unidade: mercadoria.unidade,
-        destino_id: transfer ? "" : destinoId,
+        destino_id: transfer || somente ? "" : destinoId,
         destino_pavilhao_id: transfer ? destPavId : undefined,
+        somente_saida: somente || undefined,
+        soma_destino: transfer ? somaDestino : undefined,
         hora_saida: saidaHora,
         hora_chegada: chegadaHora || null,
         data_hora_saida: stamps.stampSaida,
         data_hora_chegada: chegadaHora ? stamps.stampChegada : null,
         tempo_transporte: tempoMin,
         usuario_id: perfil.id,
-        lote_codigo: desconta ? fefo?.codigo : undefined,
+        lote_codigo: baixa ? fefo?.codigo : undefined,
         pavilhao: origemId,
         pavilhao_id: origemId,
-        desconta_estoque: desconta,
+        desconta_estoque: baixa,
         operador_nome: operador.trim() || undefined,
         observacao: observacao.trim() || undefined,
-        permitir_negativo: desconta && qtd > noPav && perfil.nivel_acesso === "admin",
+        permitir_negativo: baixa && qtd > noPav && perfil.nivel_acesso === "admin",
         status: transfer ? (chegadaHora ? "entregue" : "em_transito") : "registrada",
       });
     } catch (err) {
@@ -231,7 +224,7 @@ function NovaSaida() {
     playCeremony({
       kind: "dispatch",
       title: mercadoria.nome,
-      subtitle: `${formatNumber(qtd)} ${mercadoria.unidade} · ${origemNome} → ${destNome}${desconta ? "" : " · estoque não alterado"}`,
+      subtitle: `${formatNumber(qtd)} ${mercadoria.unidade} · ${somente ? `${origemNome} · sem destino` : `${origemNome} → ${destNome}`}`,
       productName: mercadoria.nome,
       mark: "product",
       dock: ceremonyDock("/historico"),
@@ -239,25 +232,27 @@ function NovaSaida() {
       toLabel: destNome,
       fromTime: saidaHora,
       toTime: chegadaHora || undefined,
-      desconta,
+      desconta: baixa,
       fromLogo: pav ? logoOfPavilhao(pav) : undefined,
       toLogo: transfer && destPavRow ? logoOfPavilhao(destPavRow) : undefined,
       transfer,
     });
     notify.success(
       transfer
-        ? desconta
-          ? "Transferência registrada. Estoque mudou de pavilhão."
-          : "Transferência registrada. Estoque intacto."
-        : desconta
-          ? "Saída registrada. Estoque baixado."
+        ? !baixa
+          ? "Transferência registrada. Estoque intacto."
+          : somaDestino
+            ? "Transferência registrada. Estoque mudou de pavilhão."
+            : "Registrado. Saiu da origem e ficou anotado no destino, sem somar a quantidade."
+        : baixa
+          ? somente
+            ? "Saída registrada. Estoque baixado, sem destino."
+            : "Saída registrada. Estoque baixado."
           : "Saída registrada. Estoque intacto.",
     );
-    setDup(null);
     setOverConfirm(false);
-    skipDup.current = false;
     skipOver.current = false;
-    const wait = prefersReducedMotion() ? 280 : desconta ? 1350 : 950;
+    const wait = prefersReducedMotion() ? 0 : baixa ? 1350 : 950;
     window.setTimeout(() => void navigate({ to: "/historico" }), wait);
     return true;
   }
@@ -289,7 +284,7 @@ function NovaSaida() {
   return (
     <PageStage className="mx-auto max-w-3xl space-y-4">
       <PageHeader
-        icon="out"
+        clip="/lottie/caminhao.json"
         title="Nova saída"
         description="Busque o produto, diga de onde sai e a que horas. Pode ir para um cliente ou para outro pavilhão."
       />
@@ -298,12 +293,14 @@ function NovaSaida() {
           <CardTitle>Dados da expedição</CardTitle>
           <CardDescription>Quatro dígitos viram hora: 0000 é meia-noite, 0300 é 03:00. Tudo fica no histórico.</CardDescription>
         </CardHeader>
-        <CardContent className="saida-flow grid gap-4 sm:grid-cols-2">
+        <CardContent className="saida-flow grid gap-4 sm:grid-cols-2" data-flow="saida">
           <div className="sf-origem space-y-2 sm:col-span-2">
             <Label>Saindo de</Label>
             <PavPicker
               items={pavilhoes}
               value={origemId}
+              flowStep={1}
+              onAdvance={() => focusFlow(document.getElementById("busca-prod-saida"), 2)}
               onChange={(id) => {
                 setOrigem(id);
                 if (destPavId === id) setDestPavId("");
@@ -315,46 +312,25 @@ function NovaSaida() {
           </div>
           <div className="sf-produto space-y-2 sm:col-span-2">
             <Label htmlFor="busca-prod-saida">Mercadoria</Label>
-            <ProductPicker items={mercadorias} value={mercadoriaId} onChange={pickProduto} />
+            <ProductPicker items={mercadorias} value={mercadoriaId} onChange={pickProduto} flowStep={2} />
             {mercadoria ? (
-              <StockSplit mercadoriaId={mercadoria.id} highlightId={origemOk ? origemId : undefined} delta={origemOk && desconta ? -qtdLive : 0} className="mt-2" />
+              <StockSplit mercadoriaId={mercadoria.id} highlightId={origemOk ? origemId : undefined} delta={origemOk && baixa ? -qtdLive : 0} className="mt-2" />
             ) : null}
           </div>
           <div className="sf-qtd space-y-2">
             <Label htmlFor="qtd">Quantidade</Label>
-            <Input id="qtd" type="number" min={0} step="0.01" value={quantidade} onChange={(e) => setQuantidade(e.target.value)} />
+            <Input id="qtd" data-step={3} type="number" min={0} step="0.01" value={quantidade} onChange={(e) => setQuantidade(e.target.value)} onKeyDown={(e) => enterNext(e)} />
             {mercadoria ? <p className="text-xs text-muted-foreground">{mercadoria.unidade}</p> : null}
           </div>
-          <div className="sf-stock space-y-2">
-            <Label>Estoque</Label>
-            <div className={cn("stock-mode-tabs", !desconta && "is-off")}>
-              <span className="stock-mode-pill" aria-hidden />
-              <button type="button" className={cn(desconta && "is-on")} onClick={() => setDesconta(true)}>
-                Descontar
-              </button>
-              <button type="button" className={cn(!desconta && "is-on")} onClick={() => setDesconta(false)}>
-                Não descontar
-              </button>
-            </div>
-            <p className="text-xs text-muted-foreground">
-              {destKind === "pav"
-                ? desconta
-                  ? "Sai deste pavilhão e entra no outro. O total da empresa não muda."
-                  : "Entra no histórico. Nada sai nem entra no estoque."
-                : desconta
-                  ? "Baixa a quantidade deste pavilhão e o total da empresa."
-                  : "Entra no histórico. Nada sai do estoque."}
-            </p>
-          </div>
           <div className="sf-hs space-y-2">
-            <Label htmlFor="hora-saida">Saiu às</Label>
-            <TimeField id="hora-saida" value={horaSaida} onChange={setHoraSaida} aria-label="Hora de saída" />
-            <p className="text-xs text-muted-foreground">Campo vazio. Digite 4 dígitos — 0300 vira 03:00. Não preenche sozinho.</p>
+            <Label htmlFor="hora-saida">Horário de saída</Label>
+            <TimeField id="hora-saida" flowStep={4} value={horaSaida} onChange={setHoraSaida} aria-label="Horário de saída" />
+            <p className="text-xs text-muted-foreground">Hora em que saiu da origem. Digite 4 dígitos — 0835 vira 08:35.</p>
           </div>
           <div className="sf-hc space-y-2">
-            <Label htmlFor="hora-chegada">Chegou às</Label>
-            <TimeField id="hora-chegada" value={horaChegada} onChange={setHoraChegada} aria-label="Hora de chegada" />
-            <p className="text-xs text-muted-foreground">Se ainda não chegou, deixe em branco — fica em trânsito. Passar da meia-noite é válido.</p>
+            <Label htmlFor="hora-chegada">Horário de chegada</Label>
+            <TimeField id="hora-chegada" flowStep={5} value={horaChegada} onChange={setHoraChegada} aria-label="Horário de chegada" />
+            <p className="text-xs text-muted-foreground">Opcional. Se ainda não chegou, deixe em branco — a tabela mostra “Aguardando chegada”.</p>
           </div>
           <p className="sf-tempo sm:col-span-2 text-sm text-muted-foreground">
             Tempo de transporte: <span className="font-medium text-foreground">{formatMinutes(tempo)}</span>
@@ -366,6 +342,7 @@ function NovaSaida() {
               value={operador}
               onChange={setOperador}
               names={live.listOperadores()}
+              flowStep={6}
               placeholder="Escreva ou toque no nome em cima"
               hint="Os nomes cadastrados ficam em cima da caixa. Pode escrever — a lista filtra na hora."
             />
@@ -374,8 +351,10 @@ function NovaSaida() {
             <Label htmlFor="obs-saida">Observação</Label>
             <textarea
               id="obs-saida"
+              data-step={7}
               value={observacao}
               onChange={(e) => setObservacao(e.target.value)}
+              onKeyDown={(e) => enterNext(e)}
               rows={3}
               placeholder="Anota o que precisar: palete, avaria, recado da expedição…"
               className="min-h-20 w-full resize-y rounded-lg border border-border bg-card px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
@@ -399,8 +378,8 @@ function NovaSaida() {
                   </span>
                 </div>
                 <div className="flex items-center justify-between">
-                  <span className="text-muted-foreground">{desconta ? "Saindo" : "Registro (sem baixa)"}</span>
-                  <span className="tabular font-medium">{qtdLive > 0 ? `${desconta ? "−" : ""} ${formatNumber(qtdLive)}` : "—"}</span>
+                  <span className="text-muted-foreground">Saindo</span>
+                  <span className="tabular font-medium">{qtdLive > 0 ? `− ${formatNumber(qtdLive)}` : "—"}</span>
                 </div>
                 <div className="flex items-center justify-between border-t border-border/80 pt-2">
                   <span className="font-medium">Vai ficar neste lugar</span>
@@ -415,12 +394,18 @@ function NovaSaida() {
                 ) : qtdLive > 0 ? (
                   <p className="text-xs text-muted-foreground">
                     {destKind === "pav"
-                      ? desconta
-                        ? `Vai para ${destPav ? pavTitle(destPav) : "o destino"}: ${formatNumber(destPavStock)} → ${formatNumber(destPavStock + qtdLive)}. Total da empresa permanece ${formatNumber(mercadoria.estoque)}.`
-                        : `Total da empresa permanece ${formatNumber(mercadoria.estoque)} ${mercadoria.unidade}.`
-                      : desconta
-                        ? `Total da empresa: ${formatNumber(mercadoria.estoque)} → ${formatNumber(Math.max(0, restanteTotal))}`
-                        : `Total da empresa permanece ${formatNumber(mercadoria.estoque)} ${mercadoria.unidade}.`}
+                      ? !baixa
+                        ? `Só registro. ${destPav ? pavTitle(destPav) : "O destino"} continua com ${formatNumber(destPavStock)}. O estoque não muda.`
+                        : somaDestino
+                          ? `Vai para ${destPav ? pavTitle(destPav) : "o destino"}: ${formatNumber(destPavStock)} → ${formatNumber(destPavStock + qtdLive)}. Total da empresa permanece ${formatNumber(mercadoria.estoque)}.`
+                          : `Sai deste lugar e fica registrado em ${destPav ? pavTitle(destPav) : "o destino"}, sem somar. Lá continua ${formatNumber(destPavStock)}. Total da empresa: ${formatNumber(mercadoria.estoque)} → ${formatNumber(Math.max(0, restanteTotal))}.`
+                      : destKind === "saida"
+                        ? baixa
+                          ? `Sem destino. O estoque deste lugar e o total da empresa baixam: ${formatNumber(mercadoria.estoque)} → ${formatNumber(Math.max(0, restanteTotal))}.`
+                          : "Sem destino. Só o registro. O estoque não muda."
+                        : baixa
+                          ? `Total da empresa: ${formatNumber(mercadoria.estoque)} → ${formatNumber(Math.max(0, restanteTotal))}`
+                          : "Só o registro. O estoque não muda."}
                   </p>
                 ) : null}
               </div>
@@ -428,15 +413,31 @@ function NovaSaida() {
           ) : mercadoria ? (
             <p className="sf-preview sm:col-span-2 text-sm text-muted-foreground">Escolha de onde sai para ver quanto tem em cada pavilhão.</p>
           ) : null}
+          <div className="sf-baixa space-y-2 sm:col-span-2">
+            <Label>Estoque</Label>
+            <div className="flex flex-wrap gap-1.5">
+              <button type="button" onClick={() => setDesconta(true)} className={cn("h-9 rounded-full border px-3 text-sm font-medium", desconta ? "border-primary bg-primary text-primary-foreground" : "border-border bg-card")}>
+                Descontar
+              </button>
+              <button type="button" onClick={() => setDesconta(false)} className={cn("h-9 rounded-full border px-3 text-sm font-medium", !desconta ? "border-primary bg-primary text-primary-foreground" : "border-border bg-card")}>
+                Não descontar
+              </button>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              {desconta ? "A quantidade sai do estoque deste lugar." : "Fica só o registro. O número do estoque não muda."}
+            </p>
+          </div>
           <div className="sf-dest-kind space-y-2 sm:col-span-2">
             <Label>Destino</Label>
-            <div className={cn("stock-mode-tabs", destKind === "pav" && "is-off")}>
-              <span className="stock-mode-pill" aria-hidden />
-              <button type="button" className={cn(destKind === "cliente" && "is-on")} onClick={() => setDestKind("cliente")}>
+            <div className="flex flex-wrap gap-1.5">
+              <button type="button" onClick={() => setDestKind("cliente")} className={cn("h-9 rounded-full border px-3 text-sm font-medium", destKind === "cliente" ? "border-primary bg-primary text-primary-foreground" : "border-border bg-card")}>
                 Cliente
               </button>
-              <button type="button" className={cn(destKind === "pav" && "is-on")} onClick={() => setDestKind("pav")}>
+              <button type="button" onClick={() => setDestKind("pav")} className={cn("h-9 rounded-full border px-3 text-sm font-medium", destKind === "pav" ? "border-primary bg-primary text-primary-foreground" : "border-border bg-card")}>
                 Outro pavilhão
+              </button>
+              <button type="button" onClick={() => setDestKind("saida")} className={cn("h-9 rounded-full border px-3 text-sm font-medium", destKind === "saida" ? "border-primary bg-primary text-primary-foreground" : "border-border bg-card")}>
+                Sem destino
               </button>
             </div>
           </div>
@@ -446,12 +447,33 @@ function NovaSaida() {
               <PavPicker
                 items={pavilhoes}
                 value={destPavId}
+                flowStep={8}
+                onAdvance={() => focusFlow(document.getElementById("qtd"), 9)}
                 onChange={setDestPavId}
                 excludeId={origemOk ? origemId : undefined}
                 stockOf={mercadoria ? (id) => live.stockAt(mercadoria.id, id) : undefined}
                 unidade={mercadoria?.unidade}
               />
+              <div className="flex flex-wrap gap-1.5 pt-1">
+                <button type="button" onClick={() => setSomaDestino(true)} className={cn("h-9 rounded-full border px-3 text-sm font-medium", somaDestino ? "border-primary bg-primary text-primary-foreground" : "border-border bg-card")}>
+                  Somar no destino
+                </button>
+                <button type="button" onClick={() => setSomaDestino(false)} className={cn("h-9 rounded-full border px-3 text-sm font-medium", !somaDestino ? "border-primary bg-primary text-primary-foreground" : "border-border bg-card")}>
+                  Só registrar, sem somar
+                </button>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                {!desconta
+                  ? "Sem descontar, origem e destino ficam com o mesmo número. O lançamento só registra o caminho."
+                  : somaDestino
+                    ? "A quantidade sai da origem e entra na numeração do destino."
+                    : "A quantidade sai da origem e baixa o total. Fica registrado que veio para este lugar, mas o número daqui não sobe."}
+              </p>
             </div>
+          ) : destKind === "saida" ? (
+            <p className="sf-dest sm:col-span-2 rounded-xl border border-dashed border-border px-3 py-3 text-sm text-muted-foreground">
+              {desconta ? "O estoque baixa deste lugar. Cliente e pavilhão ficam em branco." : "Só o registro. O estoque não muda e o destino fica em branco."}
+            </p>
           ) : (
           <div className="sf-dest space-y-2 sm:col-span-2">
             <div className="flex items-center justify-between">
@@ -460,8 +482,14 @@ function NovaSaida() {
                 <Plus /> Novo
               </Button>
             </div>
-            <Select value={destinoId} onValueChange={setDestinoId}>
-              <SelectTrigger>
+            <Select
+              value={destinoId}
+              onValueChange={(id) => {
+                setDestinoId(id);
+                window.setTimeout(() => focusFlow(document.getElementById("qtd"), 9), 0);
+              }}
+            >
+              <SelectTrigger data-step={8} data-open-select="1">
                 <SelectValue placeholder="Cliente / destino" />
               </SelectTrigger>
               <SelectContent>
@@ -494,6 +522,10 @@ function NovaSaida() {
                     notify.success(`Atalho “${row.nome}” na lista de Hoje.`);
                     return;
                   }
+                  if (destKind === "saida") {
+                    notify.error("Saída sem destino não vira atalho. Escolha cliente ou outro pavilhão para salvar o caminho.");
+                    return;
+                  }
                   if (!destinoId) {
                     notify.error("Escolha o cliente para salvar o atalho.");
                     return;
@@ -515,7 +547,7 @@ function NovaSaida() {
             <Button variant="outline" type="button" onClick={reset}>
               <RotateCcw /> Limpar
             </Button>
-            <ActionButton type="button" idleLabel="Registrar saída" pendingLabel="Registrando" doneLabel="Registrada" onAction={save} disabled={!origemOk || !mercadoria} />
+            <ActionButton type="button" data-step={9} idleLabel="Registrar saída" pendingLabel="Registrando" doneLabel="Registrada" onAction={save} disabled={!origemOk || !mercadoria} />
           </div>
         </CardContent>
       </Card>
@@ -554,20 +586,6 @@ function NovaSaida() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-      <DuplicateLaunchDialog
-        open={!!dup}
-        match={dup}
-        tipo="saida"
-        onCancel={() => {
-          setDup(null);
-          skipDup.current = false;
-        }}
-        onConfirm={() => {
-          skipDup.current = true;
-          setDup(null);
-          void save();
-        }}
-      />
       <Dialog
         open={overConfirm}
         onOpenChange={(v) => {

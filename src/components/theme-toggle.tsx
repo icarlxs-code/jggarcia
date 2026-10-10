@@ -1,18 +1,27 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Moon, Sun } from "lucide-react";
-import { applyTheme, readTheme, toggleTheme, type ThemeMode } from "@/lib/theme";
+import { activePrefs, subscribePrefs, toggleUserTheme } from "@/lib/ui-prefs";
+import type { ThemeMode } from "@/lib/theme";
 import { cn } from "@/lib/utils";
 
 export function ThemeToggle({ className }: { className?: string }) {
   const [mode, setMode] = useState<ThemeMode>("light");
 
   useEffect(() => {
-    const current = readTheme();
-    applyTheme(current);
-    setMode(current);
+    const sync = () => setMode(activePrefs().tema === "dark" ? "dark" : "light");
+    sync();
+    return subscribePrefs(sync);
   }, []);
 
   const dark = mode === "dark";
+
+  const last = useRef(0);
+  function press() {
+    const now = Date.now();
+    if (now - last.current < 350) return;
+    last.current = now;
+    setMode(toggleUserTheme());
+  }
 
   return (
     <button
@@ -20,7 +29,8 @@ export function ThemeToggle({ className }: { className?: string }) {
       className={cn("theme-switch", dark && "is-dark", className)}
       aria-label={dark ? "Ativar modo claro" : "Ativar modo noturno"}
       aria-pressed={dark}
-      onClick={() => setMode(toggleTheme())}
+      onPointerUp={press}
+      onClick={press}
     >
       <span className="theme-switch-track" aria-hidden>
         <Sun />

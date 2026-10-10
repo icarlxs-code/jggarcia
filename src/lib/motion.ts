@@ -8,6 +8,7 @@ export const MOTION = {
     slow: 280,
     page: 90,
     hero: 640,
+    icon: 720,
   },
   ease: {
     standard: "cubic-bezier(0.22, 1, 0.36, 1)",
@@ -19,6 +20,7 @@ export const MOTION = {
 
 export function prefersReducedMotion() {
   if (typeof window === "undefined") return false;
+  if (document.documentElement.classList.contains("is-lite")) return true;
   return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 }
 
@@ -28,13 +30,19 @@ export function canHoverFine() {
 }
 
 export function usePrefersReducedMotion() {
-  const [reduced, setReduced] = useState(false);
+  const [reduced, setReduced] = useState(() => prefersReducedMotion());
   useEffect(() => {
+    const read = () => setReduced(prefersReducedMotion());
+    read();
     const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
-    setReduced(mq.matches);
-    const onChange = () => setReduced(mq.matches);
+    const onChange = () => read();
     mq.addEventListener("change", onChange);
-    return () => mq.removeEventListener("change", onChange);
+    const obs = new MutationObserver(read);
+    obs.observe(document.documentElement, { attributes: true, attributeFilter: ["class"] });
+    return () => {
+      mq.removeEventListener("change", onChange);
+      obs.disconnect();
+    };
   }, []);
   return reduced;
 }

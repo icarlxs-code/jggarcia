@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
-import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip as ChartTooltip, XAxis, YAxis } from "recharts";
+import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip as ChartTooltip, XAxis, YAxis } from "recharts";
 import { Check, Settings2, Trophy } from "lucide-react";
 import { useDb } from "@/lib/use-db";
 import { useSession } from "@/lib/session";
-import { dailySeries, productFlow } from "@/lib/dashboard-stats";
+import { dailySeries, productFlow, type DayPoint } from "@/lib/dashboard-stats";
 import { formatMinutes, formatNumber, formatPeriodo, painelRange, todayISO, type PainelPeriodo } from "@/lib/format";
 import { forkliftRanking, forkliftTrips } from "@/lib/forklift";
 import { CHART_WIDGETS, DEFAULT_CHARTS, readUiPrefs, writeUiPrefs, type ChartFlags, type ChartWidgetId } from "@/lib/ui-prefs";
@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { SpotlightCard } from "@/components/motion/spotlight-card";
 import { cn } from "@/lib/utils";
+import { usePrefersReducedMotion } from "@/lib/motion";
 
 const PERIODS: { id: PainelPeriodo; label: string }[] = [
   { id: "dia", label: "Dia" },
@@ -70,7 +71,7 @@ export function HojeCharts() {
   const anyOn = CHART_WIDGETS.some((w) => show(w.id));
 
   return (
-    <section className="space-y-2">
+    <section className="hoje-panel space-y-2">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h2 className="text-sm font-semibold">Painel do dia</h2>
@@ -87,7 +88,7 @@ export function HojeCharts() {
         </div>
       </div>
 
-      <div className="flex flex-wrap items-center gap-2">
+      <div className="hoje-periods flex flex-wrap items-center gap-2">
         {PERIODS.map((p) => (
           <button
             key={p.id}
@@ -184,7 +185,7 @@ export function HojeCharts() {
       ) : null}
 
       {show("destaques") ? (
-        <div className="grid gap-2 sm:grid-cols-2">
+        <div className="hoje-heroes grid gap-2 sm:grid-cols-2">
           <HeroStat
             kicker="Mais entrou"
             item={flow.maisEntrou}
@@ -201,49 +202,13 @@ export function HojeCharts() {
       ) : null}
 
       {(show("topEntrada") || show("topSaida")) ? (
-      <div className="grid gap-2 lg:grid-cols-2">
+      <div className="grid gap-2">
         {show("topEntrada") ? <RankCard title="Produtos que mais entrou" rows={flow.topEntrada} tone="in" empty="Nada entrou neste recorte." /> : null}
         {show("topSaida") ? <RankCard title="Produtos que mais saiu" rows={flow.topSaida} tone="out" empty="Nada saiu neste recorte." /> : null}
       </div>
       ) : null}
 
-      {show("movimento") ? (
-        <SpotlightCard className="p-3">
-          <div className="mb-2 flex items-center justify-between gap-3">
-            <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Movimento</p>
-            <div className="flex gap-3 text-[10px] text-muted-foreground">
-              <span className="flex items-center gap-1.5"><span className="h-1.5 w-1.5 rounded-sm bg-primary" /> Entrou</span>
-              <span className="flex items-center gap-1.5"><span className="h-1.5 w-1.5 rounded-sm bg-gold" /> Saiu</span>
-            </div>
-          </div>
-          <div className="h-28">
-            {series.every((d) => !d.entradas && !d.saidas) ? (
-              <p className="flex h-full items-center justify-center text-xs text-muted-foreground">Sem movimento neste recorte.</p>
-            ) : (
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={series} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
-                  <defs>
-                    <linearGradient id="jgIn" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="var(--color-primary)" stopOpacity={0.32} />
-                      <stop offset="100%" stopColor="var(--color-primary)" stopOpacity={0.02} />
-                    </linearGradient>
-                    <linearGradient id="jgOut" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="var(--color-gold)" stopOpacity={0.28} />
-                      <stop offset="100%" stopColor="var(--color-gold)" stopOpacity={0.02} />
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--color-border)" />
-                  <XAxis dataKey="name" tick={{ fontSize: 10, fill: "var(--color-muted-foreground)" }} axisLine={false} tickLine={false} />
-                  <YAxis tick={{ fontSize: 10, fill: "var(--color-muted-foreground)" }} width={28} axisLine={false} tickLine={false} />
-                  <ChartTooltip content={<FlowTooltip />} />
-                  <Area type="monotone" dataKey="entradas" name="Entrou" stroke="var(--color-primary)" fill="url(#jgIn)" strokeWidth={2} />
-                  <Area type="monotone" dataKey="saidas" name="Saiu" stroke="var(--color-gold)" fill="url(#jgOut)" strokeWidth={2} />
-                </AreaChart>
-              </ResponsiveContainer>
-            )}
-          </div>
-        </SpotlightCard>
-      ) : null}
+      {show("movimento") ? <MovementCard series={series} /> : null}
 
       {(show("comparativo") || show("empilhador")) ? (
       <div className="grid gap-2 lg:grid-cols-2">
@@ -361,7 +326,7 @@ function HeroStat({
   tone: "in" | "out";
 }) {
   return (
-    <SpotlightCard className="px-3 py-2.5">
+    <SpotlightCard className={cn("hoje-hero px-3 py-2.5", tone === "in" ? "is-in" : "is-out")}>
       <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">{kicker}</p>
       {item ? (
         <div className="mt-1.5 flex items-center gap-2">
@@ -393,29 +358,29 @@ function RankCard({
 }) {
   const max = rows[0]?.qtd || 1;
   return (
-    <SpotlightCard className="p-3">
+    <SpotlightCard className={cn("hoje-rank p-3", tone === "in" ? "is-in" : "is-out")}>
       <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">{title}</p>
       {rows.length === 0 ? (
         <p className="mt-2 text-xs text-muted-foreground">{empty}</p>
       ) : (
-        <ol className="mt-2 space-y-1">
-          {rows.slice(0, 8).map((r, i) => (
-            <li key={r.id} className="flex items-center gap-2">
-              <span className="w-3.5 shrink-0 text-center text-[11px] tabular-nums text-muted-foreground">{i + 1}</span>
-              <ProductIcon nome={r.nome} codigo={r.codigo} size="xs" />
-              <div className="min-w-0 flex-1">
-                <div className="flex items-baseline justify-between gap-2">
-                  <p className="truncate text-[13px] font-medium leading-tight">{r.nome}</p>
-                  <p className="shrink-0 text-[13px] font-semibold tabular-nums leading-tight">
-                    {formatNumber(r.qtd)} <span className="text-[10px] font-medium text-muted-foreground">{rankUnit(r.unidade)}</span>
-                  </p>
-                </div>
-                <div className="mt-0.5 h-1 overflow-hidden rounded-full bg-muted">
+        <ol className="mt-2 grid grid-cols-2 gap-1.5 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+          {rows.slice(0, 10).map((r, i) => (
+            <li key={r.id} className="min-w-0 rounded-lg border border-border bg-card px-2 py-1.5">
+              <div className="flex items-center gap-1.5">
+                <span className="w-3 shrink-0 text-center text-[10px] tabular-nums text-muted-foreground">{i + 1}</span>
+                <ProductIcon nome={r.nome} codigo={r.codigo} size="xs" />
+                <p className="min-w-0 flex-1 truncate text-xs font-medium leading-tight">{r.nome}</p>
+              </div>
+              <div className="mt-1 flex items-center gap-1.5 pl-4">
+                <div className="h-1 min-w-0 flex-1 overflow-hidden rounded-full bg-muted">
                   <div
                     className={cn("h-full rounded-full", tone === "in" ? "bg-primary" : "bg-gold")}
                     style={{ width: `${Math.max(6, Math.round((r.qtd / max) * 100))}%` }}
                   />
                 </div>
+                <p className="shrink-0 text-[11px] font-semibold tabular-nums leading-none">
+                  {formatNumber(r.qtd)} <span className="font-medium text-muted-foreground">{rankUnit(r.unidade)}</span>
+                </p>
               </div>
             </li>
           ))}
@@ -436,15 +401,120 @@ function MiniBar({ value, max, className, label }: { value: number; max: number;
   );
 }
 
+function axisQty(n: number) {
+  if (!Number.isFinite(n)) return "";
+  if (Math.abs(n) >= 1000) {
+    const v = n / 1000;
+    const digits = Math.abs(v) >= 10 ? 0 : 1;
+    return `${v.toLocaleString("pt-BR", { maximumFractionDigits: digits, minimumFractionDigits: digits })} mil`;
+  }
+  return formatNumber(n);
+}
+
+function MovementCard({ series }: { series: DayPoint[] }) {
+  const lite = usePrefersReducedMotion();
+  const entrou = series.reduce((sum, day) => sum + day.entradas, 0);
+  const saiu = series.reduce((sum, day) => sum + day.saidas, 0);
+  const nIn = series.reduce((sum, day) => sum + day.entradasN, 0);
+  const nOut = series.reduce((sum, day) => sum + day.saidasN, 0);
+  const empty = !entrou && !saiu;
+  const max = Math.max(entrou, saiu, 1);
+  const diff = entrou - saiu;
+  const saldo =
+    diff === 0
+      ? "Entrou e saiu a mesma quantidade."
+      : diff > 0
+        ? `Entrou ${formatNumber(diff)} a mais do que saiu.`
+        : `Saiu ${formatNumber(-diff)} a mais do que entrou.`;
+  const byDay = series.length > 1;
+
+  return (
+    <SpotlightCard className="hoje-movimento p-3">
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div>
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Movimento</p>
+          <p className="text-sm font-medium">Entradas e saídas no período</p>
+        </div>
+        <div className="flex gap-3 pt-1 text-xs text-muted-foreground">
+          <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-primary" /> Entrou</span>
+          <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-gold" /> Saiu</span>
+        </div>
+      </div>
+      {empty ? (
+        <p className="mt-4 text-sm text-muted-foreground">Sem movimento neste recorte.</p>
+      ) : (
+        <>
+          <div className="mt-3 grid grid-cols-2 gap-3">
+            <div className="rounded-xl bg-mint px-3 py-2.5">
+              <div className="flex items-start justify-between gap-2">
+                <p className="text-xs font-medium text-primary">Entrou</p>
+              </div>
+              <p className="text-2xl font-semibold tabular-nums leading-none text-primary">{formatNumber(entrou)}</p>
+              <p className="mt-1 text-xs text-muted-foreground">{nIn === 0 ? "Nenhum lançamento" : nIn === 1 ? "1 lançamento" : `${formatNumber(nIn)} lançamentos`}</p>
+              <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-card">
+                <div className="h-full rounded-full bg-primary" style={{ width: `${Math.max(8, Math.round((entrou / max) * 100))}%` }} />
+              </div>
+            </div>
+            <div className="rounded-xl bg-secondary px-3 py-2.5">
+              <div className="flex items-start justify-between gap-2">
+                <p className="text-xs font-medium text-gold-ink">Saiu</p>
+              </div>
+              <p className="text-2xl font-semibold tabular-nums leading-none text-gold-ink">{formatNumber(saiu)}</p>
+              <p className="mt-1 text-xs text-muted-foreground">{nOut === 0 ? "Nenhum lançamento" : nOut === 1 ? "1 lançamento" : `${formatNumber(nOut)} lançamentos`}</p>
+              <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-card">
+                <div className="h-full rounded-full bg-gold" style={{ width: `${Math.max(saiu ? 8 : 0, Math.round((saiu / max) * 100))}%` }} />
+              </div>
+            </div>
+          </div>
+          <p className={cn("mt-3 text-sm font-medium", diff > 0 ? "text-primary" : diff < 0 ? "text-gold-ink" : "text-muted-foreground")}>{saldo}</p>
+          {byDay ? (
+            <div className="mt-3 h-40">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={series} margin={{ top: 8, right: 4, left: 0, bottom: 0 }} barGap={2} barCategoryGap="22%">
+                  <CartesianGrid vertical={false} stroke="var(--color-border)" />
+                  <XAxis
+                    dataKey="name"
+                    tick={{ fontSize: 11, fill: "var(--color-muted-foreground)" }}
+                    axisLine={false}
+                    tickLine={false}
+                    interval={series.length > 16 ? Math.ceil(series.length / 8) - 1 : 0}
+                  />
+                  <YAxis
+                    width={58}
+                    tickFormatter={axisQty}
+                    tick={{ fontSize: 11, fill: "var(--color-muted-foreground)" }}
+                    axisLine={false}
+                    tickLine={false}
+                    allowDecimals={false}
+                  />
+                  <ChartTooltip
+                    cursor={{ fill: "color-mix(in srgb, var(--color-primary) 12%, transparent)", radius: 8 }}
+                    content={<FlowTooltip />}
+                  />
+                  <Bar dataKey="entradas" name="Entrou" fill="var(--color-primary)" radius={[3, 3, 0, 0]} maxBarSize={16} isAnimationActive={!lite} animationDuration={lite ? 0 : 700} animationEasing="ease-out" />
+                  <Bar dataKey="saidas" name="Saiu" fill="var(--color-gold)" radius={[3, 3, 0, 0]} maxBarSize={16} isAnimationActive={!lite} animationDuration={lite ? 0 : 700} animationEasing="ease-out" />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          ) : null}
+        </>
+      )}
+    </SpotlightCard>
+  );
+}
+
 function FlowTooltip({ active, payload, label }: { active?: boolean; payload?: { name: string; value: number; color: string }[]; label?: string }) {
   if (!active || !payload?.length) return null;
   return (
-    <div className="rounded-xl border border-border bg-card px-3 py-2 text-xs shadow-card">
-      <p className="mb-1 font-medium">{label}</p>
+    <div className="rounded-xl border border-border bg-card px-3 py-2.5 text-xs shadow-[0_16px_40px_-24px_rgb(0_0_0/0.45)]">
+      <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{label}</p>
       {payload.map((p) => (
-        <p key={p.name} className="tabular-nums text-muted-foreground">
-          <span className="mr-1.5 inline-block h-1.5 w-1.5 rounded-sm" style={{ background: p.color }} />
-          {p.name}: {formatNumber(p.value)}
+        <p key={p.name} className="flex items-baseline justify-between gap-4 tabular-nums">
+          <span className="text-muted-foreground">
+            <span className="mr-1.5 inline-block h-1.5 w-1.5 rounded-sm" style={{ background: p.color }} />
+            {p.name}
+          </span>
+          <span className="text-sm font-semibold text-foreground">{formatNumber(p.value)}</span>
         </p>
       ))}
     </div>

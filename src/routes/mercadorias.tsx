@@ -1,11 +1,14 @@
-import { useMemo, useState, Fragment } from "react";
+import { useMemo, useRef, useState, Fragment } from "react";
 import { createFileRoute, Link, Navigate } from "@tanstack/react-router";
-import { Pencil, Plus, Search, Trash2 } from "lucide-react";
+import { ImagePlus, Pencil, Plus, Search, Trash2 } from "lucide-react";
 import { db } from "@/lib/store";
 import { useSession } from "@/lib/session";
 import { UNIDADES, unidadeLabel, unidadeValue } from "@/lib/constants";
 import { pavilhaoNome, pavTitle, pavIdsOf } from "@/lib/catalog";
+import { photoOfProduct } from "@/lib/product-photos";
+import { readLogoAsset } from "@/lib/reports";
 import { useDb } from "@/lib/use-db";
+import { useQueuedEdit } from "@/lib/ctx-edit";
 import { notify } from "@/lib/notify";
 import type { Mercadoria } from "@/lib/types";
 import { Button } from "@/components/ui/button";
@@ -21,7 +24,7 @@ import { PageHeader } from "@/components/page-header";
 import { EmptyState } from "@/components/empty-state";
 import { PageStage } from "@/components/motion/page-stage";
 import { ActionButton } from "@/components/motion/action-button";
-import { ProductIcon, ProductLabel } from "@/components/inventory/product-icon";
+import { ProductIcon, ProductLabel, useSistemaLite } from "@/components/inventory/product-icon";
 import { ConfirmDialog } from "@/components/feedback/confirm-dialog";
 import { MOTION } from "@/lib/motion";
 import { playCeremony, ceremonyDock } from "@/lib/ceremony";
@@ -52,6 +55,9 @@ function Mercadorias() {
   const [eUnidade, setEUnidade] = useState("Cx");
   const [ePavilhoes, setEPavilhoes] = useState<string[]>(["p13"]);
   const [eMinimo, setEMinimo] = useState("");
+  const [eFoto, setEFoto] = useState("");
+  const [ePng, setEPng] = useState<{ png: boolean; transparent: boolean } | null>(null);
+  const fotoRef = useRef<HTMLInputElement>(null);
 
   const filtered = list.filter((m) => {
     const term = fold(q.trim());
@@ -78,6 +84,11 @@ function Mercadorias() {
     .sort(([a], [b]) => a.localeCompare(b, "pt-BR"))
     .map(([cat, items]) => [cat, items.slice().sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR"))] as const);
 
+  useQueuedEdit("produto", (id) => {
+    const m = list.find((x) => x.id === id);
+    if (m) openEdit(m);
+  });
+
   if (!isAdmin) return <Navigate to="/" />;
 
   function openEdit(m: Mercadoria) {
@@ -87,6 +98,26 @@ function Mercadorias() {
     setEUnidade(unidadeValue(m.unidade));
     setEPavilhoes(pavIdsOf(m).length ? pavIdsOf(m) : ["p13"]);
     setEMinimo(String(m.minimo));
+    const custom = m.foto && (m.foto.startsWith("data:") || m.foto.startsWith("blob:")) ? m.foto : "";
+    setEFoto(custom);
+    setEPng(custom.startsWith("data:image/png") ? { png: true, transparent: true } : null);
+  }
+
+  function originalOf(m: Mercadoria) {
+    return m.foto_original || photoOfProduct(m.nome, m.codigo) || "";
+  }
+
+  async function onPickFoto(file: File) {
+    try {
+      const asset = await readLogoAsset(file);
+      setEFoto(asset.dataUrl);
+      setEPng({ png: asset.png, transparent: asset.transparent });
+      if (asset.png && asset.transparent) notify.success("PNG com fundo transparente reconhecido.");
+      else if (asset.png) notify.success("PNG reconhecido.");
+      else notify.success("Foto carregada. A original continua no cadastro.");
+    } catch (err) {
+      notify.error(err instanceof Error ? err.message : "Não deu para ler a foto.");
+    }
   }
 
   function saveEdit() {
@@ -101,6 +132,7 @@ function Mercadorias() {
       unidade: eUnidade,
       minimo: Number(eMinimo) || edit.minimo,
       pavilhao_ids: ePavilhoes.length ? ePavilhoes : ["p13"],
+      foto: eFoto,
     });
     setTick((n) => n + 1);
     setEdit(null);
@@ -109,7 +141,7 @@ function Mercadorias() {
 
   return (
     <PageStage className="space-y-4">
-      <PageHeader icon="package" title="Produtos" description={`${list.length} itens do relatório, com código e ícone. Busque por nome ou código.`}>
+      <PageHeader clip="/lottie/caixa.json" title="Produtos" description={`${list.length} itens do relatório, com código e ícone. Busque por nome ou código.`}>
         <Button onClick={() => setOpen(true)}>
           <Plus /> Novo produto
         </Button>
@@ -139,6 +171,7 @@ function Mercadorias() {
                   <TableCell colSpan={5} className="p-0">
                     <EmptyState
                       icon={Plus}
+                      clip="/lottie/caixa.json"
                       title="Nenhum produto"
                       description="Cadastre o primeiro item para habilitar estoque e entradas."
                     >
@@ -168,6 +201,10 @@ function Mercadorias() {
                       <TableRow
                         key={m.id}
                         data-toss-id={m.id}
+                        data-ctx="produto"
+                        data-id={m.id}
+                        data-nome={m.nome}
+                        data-codigo={m.codigo}
                         className={m.id === bornId ? "row-born" : m.id === leavingId ? "row-leave" : undefined}
                       >
                         <TableCell>
@@ -315,14 +352,33 @@ function Mercadorias() {
       </Dialog>
 
       <Sheet open={!!edit} onOpenChange={(v) => !v && setEdit(null)}>
-        <SheetContent side="right" className="p-6">
+        <SheetContent side="right" className="overflow-y-auto p-6">
           <SheetTitle>Editar produto</SheetTitle>
           {edit ? (
             <div className="mt-6 space-y-4">
-              <div className="flex items-center gap-3">
-                <ProductIcon nome={eNome || edit.nome} codigo={eCodigo || edit.codigo} size="lg" />
-                <p className="text-sm text-muted-foreground">Alterações entram na lista sem recarregar.</p>
-              </div>
+              <PhotoEdit
+                nome={eNome || edit.nome}
+                codigo={eCodigo || edit.codigo}
+                emUso={eFoto}
+                original={originalOf(edit)}
+                png={ePng}
+                onPick={() => fotoRef.current?.click()}
+                onRestore={() => {
+                  setEFoto("");
+                  setEPng(null);
+                }}
+              />
+              <input
+                ref={fotoRef}
+                type="file"
+                accept="image/png,image/jpeg,image/webp,image/gif,.png,.jpg,.jpeg,.webp"
+                className="hidden"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  e.target.value = "";
+                  if (file) void onPickFoto(file);
+                }}
+              />
               <div className="space-y-1.5">
                 <Label htmlFor="ec">Código</Label>
                 <Input id="ec" value={eCodigo} onChange={(e) => setECodigo(e.target.value)} />
@@ -419,5 +475,79 @@ function Mercadorias() {
         }}
       />
     </PageStage>
+  );
+}
+
+function PhotoEdit({
+  nome,
+  codigo,
+  emUso,
+  original,
+  png,
+  onPick,
+  onRestore,
+}: {
+  nome: string;
+  codigo: string;
+  emUso: string;
+  original: string;
+  png: { png: boolean; transparent: boolean } | null;
+  onPick: () => void;
+  onRestore: () => void;
+}) {
+  const showing = emUso || original;
+  const replaced = Boolean(emUso && emUso !== original);
+  const lite = useSistemaLite();
+  return (
+    <div className="space-y-3">
+      <div className="grid grid-cols-2 gap-3">
+        <div className="space-y-1.5">
+          <Label>Foto em uso</Label>
+          <button
+            type="button"
+            onClick={onPick}
+            className="logo-check flex h-28 w-full items-center justify-center overflow-hidden rounded-2xl border border-border"
+            aria-label="Trocar foto do produto"
+          >
+            {showing && !lite ? (
+              <img src={showing} alt="" className="h-full w-full object-contain" />
+            ) : (
+              <ProductIcon nome={nome} codigo={codigo} foto="" size="lg" />
+            )}
+          </button>
+        </div>
+        <div className="space-y-1.5">
+          <Label>Original no cadastro</Label>
+          <div className="logo-check flex h-28 w-full items-center justify-center overflow-hidden rounded-2xl border border-border">
+            {original && !lite ? (
+              <img src={original} alt="" className="h-full w-full object-contain" />
+            ) : (
+              <ProductIcon nome={nome} codigo={codigo} foto="" size="lg" />
+            )}
+          </div>
+        </div>
+      </div>
+      <p className="text-xs text-muted-foreground">
+        {lite
+          ? "Sistema lite está ligado: a foto não é carregada nesta conta. Ela continua salva."
+          : "Trocar a foto não apaga a original. Ela continua no cadastro."}
+      </p>
+      {png?.png ? (
+        <Badge variant={png.transparent ? "success" : "secondary"}>
+          {png.transparent ? "PNG · fundo transparente" : "PNG reconhecido"}
+        </Badge>
+      ) : null}
+      <div className="flex flex-wrap gap-2">
+        <Button type="button" size="sm" variant="outline" onClick={onPick}>
+          <ImagePlus />
+          Trocar foto
+        </Button>
+        {replaced ? (
+          <Button type="button" size="sm" variant="ghost" onClick={onRestore}>
+            Voltar para a original
+          </Button>
+        ) : null}
+      </div>
+    </div>
   );
 }

@@ -98,7 +98,7 @@ export function StockRiseOverlay({
 
   useEffect(() => {
     if (!rise || phase !== "ok") return;
-    const hold = window.setTimeout(() => setPhase("out"), prefersReducedMotion() ? 180 : 560);
+    const hold = window.setTimeout(() => setPhase("out"), prefersReducedMotion() ? 0 : 560);
     return () => window.clearTimeout(hold);
   }, [rise, phase]);
 
@@ -111,7 +111,7 @@ export function StockRiseOverlay({
     const reduced = prefersReducedMotion();
 
     if (!card || reduced) {
-      const end = window.setTimeout(onDone, 200);
+      const end = window.setTimeout(onDone, 0);
       return () => window.clearTimeout(end);
     }
 
@@ -275,7 +275,7 @@ export function StockRiseOverlay({
       </div>
       <div ref={cardRef} className="stock-rise-card">
         <div className={cn("stock-rise-icon", (phase === "ok" || phase === "out") && "is-ok")}>
-          <ProductIcon nome={rise.nome} size="lg" className="h-20 w-20 shadow-none" />
+          <ProductIcon nome={rise.nome} size="lg" className="h-24 w-24 rounded-none border-0 bg-transparent shadow-none ring-0" />
           {phase === "ok" || phase === "out" ? (
             <span className="stock-rise-check">
               <Check strokeWidth={2.6} />

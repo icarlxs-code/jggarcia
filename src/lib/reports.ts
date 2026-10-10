@@ -1,5 +1,5 @@
 import { destinoDaSaida, lugarDaSaida, pavTitle } from "./catalog";
-import { formatDateBR, formatNumber, formatPeriodo, formatTime, formatMinutes, localDateISO } from "./format";
+import { formatDateBR, formatNumber, formatPeriodo, formatTime, formatMinutes } from "./format";
 import { motivoContagemLabel } from "./constants";
 import { db, resolvePavilhaoId } from "./store";
 import type { Contagem, Destino, Pavilhao, Saida } from "./types";
@@ -18,6 +18,7 @@ export interface ReportOpts {
   kind: ReportKind;
   mercadoriaId?: string;
   destinoId?: string;
+  destinoNome?: string;
   produtoQuery?: string;
 }
 
@@ -46,10 +47,25 @@ function pavOf(s: Saida, pavilhoes: Pavilhao[]) {
 }
 
 function matchesProduto(opts: ReportOpts, nome: string, codigo: string, id: string) {
-  if (opts.mercadoriaId && id !== opts.mercadoriaId) return false;
+  if (opts.mercadoriaId && id === opts.mercadoriaId) return true;
   const q = fold(opts.produtoQuery || "").trim();
-  if (!q) return true;
-  return fold(nome).includes(q) || fold(codigo).includes(q) || fold(codigo).replace(/^0+/, "").includes(q.replace(/^0+/, ""));
+  if (q && (fold(nome).includes(q) || fold(codigo).includes(q) || fold(codigo).replace(/^0+/, "").includes(q.replace(/^0+/, "")))) return true;
+  if (opts.mercadoriaId || q) return false;
+  return true;
+}
+
+function saidaVaiPara(s: Saida, pavilhoes: Pavilhao[], destinoId?: string, destinoNome?: string) {
+  if (!destinoId && !destinoNome) return true;
+  const pavId = resolvePavilhaoId(pavilhoes, s.destino_pavilhao_id);
+  if (destinoId && destinoId !== "sem" && (s.destino_id === destinoId || pavId === destinoId)) return true;
+  const label = fold(destinoDaSaida(pavilhoes, s));
+  const nome = fold(destinoNome || "");
+  if (nome && label === nome) return true;
+  if (destinoId && destinoId !== "sem") {
+    const dest = db.listDestinos().find((d) => d.id === destinoId);
+    if (dest && fold(dest.nome) === label) return true;
+  }
+  return false;
 }
 
 export function collectReport(opts: ReportOpts): ReportRow[] {
@@ -65,12 +81,8 @@ export function collectReport(opts: ReportOpts): ReportRow[] {
       const tipo = (s.tipo ?? "saida") as "entrada" | "saida";
       if (tipo === "entrada" && !wantIn) continue;
       if (tipo === "saida" && !wantOut) continue;
-      if (opts.mercadoriaId && s.mercadoria_id !== opts.mercadoriaId) continue;
       if (!matchesProduto(opts, s.mercadoria?.nome ?? "", s.mercadoria?.codigo ?? "", s.mercadoria_id)) continue;
-      if (opts.destinoId) {
-        if (tipo === "entrada") continue;
-        if (s.destino_id !== opts.destinoId) continue;
-      }
+      if ((opts.destinoId || opts.destinoNome) && !saidaVaiPara(s, pavilhoes, opts.destinoId, opts.destinoNome)) continue;
       if (opts.pavilhaoId !== "todos") {
         const pid = pavOf(s, pavilhoes);
         const destPid = resolvePavilhaoId(pavilhoes, s.destino_pavilhao_id);
@@ -172,7 +184,8 @@ export function reportTitle(opts: ReportOpts, pavilhoes: Pavilhao[]) {
   } else if (opts.produtoQuery?.trim()) {
     bits.push(`Busca “${opts.produtoQuery.trim()}”`);
   }
-  if (opts.destinoId) {
+  if (opts.destinoNome) bits.push(opts.destinoNome);
+  else if (opts.destinoId) {
     const d = db.listDestinos().find((x) => x.id === opts.destinoId);
     if (d) bits.push(d.nome);
   }
@@ -180,7 +193,74 @@ export function reportTitle(opts: ReportOpts, pavilhoes: Pavilhao[]) {
 }
 
 function table(headers: string[], body: string) {
-  return `<table><thead><tr>${headers.map((h, i) => `<th class="${i === headers.length - 1 || h === "Qtd" ? "num" : ""}">${esc(h)}</th>`).join("")}</tr></thead><tbody>${body}</tbody></table>`;
+  const numeric = new Set(["Qtd", "Quantidade", "Quantidade neste lugar", "Total", "Pallets", "Por pallet"]);
+  return `<table><thead><tr>${headers.map((h) => `<th class="${numeric.has(h) ? "num" : ""}">${esc(h)}</th>`).join("")}</tr></thead><tbody>${body}</tbody></table>`;
+}
+
+function produtoCell(codigo: string, nome: string) {
+  return `<div class="prod"><span class="code">${esc(codigo)}</span><strong>${esc(nome)}</strong></div>`;
+}
+
+function locaisCell(positions: { nome: string; quantidade: number }[], unidade: string) {
+  if (!positions.length) return "—";
+  return `<div class="loc-list">${positions
+    .map(
+      (x) =>
+        `<div class="loc"><span>${esc(x.nome)}</span><b>${esc(formatNumber(x.quantidade))} ${esc(unidade)}</b></div>`,
+    )
+    .join("")}</div>`;
+}
+
+function unidadeGeral(rows: { unidade: string }[]) {
+  const units = [...new Set(rows.map((r) => r.unidade).filter(Boolean))];
+  return units.length === 1 ? units[0] : "";
+}
+
+function estoquePorLugar(stock: { codigo: string; nome: string; unidade: string; total: number; positions: { id: string; nome: string; quantidade: number }[] }[]) {
+  const places = new Map<string, { nome: string; unidade: string; itens: { codigo: string; nome: string; quantidade: number; unidade: string }[] }>();
+  for (const p of stock) {
+    for (const pos of p.positions) {
+      const row = places.get(pos.id || pos.nome) ?? { nome: pos.nome, unidade: p.unidade, itens: [] };
+      row.itens.push({ codigo: p.codigo, nome: p.nome, quantidade: pos.quantidade, unidade: p.unidade });
+      places.set(pos.id || pos.nome, row);
+    }
+  }
+  return [...places.values()]
+    .map((p) => ({ ...p, total: p.itens.reduce((a, i) => a + i.quantidade, 0) }))
+    .sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR"));
+}
+
+function htmlEstoque(stock: { codigo: string; nome: string; unidade: string; total: number; positions: { id: string; nome: string; quantidade: number }[] }[]) {
+  const unidade = unidadeGeral(stock);
+  const porProduto = stock
+    .map(
+      (p) => `<tr>
+      <td>${produtoCell(p.codigo, p.nome)}</td>
+      <td class="num">${esc(formatNumber(p.total))} ${esc(p.unidade)}</td>
+      <td>${locaisCell(p.positions, p.unidade)}</td>
+    </tr>`,
+    )
+    .join("");
+  const lugares = estoquePorLugar(stock)
+    .map((lugar) => {
+      const linhas = lugar.itens
+        .slice()
+        .sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR"))
+        .map(
+          (item) => `<tr>
+          <td>${produtoCell(item.codigo, item.nome)}</td>
+          <td class="num">${esc(formatNumber(item.quantidade))} ${esc(item.unidade)}</td>
+        </tr>`,
+        )
+        .join("");
+      const und = unidadeGeral(lugar.itens);
+      return `<article class="place">
+        <h3>${esc(lugar.nome)}<span>${lugar.itens.length} produto(s)${und ? ` · ${esc(formatNumber(lugar.total))} ${esc(und)}` : ""}</span></h3>
+        ${table(["Produto", "Quantidade neste lugar"], linhas)}
+      </article>`;
+    })
+    .join("");
+  return { porProduto, lugares, unidade };
 }
 
 export function exportReportPdf(opts: ReportOpts) {
@@ -335,8 +415,8 @@ export function exportForkliftPdf(opts: { from: string; to: string; operador?: s
       <td>${esc(r.route)}</td>
       <td class="num">${esc(r.trips)}</td>
       <td class="num">${esc(formatMinutes(r.avg))}</td>
-      <td>${esc(formatDateBR(r.fastest.data))} · ${esc(formatMinutes(r.fastest.minutos))}${r.fastest.operador !== "—" ? ` · ${esc(r.fastest.operador)}` : ""}</td>
-      <td>${esc(formatDateBR(r.slowest.data))} · ${esc(formatMinutes(r.slowest.minutos))}${r.slowest.operador !== "—" ? ` · ${esc(r.slowest.operador)}` : ""}</td>
+      <td>${esc(formatDateBR(r.fastest.data))}<div class="muted">${esc(formatMinutes(r.fastest.minutos))}${r.fastest.operador !== "—" ? ` · ${esc(r.fastest.operador)}` : ""}</div></td>
+      <td>${esc(formatDateBR(r.slowest.data))}<div class="muted">${esc(formatMinutes(r.slowest.minutos))}${r.slowest.operador !== "—" ? ` · ${esc(r.slowest.operador)}` : ""}</div></td>
     </tr>`,
     )
     .join("");
@@ -459,13 +539,14 @@ function extraContagem(c: Contagem) {
 export function clientStats(from: string, to: string) {
   const saidas = db.listSaidas({ from, to, tipo: "saida" });
   const entradas = db.listSaidas({ from, to, tipo: "entrada" });
+  const pavilhoes = db.listPavilhoes(true);
   const destinos = db.listDestinos();
 
   const byClient = new Map<string, { id: string; nome: string; qtd: number; vezes: number; produtos: Map<string, { nome: string; qtd: number }> }>();
   for (const s of saidas) {
-    const id = s.destino_id || "sem";
-    const nome = s.destino?.nome || destinos.find((d) => d.id === id)?.nome || "Sem cliente";
-    const row = byClient.get(id) ?? { id, nome, qtd: 0, vezes: 0, produtos: new Map() };
+    const nome = destinoDaSaida(pavilhoes, s);
+    const id = s.destino_id || resolvePavilhaoId(pavilhoes, s.destino_pavilhao_id) || nome || "sem";
+    const row = byClient.get(id) ?? { id, nome: nome && nome !== "—" ? nome : destinos.find((d) => d.id === id)?.nome || "Sem cliente", qtd: 0, vezes: 0, produtos: new Map() };
     row.qtd += Number(s.quantidade) || 0;
     row.vezes += 1;
     const pid = s.mercadoria_id;
@@ -510,7 +591,6 @@ export function exportDiaCompletoPdf(date: string) {
   const ins = rows.filter((r) => r.kind === "entrada");
   const outs = rows.filter((r) => r.kind === "saida");
   const counts = rows.filter((r) => r.kind === "contagem");
-  const logs = db.listLogs().filter((l) => localDateISO(l.created_at) === date);
   const stock = db.stockSnapshot(date);
   const sum = (list: ReportRow[]) => list.reduce((a, r) => a + r.quantidade, 0);
   const title = `Movimento do dia · ${formatDateBR(date)}`;
@@ -548,27 +628,7 @@ export function exportDiaCompletoPdf(date: string) {
     )
     .join("");
 
-  const logHtml = logs
-    .slice(0, 80)
-    .map(
-      (l) => `<tr>
-      <td>${esc((l.created_at || "").slice(11, 16))}</td>
-      <td>${esc(l.usuario_nome)}</td>
-      <td>${esc(l.acao)}</td>
-      <td>${esc(l.resumo)}${l.detalhe ? `<div class="muted">${esc(l.detalhe)}</div>` : ""}</td>
-    </tr>`,
-    )
-    .join("");
-
-  const stockHtml = stock
-    .map(
-      (p) => `<tr>
-      <td><div class="muted" style="font-family:IBM Plex Mono,monospace;font-size:10px">${esc(p.codigo)}</div>${esc(p.nome)}</td>
-      <td class="num">${esc(formatNumber(p.total))} ${esc(p.unidade)}</td>
-      <td>${esc(p.positions.map((x) => `${x.nome} ${formatNumber(x.quantidade)}`).join(" · "))}</td>
-    </tr>`,
-    )
-    .join("");
+  const stockHtml = htmlEstoque(stock);
 
   let sections = "";
   sections += ins.length
@@ -580,17 +640,14 @@ export function exportDiaCompletoPdf(date: string) {
   sections += counts.length
     ? `<h2>Contagens · ${counts.length}</h2>${table(["Produto", "Contado", "Lugar", "Quem contou", "Diferença"], countHtml)}`
     : `<h2>Contagens</h2><p class="empty">Nenhuma contagem neste dia.</p>`;
-  sections += logs.length
-    ? `<h2>Quem editou, cadastrou ou desfez · ${logs.length}</h2>${table(["Hora", "Pessoa", "Ação", "Detalhe"], logHtml)}`
-    : `<h2>Alterações</h2><p class="empty">Nenhuma edição registrada neste dia.</p>`;
   sections += stock.length
-    ? `<h2>Estoque no fim do dia · ${stock.length} produtos</h2>${table(["Produto", "Total", "Por pavilhão"], stockHtml)}`
+    ? `<h2>Estoque no fim do dia · ${stock.length} produtos</h2>${table(["Produto", "Total", "Onde está"], stockHtml.porProduto)}<h2>Estoque por lugar</h2>${stockHtml.lugares}`
     : `<h2>Estoque</h2><p class="empty">Nenhum saldo neste dia.</p>`;
 
   const body = `
     <div class="meta">
       <span class="chip">${esc(formatDateBR(date))}</span>
-      <span class="chip">Entradas, saídas, contagens, edições e estoque</span>
+      <span class="chip">Entradas, saídas, contagens e estoque</span>
     </div>
     <div class="kpis">${kpis}</div>
     ${sections}
@@ -603,31 +660,27 @@ export function exportEstoqueDiaPdf(date?: string) {
   const dia = date || "";
   const stock = db.stockSnapshot(dia || undefined);
   const title = dia ? `Estoque · ${formatDateBR(dia)}` : "Estoque atual";
+  const detalhe = htmlEstoque(stock);
+  const totalGeral = stock.reduce((a, p) => a + p.total, 0);
+  const lugares = new Set(stock.flatMap((p) => p.positions.map((x) => x.id || x.nome)));
   const kpis = [
     ["Produtos com saldo", formatNumber(stock.length)],
-    ["Total de linhas", formatNumber(stock.reduce((a, p) => a + p.positions.length, 0))],
-    ["Dia", dia ? formatDateBR(dia) : "Posição atual"],
-    ["Itens", formatNumber(stock.reduce((a, p) => a + p.total, 0))],
+    ["Lugares com saldo", formatNumber(lugares.size)],
+    ["Total geral", `${formatNumber(totalGeral)}${detalhe.unidade ? ` ${detalhe.unidade}` : ""}`],
+    ["Posição", dia ? formatDateBR(dia) : "Atual"],
   ]
     .map(([k, v]) => `<div class="kpi"><span>${esc(k)}</span><b>${esc(v)}</b></div>`)
     .join("");
-  const bodyRows = stock
-    .map(
-      (p) => `<tr>
-      <td><div class="muted" style="font-family:IBM Plex Mono,monospace;font-size:10px">${esc(p.codigo)}</div>${esc(p.nome)}</td>
-      <td class="num">${esc(formatNumber(p.total))} ${esc(p.unidade)}</td>
-      <td>${esc(p.positions.map((x) => `${x.nome} ${formatNumber(x.quantidade)}`).join(" · ") || "—")}</td>
-    </tr>`,
-    )
-    .join("");
   const body = `
     <div class="meta">
-      <span class="chip">${esc(title)}</span>
+      <span class="chip">${esc(dia ? formatDateBR(dia) : "Posição de agora")}</span>
       <span class="chip">${esc(stock.length ? `${stock.length} produtos` : "Sem saldo")}</span>
     </div>
     <div class="kpis">${kpis}</div>
-    <h2>Posição</h2>
-    ${stock.length ? table(["Produto", "Total", "Por pavilhão"], bodyRows) : `<p class="empty">Nenhum produto com saldo neste recorte.</p>`}
+    <h2>Por produto</h2>
+    <p class="muted">Cada lugar fica numa linha, com o nome separado da quantidade.</p>
+    ${stock.length ? table(["Produto", "Total", "Onde está"], detalhe.porProduto) : `<p class="empty">Nenhum produto com saldo neste recorte.</p>`}
+    ${stock.length ? `<h2>Por pavilhão e galpão</h2>${detalhe.lugares}` : ""}
   `;
   printHtml(title, body);
   notify.success("Na impressão, escolha Salvar como PDF.");
@@ -636,12 +689,13 @@ export function exportEstoqueDiaPdf(date?: string) {
 
 export function clientsForProduct(mercadoriaId: string, from: string, to: string) {
   const merc = db.listMercadorias().find((m) => m.id === mercadoriaId);
+  const pavilhoes = db.listPavilhoes(true);
   const saidas = db.listSaidas({ from, to, tipo: "saida" }).filter((s) => s.mercadoria_id === mercadoriaId);
   const by = new Map<string, { id: string; nome: string; qtd: number; vezes: number }>();
   for (const s of saidas) {
-    const id = s.destino_id || "sem";
-    const nome = s.destino?.nome || "Sem cliente";
-    const row = by.get(id) ?? { id, nome, qtd: 0, vezes: 0 };
+    const nome = destinoDaSaida(pavilhoes, s);
+    const id = s.destino_id || resolvePavilhaoId(pavilhoes, s.destino_pavilhao_id) || nome || "sem";
+    const row = by.get(id) ?? { id, nome: nome && nome !== "—" ? nome : "Sem cliente", qtd: 0, vezes: 0 };
     row.qtd += Number(s.quantidade) || 0;
     row.vezes += 1;
     by.set(id, row);
@@ -709,4 +763,120 @@ export function readLogoAsset(file: File): Promise<{ dataUrl: string; png: boole
     };
     img.src = url;
   });
+}
+
+export function exportProductFichaPdf(mercadoriaId: string) {
+  const merc = db.listMercadorias().find((m) => m.id === mercadoriaId);
+  if (!merc) {
+    notify.error("Produto não encontrado.");
+    return;
+  }
+  const pos = db.stockPositions(merc.id);
+  const comSaldo = pos.filter((p) => p.quantidade > 0);
+  const lugares = (comSaldo.length ? comSaldo : pos)
+    .map((p) => `<tr><td>${esc(p.nome)}</td><td class="num">${esc(formatNumber(p.quantidade))} ${esc(merc.unidade)}</td></tr>`)
+    .join("");
+  const hist = productTimeline(merc.id).slice(0, 50);
+  const histRows = hist
+    .map((h) => {
+      const raw = h.at || "";
+      const data = raw.slice(0, 10);
+      const hora = raw.includes("T") ? raw.slice(11, 16) : "";
+      return `<tr>
+      <td>${esc(formatDateBR(data))}${hora ? `<div class="muted">${esc(hora)}</div>` : ""}</td>
+      <td>${esc(h.title)}</td>
+      <td class="num">${h.qty ? `${esc(formatNumber(h.qty))} ${esc(h.unidade)}` : "—"}</td>
+      <td>${esc(h.lugar || "—")}</td>
+      <td>${esc(h.who || "—")}${h.extra ? `<div class="muted">${esc(h.extra)}</div>` : ""}</td>
+    </tr>`;
+    })
+    .join("");
+  const body = `
+    <div class="meta">
+      <span class="chip">${esc(merc.codigo)}</span>
+      <span class="chip">${esc(merc.unidade)}</span>
+      <span class="chip">Estoque ${esc(formatNumber(merc.estoque))} ${esc(merc.unidade)}</span>
+    </div>
+    <h2>Onde está</h2>
+    ${table(["Lugar", "Quantidade"], lugares || `<tr><td colspan="2">Sem saldo neste momento.</td></tr>`)}
+    <h2>Histórico</h2>
+    ${hist.length ? table(["Data", "Tipo", "Qtd", "Lugar", "Quem"], histRows) : `<p class="empty">Este produto ainda não tem lançamento.</p>`}
+  `;
+  printHtml(`Ficha · ${merc.codigo} ${merc.nome}`, body);
+}
+
+export function exportPlacePdf(pavilhaoId: string) {
+  const pavilhoes = db.listPavilhoes(true);
+  const pav = pavilhoes.find((p) => p.id === pavilhaoId);
+  if (!pav) {
+    notify.error("Lugar não encontrado.");
+    return;
+  }
+  const nome = pavTitle(pav);
+  const mercs = db.listMercadorias();
+  const mercOf = new Map(mercs.map((m) => [m.id, m]));
+  const estoque = mercs
+    .map((m) => ({ m, qtd: db.stockAt(m.id, pav.id) }))
+    .filter((x) => x.qtd > 0)
+    .sort((a, b) => a.m.nome.localeCompare(b.m.nome, "pt-BR"));
+  const totalCx = estoque.reduce((n, x) => n + x.qtd, 0);
+  const stockRows = estoque
+    .map(
+      (x) => `<tr><td><div class="muted" style="font-family:IBM Plex Mono,monospace;font-size:10px">${esc(x.m.codigo)}</div>${esc(x.m.nome)}</td><td class="num">${esc(formatNumber(x.qtd))} ${esc(x.m.unidade)}</td></tr>`,
+    )
+    .join("");
+  const counts = db
+    .listContagens()
+    .filter((c) => !c.deleted_at && c.pavilhao_id === pav.id)
+    .slice(0, 60);
+  const countRows = counts
+    .map((c) => {
+      const m = mercOf.get(c.mercadoria_id);
+      const hora = (c.created_at || "").includes("T") ? c.created_at.slice(11, 16) : "";
+      const diff = c.delta === 0 ? "Bateu" : c.delta > 0 ? `+${formatNumber(c.delta)}` : formatNumber(c.delta);
+      return `<tr>
+        <td>${esc(formatDateBR(c.data))}${hora ? `<div class="muted">${esc(hora)}</div>` : ""}</td>
+        <td>${esc(m?.nome || "Produto")}</td>
+        <td class="num">${esc(formatNumber(c.esperado))}</td>
+        <td class="num">${esc(formatNumber(c.contado))} ${esc(c.unidade)}</td>
+        <td class="num">${esc(diff)}</td>
+        <td>${esc(c.contador || c.usuario_nome || "—")}</td>
+      </tr>`;
+    })
+    .join("");
+  const movs = db
+    .listSaidas()
+    .filter((s) => {
+      const pid = resolvePavilhaoId(pavilhoes, s.pavilhao_id || s.pavilhao || s.origem);
+      const dest = resolvePavilhaoId(pavilhoes, s.destino_pavilhao_id);
+      return pid === pav.id || dest === pav.id;
+    })
+    .slice(0, 60);
+  const movRows = movs
+    .map((s) => {
+      const tipo = s.destino_pavilhao_id ? "Transferência" : s.tipo === "entrada" ? "Entrada" : "Saída";
+      const hora = (s.hora_saida || s.hora_chegada || "").slice(0, 5);
+      return `<tr>
+        <td>${esc(formatDateBR(s.data))}${hora ? `<div class="muted">${esc(hora)}</div>` : ""}</td>
+        <td>${esc(tipo)}</td>
+        <td>${esc(s.mercadoria?.nome || mercOf.get(s.mercadoria_id)?.nome || "Produto")}</td>
+        <td class="num">${esc(formatNumber(Number(s.quantidade) || 0))} ${esc(s.unidade)}</td>
+        <td>${esc(s.usuario?.nome || "—")}</td>
+      </tr>`;
+    })
+    .join("");
+  const body = `
+    <div class="meta">
+      <span class="chip">${esc(nome)}</span>
+      <span class="chip">${esc(String(estoque.length))} produtos com saldo</span>
+      <span class="chip">${esc(formatNumber(totalCx))} no lugar</span>
+    </div>
+    <h2>O que tem agora</h2>
+    ${estoque.length ? table(["Produto", "Quantidade"], stockRows) : `<p class="empty">Nenhum saldo neste lugar agora.</p>`}
+    <h2>Contagens</h2>
+    ${counts.length ? table(["Data", "Produto", "Sistema", "Contado", "Diferença", "Quem"], countRows) : `<p class="empty">Nenhuma contagem neste lugar.</p>`}
+    <h2>Movimentação</h2>
+    ${movs.length ? table(["Data", "Tipo", "Produto", "Qtd", "Quem"], movRows) : `<p class="empty">Nenhuma entrada ou saída neste lugar.</p>`}
+  `;
+  printHtml(`Lugar · ${nome}`, body);
 }

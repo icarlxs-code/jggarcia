@@ -1,6 +1,6 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
-import { FileText, Plus, Search, Truck } from "lucide-react";
+import { ChevronDown, FileText, Plus, Search } from "lucide-react";
 import { db } from "@/lib/store";
 import { useDb } from "@/lib/use-db";
 import { useSession } from "@/lib/session";
@@ -19,7 +19,6 @@ import { PageHeader } from "@/components/page-header";
 import { PageStage } from "@/components/motion/page-stage";
 import { SpotlightCard } from "@/components/motion/spotlight-card";
 import { ActionButton } from "@/components/motion/action-button";
-import { EmptyState } from "@/components/empty-state";
 import { SignaturePad } from "@/components/ui/signature-pad";
 import { ConfirmDialog } from "@/components/feedback/confirm-dialog";
 import { pavTitle } from "@/lib/catalog";
@@ -39,17 +38,26 @@ const EMPTY: Omit<FretePagamento, "id" | "created_at" | "status" | "deleted_at" 
   forma_pagamento: "",
   pix_tipo: "",
   pix_chave: "",
+  pix_favorecido: "",
+  pix_banco: "",
   rubrica: "",
   data_autorizacao: "",
   observacoes: "",
 };
 
-function Fretes() {
+export function FretePage({ kind = "pagamento" }: { kind?: "pagamento" | "despesa" }) {
+  const despesa = kind === "despesa";
+  const titulo = despesa ? "Despesa de frete" : "Pagamento de fretes";
+  const notasTitulo = despesa ? "Notas de despesa de frete" : "Notas de pagamento de frete";
+  const cadastroTitulo = despesa ? "Cadastro de despesa de frete" : "Cadastro de pagamento de frete";
+  const gerarLabel = despesa ? "Gerar PDF da despesa" : "Gerar PDF do pagamento";
+  const arquivo = despesa ? "despesa_frete_" : "pagamento_frete_";
+  const comprovante = despesa ? "Comprovante de despesa de frete" : "Comprovante de pagamento de frete";
   const live = useDb();
   const { perfil } = useSession();
   const pavilhoes = live.listPavilhoes();
   const fornecedores = live.listFornecedores();
-  const list = live.listFretes();
+  const list = live.listFretes(kind);
   const [form, setForm] = useState({ ...EMPTY, data_entrada: todayISO() });
   const [money, setMoney] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -61,6 +69,7 @@ function Fretes() {
   const [missing, setMissing] = useState<string[] | null>(null);
   const [pending, setPending] = useState<FretePagamento | null>(null);
   const [preview, setPreview] = useState<FretePagamento | null>(null);
+  const [notasOpen, setNotasOpen] = useState(false);
 
   function patch<K extends keyof typeof form>(key: K, value: (typeof form)[K]) {
     setForm((f) => ({ ...f, [key]: value }));
@@ -72,6 +81,8 @@ function Fretes() {
       forma_pagamento: v,
       pix_tipo: v === "PIX" ? f.pix_tipo || "" : "",
       pix_chave: v === "PIX" ? f.pix_chave || "" : "",
+      pix_favorecido: v === "PIX" ? f.pix_favorecido || "" : "",
+      pix_banco: v === "PIX" ? f.pix_banco || "" : "",
     }));
   }
 
@@ -84,11 +95,13 @@ function Fretes() {
   }
 
   function toDraft(): FretePagamento {
+    const typed = (form.numero_bilhete || "").trim();
+    const pix = form.forma_pagamento === "PIX";
     return {
       id: editingId || "draft",
-      numero: form.numero || "000000",
+      numero: editingId ? form.numero || "" : "",
       fornecedor: form.fornecedor,
-      numero_bilhete: form.numero_bilhete,
+      numero_bilhete: typed,
       valor: parseMoney(money) || Number(form.valor) || 0,
       data_entrada: form.data_entrada,
       pavilhao: form.pavilhao,
@@ -97,8 +110,10 @@ function Fretes() {
       cpf: form.cpf,
       assinatura_motorista: form.assinatura_motorista,
       forma_pagamento: form.forma_pagamento,
-      pix_tipo: form.forma_pagamento === "PIX" ? form.pix_tipo || "" : "",
-      pix_chave: form.forma_pagamento === "PIX" ? form.pix_chave || "" : "",
+      pix_tipo: pix ? form.pix_tipo || "" : "",
+      pix_chave: pix ? form.pix_chave || "" : "",
+      pix_favorecido: pix ? (form.pix_favorecido || "").trim() : "",
+      pix_banco: pix ? (form.pix_banco || "").trim() : "",
       rubrica: form.rubrica,
       data_autorizacao: form.data_autorizacao,
       observacoes: form.observacoes,
@@ -106,6 +121,7 @@ function Fretes() {
       created_at: new Date().toISOString(),
       created_by: perfil?.id,
       created_by_nome: perfil?.nome,
+      tipo: kind,
     };
   }
 
@@ -113,6 +129,7 @@ function Fretes() {
     const saved = db.saveFrete({
       id: editingId || undefined,
       fornecedor: draft.fornecedor,
+      numero: draft.numero,
       numero_bilhete: draft.numero_bilhete,
       valor: draft.valor,
       data_entrada: draft.data_entrada,
@@ -124,12 +141,15 @@ function Fretes() {
       forma_pagamento: draft.forma_pagamento,
       pix_tipo: draft.pix_tipo,
       pix_chave: draft.pix_chave,
+      pix_favorecido: draft.pix_favorecido,
+      pix_banco: draft.pix_banco,
       rubrica: draft.rubrica,
       data_autorizacao: draft.data_autorizacao,
       observacoes: draft.observacoes,
       status: "gerado",
       created_by: perfil?.id,
       created_by_nome: perfil?.nome,
+      tipo: kind,
     });
     setEditingId(saved.id);
     setForm({ ...saved });
@@ -153,8 +173,22 @@ function Fretes() {
     setEditingId(row.id);
     setForm({ ...row });
     setMoney(row.valor ? formatBRL(row.valor) : "");
-    window.scrollTo({ top: 0, behavior: "smooth" });
+    setNotasOpen(true);
+    document.getElementById("cadastro-frete")?.scrollIntoView({ behavior: "smooth", block: "start" });
   }
+
+  useEffect(() => {
+    function onFrete(e: Event) {
+      const detail = (e as CustomEvent<{ action?: string; id?: string }>).detail;
+      if (!detail?.id) return;
+      const row = live.listFretes(kind).find((f) => f.id === detail.id);
+      if (!row) return;
+      if (detail.action === "pdf") setPreview(row);
+      else loadRow(row);
+    }
+    window.addEventListener("jg-frete", onFrete);
+    return () => window.removeEventListener("jg-frete", onFrete);
+  });
 
   function novo() {
     setEditingId(null);
@@ -174,32 +208,153 @@ function Fretes() {
     if (statusF !== "todos" && f.status !== statusF) return false;
     const term = fold(q.trim());
     if (!term) return true;
-    return [f.fornecedor, f.numero, f.numero_bilhete, f.motorista, f.placa, f.pavilhao, f.forma_pagamento, f.pix_chave].some((x) => fold(x || "").includes(term));
+    return [f.fornecedor, f.numero, f.numero_bilhete, f.motorista, f.placa, f.pavilhao, f.forma_pagamento, f.pix_chave, f.pix_favorecido, f.pix_banco].some((x) => fold(x || "").includes(term));
   });
 
   const fornHits = form.fornecedor.trim()
     ? fornecedores.filter((x) => fold(x.nome).includes(fold(form.fornecedor))).slice(0, 6)
     : fornecedores.slice(0, 6);
 
+  const draft = toDraft();
+  const liveHtml = buildFreteHtml(draft, undefined, { live: true });
+  const docNo = draft.numero || "rascunho";
+
   return (
     <PageStage className="space-y-4">
       <PageHeader
-        icon="truck"
-        title="Pagamento de fretes"
-        description="Preenche, assina e gera o comprovante. O que ficar em branco não entra no PDF."
+        clip={despesa ? "/lottie/moeda.json" : "/lottie/caminhao.json"}
+        title={titulo}
+        description="Preencha o cadastro. A nota ao lado atualiza na hora, do jeito que sai no PDF."
       >
         <Button variant="outline" onClick={novo}>
           <Plus /> Novo cadastro
         </Button>
       </PageHeader>
 
+      <section className="rounded-xl border border-border bg-card shadow-card">
+        <button
+          type="button"
+          onClick={() => setNotasOpen((v) => !v)}
+          className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left"
+          aria-expanded={notasOpen}
+        >
+          <span>
+            <span className="block text-sm font-semibold">{notasTitulo}</span>
+            <span className="text-[11px] text-muted-foreground">{list.length} {list.length === 1 ? "nota" : "notas"}</span>
+          </span>
+          <span className="inline-flex items-center gap-1 text-xs font-medium text-muted-foreground">
+            {notasOpen ? "Recolher" : "Expandir"}
+            <ChevronDown className={cn("h-4 w-4 transition-transform", notasOpen && "rotate-180")} />
+          </span>
+        </button>
+        {notasOpen ? (
+          <div className="border-t border-border px-3 pb-3 pt-2">
+            <div className="grid gap-1.5 lg:grid-cols-[minmax(0,1.5fr)_9rem_9rem_12rem]">
+              <div className="relative">
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+                <Input className="h-8 pl-8 text-sm" placeholder="Buscar fornecedor, bilhete, motorista ou placa" value={q} onChange={(e) => setQ(e.target.value)} />
+              </div>
+              <Input className="h-8 text-sm" type="date" value={from} onChange={(e) => setFrom(e.target.value)} aria-label="De" />
+              <Input className="h-8 text-sm" type="date" value={to} onChange={(e) => setTo(e.target.value)} aria-label="Até" />
+              <Select value={motoristaF} onValueChange={setMotoristaF}>
+                <SelectTrigger className="h-8 text-sm">
+                  <SelectValue placeholder="Motorista" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="todos">Todos os motoristas</SelectItem>
+                  {motoristas.map((m) => (
+                    <SelectItem key={m} value={m}>
+                      {m}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="mt-1.5 flex flex-wrap gap-1.5">
+              {(["todos", "gerado", "rascunho"] as const).map((s) => (
+                <button
+                  key={s}
+                  type="button"
+                  onClick={() => setStatusF(s)}
+                  className={cn(
+                    "h-7 rounded-full border px-2.5 text-[11px] font-medium",
+                    statusF === s ? "border-primary bg-primary text-primary-foreground" : "border-border bg-background text-muted-foreground",
+                  )}
+                >
+                  {s === "todos" ? "Todos" : s === "gerado" ? "Gerado" : "Rascunho"}
+                </button>
+              ))}
+            </div>
+            {filtered.length === 0 ? (
+              <p className="mt-2 text-sm text-muted-foreground">Nenhuma nota neste filtro.</p>
+            ) : (
+              <div className="mt-2 max-h-52 overflow-auto rounded-lg border border-border">
+                <table className="w-full min-w-[720px] text-left text-sm">
+                  <thead className="sticky top-0 border-b border-border bg-card text-[11px] uppercase tracking-wide text-muted-foreground">
+                    <tr>
+                      <th className="px-2 py-1.5 font-semibold">Data</th>
+                      <th className="px-2 py-1.5 font-semibold">Fornecedor</th>
+                      <th className="px-2 py-1.5 font-semibold">Bilhete</th>
+                      <th className="px-2 py-1.5 font-semibold">Valor</th>
+                      <th className="px-2 py-1.5 font-semibold">Motorista</th>
+                      <th className="px-2 py-1.5 font-semibold">Status</th>
+                      <th className="px-2 py-1.5 text-right font-semibold">Nota</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border">
+                    {filtered.map((f) => (
+                      <tr key={f.id} data-ctx="frete" data-id={f.id} data-nome={f.fornecedor} data-extra={f.numero_bilhete || ""} className="hover:bg-muted/40">
+                        <td className="whitespace-nowrap px-2 py-1.5 tabular-nums text-muted-foreground">
+                          {f.data_entrada ? formatDateBR(f.data_entrada) : formatDateBR(f.created_at.slice(0, 10))}
+                        </td>
+                        <td className="max-w-[220px] truncate px-2 py-1.5 font-medium">{f.fornecedor || "Sem fornecedor"}</td>
+                        <td className="px-2 py-1.5 font-mono text-xs">{f.numero_bilhete?.trim() || ""}</td>
+                        <td className="whitespace-nowrap px-2 py-1.5 font-semibold tabular-nums">{f.valor ? formatBRL(f.valor) : "—"}</td>
+                        <td className="max-w-[160px] truncate px-2 py-1.5">{f.motorista || "—"}</td>
+                        <td className="px-2 py-1.5">
+                          <span className={cn("inline-flex rounded-full px-2 py-0.5 text-[11px] font-semibold", f.status === "gerado" ? "bg-primary/15 text-primary" : "bg-gold/20 text-gold-ink")}>
+                            {f.status === "gerado" ? "Gerado" : "Rascunho"}
+                          </span>
+                        </td>
+                        <td className="px-2 py-1.5">
+                          <div className="flex justify-end gap-1">
+                            <Button variant="outline" size="sm" onClick={() => loadRow(f)}>
+                              Abrir
+                            </Button>
+                            <Button variant="outline" size="sm" onClick={() => setPreview(f)}>
+                              PDF
+                            </Button>
+                            <Button variant="ghost" size="sm" onClick={() => setPending(f)}>
+                              Excluir
+                            </Button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        ) : null}
+      </section>
+
+      <div id="cadastro-frete" className="grid items-start gap-4 xl:grid-cols-[minmax(0,1.05fr)_minmax(340px,0.95fr)]">
       <SpotlightCard className="p-4 sm:p-5">
-        <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Cadastro de pagamento de frete</p>
-        <p className="mt-1 text-sm">{editingId ? `Editando o comprovante nº ${form.numero || "—"}` : "Novo comprovante"}</p>
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{cadastroTitulo}</p>
+            <p className="mt-1 text-sm font-medium">{editingId ? `Editando o comprovante nº ${form.numero || "—"}` : "Novo comprovante"}</p>
+          </div>
+          <span className="rounded-full bg-primary/15 px-2.5 py-1 text-[11px] font-semibold text-primary">Ao vivo</span>
+        </div>
 
         <div className="mt-4 space-y-6">
           <fieldset className="space-y-3">
-            <legend className="text-sm font-semibold">Dados do frete</legend>
+            <legend className="mb-1 flex items-center gap-2 text-sm font-semibold">
+              <span className="flex h-6 w-6 items-center justify-center rounded-md bg-primary text-[11px] font-bold text-primary-foreground">1</span>
+              Dados do frete
+            </legend>
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="space-y-1.5 sm:col-span-2">
                 <Label htmlFor="fr-forn">Nome do fornecedor</Label>
@@ -221,7 +376,7 @@ function Fretes() {
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="fr-bil">Número do bilhete</Label>
-                <Input id="fr-bil" inputMode="numeric" value={form.numero_bilhete} onChange={(e) => patch("numero_bilhete", e.target.value.replace(/\D/g, "").slice(0, 12))} placeholder="000123" />
+                <Input id="fr-bil" inputMode="numeric" value={form.numero_bilhete} onChange={(e) => patch("numero_bilhete", e.target.value.replace(/\D/g, "").slice(0, 12))} placeholder="Opcional" />
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="fr-val">Valor do frete</Label>
@@ -259,7 +414,10 @@ function Fretes() {
           </fieldset>
 
           <fieldset className="space-y-3">
-            <legend className="text-sm font-semibold">Dados do veículo e motorista</legend>
+            <legend className="mb-1 flex items-center gap-2 text-sm font-semibold">
+              <span className="flex h-6 w-6 items-center justify-center rounded-md bg-primary text-[11px] font-bold text-primary-foreground">2</span>
+              Dados do veículo e motorista
+            </legend>
             <div className="grid gap-3 sm:grid-cols-3">
               <div className="space-y-1.5">
                 <Label htmlFor="fr-placa">Placa do veículo</Label>
@@ -275,15 +433,18 @@ function Fretes() {
               </div>
             </div>
             <SignaturePad
-              label="Assinatura do motorista"
-              hint="Assine com o mouse ou o dedo. Entra no PDF."
+              label="Assinatura do motorista na tela"
+              hint="Opcional. A nota impressa já sai com a linha Assinatura do motorista para caneta."
               value={form.assinatura_motorista}
               onChange={(v) => patch("assinatura_motorista", v)}
             />
           </fieldset>
 
           <fieldset className="space-y-3">
-            <legend className="text-sm font-semibold">Pagamento</legend>
+            <legend className="mb-1 flex items-center gap-2 text-sm font-semibold">
+              <span className="flex h-6 w-6 items-center justify-center rounded-md bg-primary text-[11px] font-bold text-primary-foreground">3</span>
+              Pagamento
+            </legend>
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="space-y-1.5">
                 <Label>Forma de pagamento</Label>
@@ -302,9 +463,9 @@ function Fretes() {
                 </Select>
               </div>
               {form.forma_pagamento === "PIX" ? (
-                <div className="rounded-2xl border border-primary/30 bg-mint/40 p-3">
+                <div className="rounded-2xl border border-primary/30 bg-mint/40 p-3 sm:col-span-2">
                   <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Qual PIX?</p>
-                  <p className="mt-0.5 text-xs text-muted-foreground">Escolha o tipo da chave e depois informe o número ou o código.</p>
+                  <p className="mt-0.5 text-xs text-muted-foreground">Escolha o tipo da chave e informe quem recebe.</p>
                   <div className="mt-2 flex flex-wrap gap-1.5">
                     {PIX_TIPOS.map((t) => {
                       const on = form.pix_tipo === t.id;
@@ -348,23 +509,32 @@ function Fretes() {
                       />
                     </div>
                   ) : null}
+                  <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                    <div className="space-y-1.5">
+                      <Label htmlFor="fr-pix-nome">Nome do favorecido</Label>
+                      <Input
+                        id="fr-pix-nome"
+                        value={form.pix_favorecido || ""}
+                        onChange={(e) => patch("pix_favorecido", e.target.value)}
+                        placeholder="João da Silva"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="fr-pix-banco">Banco / Instituição</Label>
+                      <Input
+                        id="fr-pix-banco"
+                        value={form.pix_banco || ""}
+                        onChange={(e) => patch("pix_banco", e.target.value)}
+                        placeholder="Nubank"
+                      />
+                    </div>
+                  </div>
                 </div>
-              ) : (
-                <div className="space-y-1.5">
-                  <Label htmlFor="fr-aut">Data da autorização</Label>
-                  <Input id="fr-aut" type="date" value={form.data_autorizacao} onChange={(e) => patch("data_autorizacao", e.target.value)} />
-                </div>
-              )}
+              ) : null}
             </div>
-            {form.forma_pagamento === "PIX" ? (
-              <div className="space-y-1.5">
-                <Label htmlFor="fr-aut">Data da autorização</Label>
-                <Input id="fr-aut" type="date" value={form.data_autorizacao} onChange={(e) => patch("data_autorizacao", e.target.value)} />
-              </div>
-            ) : null}
             <SignaturePad
-              label="Autorização para pagamento (rubrica)"
-              hint="Rubrica do responsável interno."
+              label="Autorização na tela"
+              hint="Opcional. A nota impressa já sai com a linha Autorização de Pagamento para caneta."
               value={form.rubrica}
               onChange={(v) => patch("rubrica", v)}
             />
@@ -382,95 +552,61 @@ function Fretes() {
             />
           </div>
 
-          <ActionButton className="h-12 w-full" idleLabel="Gerar PDF do pagamento" pendingLabel="Montando PDF" doneLabel="PDF pronto" onAction={gerar}>
-            <FileText /> Gerar PDF do pagamento
-          </ActionButton>
+          <div className="flex flex-wrap items-center gap-2 border-t border-border pt-4">
+            <Button type="button" variant="outline" onClick={novo}>
+              Limpar formulário
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              className="ml-auto"
+              onClick={() => {
+                const gaps = missingFreteFields(draft);
+                if (!gaps.length) {
+                  notify.success("Informações completas. A nota ao lado já está pronta.");
+                  return;
+                }
+                setMissing(gaps);
+              }}
+            >
+              Verificar informações
+            </Button>
+            <ActionButton className="h-11" idleLabel={gerarLabel} pendingLabel="Montando PDF" doneLabel="PDF pronto" onAction={gerar}>
+              <FileText /> Gerar PDF
+            </ActionButton>
+          </div>
         </div>
       </SpotlightCard>
 
-      <section className="space-y-3">
-        <div>
-          <h2 className="text-sm font-semibold">Histórico de pagamentos de fretes</h2>
-          <p className="text-xs text-muted-foreground">Filtro por fornecedor, período, motorista, bilhete e status.</p>
-        </div>
-        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
-          <div className="relative sm:col-span-2">
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input className="pl-10" placeholder="Fornecedor, bilhete, motorista…" value={q} onChange={(e) => setQ(e.target.value)} />
-          </div>
-          <Input type="date" value={from} onChange={(e) => setFrom(e.target.value)} aria-label="De" />
-          <Input type="date" value={to} onChange={(e) => setTo(e.target.value)} aria-label="Até" />
-          <Select value={motoristaF} onValueChange={setMotoristaF}>
-            <SelectTrigger>
-              <SelectValue placeholder="Motorista" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="todos">Todos os motoristas</SelectItem>
-              {motoristas.map((m) => (
-                <SelectItem key={m} value={m}>
-                  {m}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="flex gap-2">
-          {(["todos", "gerado", "rascunho"] as const).map((s) => (
-            <button
-              key={s}
+      <aside className="xl:sticky xl:top-4">
+        <div className="overflow-hidden rounded-2xl border border-border bg-card shadow-card">
+          <div className="flex items-center justify-between gap-2 border-b border-border bg-forest px-3 py-2 text-primary-foreground">
+            <p className="truncate font-mono text-[11px] font-medium">{arquivo}{docNo}.pdf</p>
+            <Button
               type="button"
-              onClick={() => setStatusF(s)}
-              className={cn(
-                "h-9 rounded-full border px-3 text-xs font-medium",
-                statusF === s ? "border-primary bg-primary text-primary-foreground" : "border-border bg-card",
-              )}
+              size="sm"
+              variant="outline"
+              className="h-8 shrink-0 border-white/25 bg-white text-forest hover:bg-white/90"
+              onClick={() => exportFretePdf(draft)}
             >
-              {s === "todos" ? "Todos" : s === "gerado" ? "Gerado" : "Rascunho"}
-            </button>
-          ))}
+              <FileText /> Imprimir
+            </Button>
+          </div>
+          <iframe
+            title="Nota do comprovante em tempo real"
+            srcDoc={liveHtml}
+            className="h-[min(78vh,920px)] w-full bg-white"
+          />
         </div>
-
-        {filtered.length === 0 ? (
-          <EmptyState icon={Truck} title="Nenhum frete neste filtro" description="Preencha o cadastro e gere o PDF para aparecer aqui." />
-        ) : (
-          <ul className="divide-y divide-border overflow-hidden rounded-2xl border border-border bg-card">
-            {filtered.map((f) => (
-              <li key={f.id} className="flex flex-wrap items-center gap-3 px-4 py-3">
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-medium">{f.fornecedor || "Sem fornecedor"} · nº {f.numero}</p>
-                  <p className="truncate text-[11px] text-muted-foreground">
-                    {f.data_entrada ? formatDateBR(f.data_entrada) : formatDateBR(f.created_at.slice(0, 10))}
-                    {f.numero_bilhete ? ` · bilhete ${f.numero_bilhete}` : ""}
-                    {f.motorista ? ` · ${f.motorista}` : ""}
-                    {f.pavilhao ? ` · ${f.pavilhao}` : ""}
-                    {f.forma_pagamento ? ` · ${f.forma_pagamento}` : ""}
-                    {f.forma_pagamento === "PIX" && f.pix_tipo ? ` ${pixTipoLabel(f.pix_tipo)}` : ""}
-                    {f.forma_pagamento === "PIX" && f.pix_chave ? ` ${f.pix_chave}` : ""}
-                  </p>
-                </div>
-                <p className="text-sm font-semibold tabular-nums">{f.valor ? formatBRL(f.valor) : "—"}</p>
-                <div className="flex gap-1">
-                  <Button variant="outline" size="sm" onClick={() => loadRow(f)}>
-                    Abrir
-                  </Button>
-                  <Button variant="outline" size="sm" onClick={() => setPreview(f)}>
-                    PDF
-                  </Button>
-                  <Button variant="ghost" size="sm" onClick={() => setPending(f)}>
-                    Excluir
-                  </Button>
-                </div>
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
+        <p className="mt-2 text-center text-[11px] text-muted-foreground">A nota sai com linha de caneta para Assinatura do motorista e Autorização de Pagamento.</p>
+      </aside>
+      </div>
 
       <Dialog open={!!missing} onOpenChange={(o) => !o && setMissing(null)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Faltam informações</DialogTitle>
-            <DialogDescription>Esses campos estão vazios. Pode voltar a preencher ou gerar o PDF sem eles.</DialogDescription>
+            <DialogTitle>Atenção</DialogTitle>
+            <DialogDescription>Existem campos que não foram preenchidos. Deseja gerar o PDF mesmo assim?</DialogDescription>
           </DialogHeader>
           <ul className="list-disc space-y-1 pl-5 text-sm">
             {(missing || []).map((x) => (
@@ -497,7 +633,7 @@ function Fretes() {
       <Dialog open={!!preview} onOpenChange={(o) => !o && setPreview(null)}>
         <DialogContent className="max-w-[min(52rem,96vw)] max-h-[min(94dvh,56rem)] p-3 sm:p-4">
           <DialogHeader>
-            <DialogTitle>Comprovante de pagamento de frete</DialogTitle>
+            <DialogTitle>{comprovante}</DialogTitle>
             <DialogDescription>Campos em branco não entram na nota. Imprima ou salve como PDF.</DialogDescription>
           </DialogHeader>
           {preview ? (
@@ -537,4 +673,8 @@ function Fretes() {
       />
     </PageStage>
   );
+}
+
+function Fretes() {
+  return <FretePage kind="pagamento" />;
 }

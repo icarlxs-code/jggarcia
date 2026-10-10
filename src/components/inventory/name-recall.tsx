@@ -1,7 +1,7 @@
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { fold } from "@/lib/utils";
-import { cn } from "@/lib/utils";
+import { cn, fold } from "@/lib/utils";
+import { enterNext } from "@/lib/field-flow";
 
 export function NameRecall({
   id,
@@ -12,6 +12,7 @@ export function NameRecall({
   placeholder,
   hint,
   required = false,
+  flowStep,
 }: {
   id: string;
   label: string;
@@ -21,6 +22,7 @@ export function NameRecall({
   placeholder?: string;
   hint?: string;
   required?: boolean;
+  flowStep?: number;
 }) {
   const term = fold(value.trim());
   const chips = (term ? names.filter((n) => fold(n).includes(term)) : names).slice(0, 12);
@@ -39,7 +41,10 @@ export function NameRecall({
               <button
                 key={n}
                 type="button"
-                onClick={() => onChange(n)}
+                onClick={(e) => {
+                  onChange(n);
+                  if (e.detail === 0) document.getElementById(id)?.focus();
+                }}
                 className={cn(
                   "inline-flex min-h-9 items-center rounded-full border px-3 text-sm font-medium",
                   on ? "border-primary bg-primary text-primary-foreground" : "border-border bg-card hover:bg-muted",
@@ -63,7 +68,9 @@ export function NameRecall({
         spellCheck={false}
         data-lpignore="true"
         data-1p-ignore="true"
+        data-step={flowStep}
         className="h-12"
+        onKeyDown={(e) => enterNext(e)}
       />
       {hint ? <p className="text-xs text-muted-foreground">{hint}</p> : null}
     </div>

@@ -13,20 +13,22 @@ import {
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip as ChartTooltip, XAxis, YAxis } from "recharts";
 import { loteStatus, stockAlert } from "@/lib/store";
 import { useDb } from "@/lib/use-db";
-import { formatNumber, formatTime, pad2, todayISO } from "@/lib/format";
+import { formatNumber, formatTime, isoDaysAgo, pad2, todayISO } from "@/lib/format";
 import { useSession } from "@/lib/session";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PageHeader } from "@/components/page-header";
 import { PageStage } from "@/components/motion/page-stage";
-import { OrbitField } from "@/components/motion/orbit-field";
+import { ViewSwitch, useChartView } from "@/components/analytics/view-switch";
+import { ScreenCharts } from "@/components/analytics/screen-charts";
+import { usePrefersReducedMotion } from "@/lib/motion";
 import { CountUp } from "@/components/motion/count-up";
+import { LottieClip } from "@/components/motion/lottie-clip";
 import { SpotlightCard } from "@/components/motion/spotlight-card";
 import { ProductLabel } from "@/components/inventory/product-icon";
 import { StockBadge } from "@/components/inventory/stock-badge";
-import { PavMark } from "@/components/inventory/pav-mark";
-import { destinoDaSaida, lugarDaSaida, pavTitle } from "@/lib/catalog";
+import { destinoDaSaida, lugarDaSaida } from "@/lib/catalog";
 import { tipoMovimentacaoOf } from "@/lib/movement";
 import { MovementDetail } from "@/components/inventory/movement-detail";
 import type { Saida } from "@/lib/types";
@@ -71,6 +73,8 @@ function greeting() {
 function Dashboard() {
   const db = useDb();
   const { isAdmin } = useSession();
+  const lite = usePrefersReducedMotion();
+  const { vista } = useChartView("inicio");
   const [view, setView] = useState<Saida | null>(null);
   const produtos = db.listMercadorias();
   const lotes = db.listLotes();
@@ -116,14 +120,14 @@ function Dashboard() {
   }, [produtos, lotes, movs]);
 
   return (
-    <PageStage className="space-y-6">
-      <div className="relative">
-        <OrbitField names={produtos.map((p) => p.nome)} />
-        <PageHeader
-          icon="home"
+    <PageStage className="space-y-6" data-vista={vista}>
+      <PageHeader
+          clip="/lottie/galpao.json"
+          clipClassName="lottie-clip h-14 w-24 shrink-0"
           title={`${greeting()}.`}
           description={isAdmin ? "Tudo que a equipe lança aparece aqui na hora." : "Estoque, entradas e expedição da JG Garcia no CEASA RJ."}
         >
+        <ViewSwitch page="inicio" />
         <Button asChild variant="outline">
           <Link to="/contagem">
             <ClipboardCheck /> Contagem
@@ -140,7 +144,6 @@ function Dashboard() {
           </Link>
         </Button>
       </PageHeader>
-      </div>
 
       {empty ? (
         <div className="grid gap-3 md:grid-cols-3">
@@ -172,48 +175,34 @@ function Dashboard() {
       ) : null}
 
       <div className="grid grid-cols-2 gap-3 xl:grid-cols-5">
-        <Kpi label="SKUs ativos" value={produtos.filter((p) => p.status).length} hint="Produtos cadastrados" icon={Boxes} />
-        <Kpi label="Estoque total" mix={stats.estoqueMix} hint="Somado por caixa, saco, unidade, kg…" icon={Warehouse} />
-        <Kpi label="Entradas hoje" mix={stats.inMix} hint={`${stats.entradasN} lançamentos`} icon={ArrowDownToLine} />
-        <Kpi label="Saídas hoje" mix={stats.outMix} hint={`${stats.saidasN} lançamentos`} icon={ArrowUpFromLine} />
-        <Kpi label="Crítico / zerado" value={stats.criticos + stats.zerados} hint={`${stats.aVencer} lotes em risco`} icon={AlertTriangle} warn={stats.criticos + stats.zerados + stats.aVencer > 0} />
+        <Kpi ctx="skus" label="SKUs ativos" value={produtos.filter((p) => p.status).length} hint="Produtos cadastrados" icon={Boxes} />
+        <Kpi ctx="estoque" label="Estoque total" mix={stats.estoqueMix} hint="Somado por caixa, saco, unidade, kg…" icon={Warehouse} />
+        <Kpi ctx="entradas" label="Entradas hoje" mix={stats.inMix} hint={`${stats.entradasN} lançamentos`} icon={ArrowDownToLine} />
+        <Kpi ctx="saidas" label="Saídas hoje" mix={stats.outMix} hint={`${stats.saidasN} lançamentos`} icon={ArrowUpFromLine} />
+        <Kpi ctx="critico" label="Crítico / zerado" value={stats.criticos + stats.zerados} hint={`${stats.aVencer} lotes em risco`} icon={AlertTriangle} warn={stats.criticos + stats.zerados + stats.aVencer > 0} />
       </div>
 
-      {pavilhoes.length ? (
-        <div className="grid grid-cols-2 gap-3 lg:grid-cols-3 xl:grid-cols-5">
-          {pavilhoes.map((p) => {
-            const comSaldo = produtos.filter((m) => db.stockAt(m.id, p.id) > 0);
-            return (
-              <Link key={p.id} to="/contagem" search={{ pav: p.id }} className="block">
-                <Card className="h-full transition-colors hover:bg-muted/40">
-                  <CardContent className="flex items-center gap-3 pt-4">
-                    <PavMark p={p} size="md" />
-                    <div className="min-w-0">
-                      <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                        {pavTitle(p)}
-                      </p>
-                      <p className="mt-1 text-2xl font-semibold tabular-nums">{formatNumber(comSaldo.length)}</p>
-                      <p className="text-xs text-muted-foreground">produtos com saldo · contar</p>
-                    </div>
-                  </CardContent>
-                </Card>
-              </Link>
-            );
-          })}
-        </div>
+      {vista !== "lista" ? (
+        <ScreenCharts
+          screen="inicio"
+          movs={movs.filter((m) => m.data >= isoDaysAgo(6))}
+          produtos={produtos.filter((p) => p.status)}
+          pavilhoes={pavilhoes}
+          periodLabel="Últimos 7 dias para o movimento · posição atual do estoque"
+        />
       ) : null}
 
-      <div className="grid gap-4 xl:grid-cols-3">
-        <Card className="xl:col-span-2">
-          <CardHeader className="flex-row items-center justify-between">
+      <div className="jg-lista grid items-start gap-4 xl:grid-cols-3">
+        <Card data-ctx="kpi" data-id="grafico" data-nome="Movimentação · 7 dias" className="xl:col-span-2">
+          <CardHeader className="flex-row items-center justify-between px-4 py-3">
             <CardTitle>Movimentação · 7 dias</CardTitle>
             <div className="flex gap-3 text-xs text-muted-foreground">
               <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-sm bg-primary" /> Entradas</span>
               <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-sm bg-gold" /> Saídas</span>
             </div>
           </CardHeader>
-          <CardContent>
-            <div className="h-36">
+          <CardContent className="px-4 pb-3">
+            <div className="h-28">
               {movs.length === 0 ? (
                 <p className="flex h-full items-center justify-center text-sm text-muted-foreground">Sem movimentação ainda.</p>
               ) : (
@@ -241,8 +230,8 @@ function Dashboard() {
                         fontSize: 12,
                       }}
                     />
-                    <Bar dataKey="entradas" name="Entradas" fill="url(#dashIn)" radius={[8, 8, 2, 2]} maxBarSize={28} />
-                    <Bar dataKey="saidas" name="Saídas" fill="url(#dashOut)" radius={[8, 8, 2, 2]} maxBarSize={28} />
+                    <Bar dataKey="entradas" name="Entradas" fill="url(#dashIn)" radius={[8, 8, 2, 2]} maxBarSize={28} isAnimationActive={!lite} />
+                    <Bar dataKey="saidas" name="Saídas" fill="url(#dashOut)" radius={[8, 8, 2, 2]} maxBarSize={28} isAnimationActive={!lite} />
                   </BarChart>
                 </ResponsiveContainer>
               )}
@@ -357,6 +346,7 @@ function StartCard({
 }
 
 function Kpi({
+  ctx,
   label,
   value,
   suffix = "",
@@ -365,6 +355,7 @@ function Kpi({
   icon: Icon,
   warn,
 }: {
+  ctx: string;
   label: string;
   value?: number;
   suffix?: string;
@@ -374,10 +365,26 @@ function Kpi({
   warn?: boolean;
 }) {
   return (
-    <SpotlightCard className="p-4">
+    <SpotlightCard data-ctx="kpi" data-id={ctx} data-nome={label} className="p-4">
       <div className="flex items-start justify-between gap-2">
-        <span className="text-xs font-medium text-muted-foreground">{label}</span>
-        <Icon className={warn ? "h-4 w-4 text-destructive" : "h-4 w-4 text-muted-foreground"} />
+        <span className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+          <Icon className={warn ? "h-4 w-4 text-destructive" : "h-4 w-4 text-muted-foreground"} />
+          {label}
+        </span>
+        {ctx === "critico" ? null : (
+          <LottieClip
+            src={
+              ctx === "saidas"
+                ? "/lottie/caminhao.json"
+                : ctx === "entradas"
+                  ? "/lottie/caixa.json"
+                  : ctx === "estoque"
+                    ? "/lottie/galpao.json"
+                    : "/lottie/caixa.json"
+            }
+            className="lottie-clip h-10 w-14 shrink-0"
+          />
+        )}
       </div>
       {mix ? (
         <div className="mt-2 text-lg font-semibold leading-snug tracking-tight">{mix}</div>

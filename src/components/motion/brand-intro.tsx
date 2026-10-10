@@ -46,10 +46,13 @@ export function BrandIntro({ onFadeStart, onDone }: { onFadeStart: () => void; o
   }
 
   useEffect(() => {
-    if (typeof document !== "undefined" && document.documentElement.classList.contains("is-phone")) {
-      fadeRef.current();
-      doneRef.current();
-      return;
+    if (typeof document !== "undefined") {
+      const root = document.documentElement;
+      if (root.classList.contains("is-lite")) {
+        fadeRef.current();
+        doneRef.current();
+        return;
+      }
     }
     const box = host.current;
     const v = videoEl();

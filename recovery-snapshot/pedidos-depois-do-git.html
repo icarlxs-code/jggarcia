@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8" />
+<title>JG Garcia — Pedidos após a última subida no Git</title>
+<style>
+  @page { size: A4; margin: 16mm 14mm 18mm; }
+  * { box-sizing: border-box; }
+  body { margin: 0; color: #163028; font: 11pt/1.45 "Segoe UI", Helvetica, Arial, sans-serif; }
+  h1 { font-size: 20pt; line-height: 1.2; margin: 0 0 4px; }
+  h2 { font-size: 13pt; margin: 18px 0 6px; padding-top: 8px; border-top: 1.5px solid #1f6b45; page-break-after: avoid; }
+  h3 { font-size: 11pt; margin: 12px 0 4px; page-break-after: avoid; }
+  p { margin: 0 0 8px; }
+  .meta { color: #3d5c4e; font-size: 10pt; margin-bottom: 12px; }
+  .note { background: #f3f7f4; border: 1px solid #d5e3da; border-radius: 8px; padding: 8px 10px; margin: 8px 0 14px; }
+  ol { margin: 4px 0 8px; padding-left: 18px; }
+  li { margin: 0 0 5px; page-break-inside: avoid; }
+  table { width: 100%; border-collapse: collapse; margin: 8px 0 12px; font-size: 10pt; }
+  th, td { border: 1px solid #d5e3da; padding: 5px 7px; text-align: left; vertical-align: top; }
+  th { background: #e7f2eb; }
+  .small { font-size: 9.5pt; color: #3d5c4e; }
+</style>
+</head>
+<body>
+  <h1>JG Garcia</h1>
+  <p class="meta">Pedidos feitos depois da última subida no Git<br>Commit beabf1e · 22 de setembro de 2026 · 16:56, horário de Brasília<br>Documento organizado em 24 de setembro de 2026</p>
+  <div class="note">
+    Este documento lista o que foi pedido nesta conversa depois dessa subida. O código foi devolvido para esse commit. Os lançamentos da semana não fazem parte do Git: ficaram no banco e numa cópia em recovery-snapshot/banco-semana.json (132 produtos, 241 movimentações, 53 entradas, 136 contagens, 633 logs e 11 fretes).
+  </div>
+
+  <h2>1. Lugares de armazenagem</h2>
+  <ol>
+    <li>Na aba de pavilhões, permitir outros lugares além de galpão e pavilhão, com liberdade para escolher e editar o tipo. Lista pedida: Pavilhão, Galpão, Box, Carreta, Caminhão, Caminhão-baú, Caminhão refrigerado, Câmara fria, Câmara de congelados, Armazém, Depósito, Pedra, Doca, Baia, Contêiner, Área de carga, Área de descarga, Área de armazenagem, Área de expedição, Área de recebimento, Mezanino, Silo, Paleteira, Pallet, Estrado, Corredor, Prateleira, Estante, Porta-paletes, Câmara climatizada, Área refrigerada, Área coberta, Área descoberta, Pátio, Pátio de cargas, Pátio de estacionamento, Plataforma, Plataforma de carga, Plataforma de descarga, Depósito refrigerado, Depósito seco, Armazém refrigerado, Armazém climatizado, Galpão refrigerado, Galpão climatizado, Box refrigerado, Box de armazenamento, Loja, Loja-box, Módulo, Unidade de armazenamento, Área de transbordo, Área de triagem, Área de separação, Área de conferência, Área de picking, Área de estoque, Área de quarentena, Área de devolução, Área de mercadoria, Área de carga temporária, Estacionamento de carretas e Estacionamento de caminhões.</li>
+    <li>Subir foto do lugar. Se o arquivo for PNG, reconhecer fundo transparente.</li>
+    <li>Nome opcional: salvar mesmo com o nome em branco.</li>
+    <li>Poder excluir pavilhão, não só desativar ou cadastrar, e isso funcionar de verdade.</li>
+  </ol>
+
+  <h2>2. Produtos e fotos</h2>
+  <ol>
+    <li>Na edição do produto, poder trocar a foto. A foto original deve permanecer no banco.</li>
+    <li>Nas transições, produto em PNG com fundo transparente não pode aparecer preso numa moldura.</li>
+    <li>No modo lite, tirar as fotos dos produtos para o sistema ficar mais rápido, só nesse modo.</li>
+    <li>Pergunta de capacidade: com mais de 120 produtos com foto, quantos ainda cabem.</li>
+    <li>Por que as imagens sumiram na aba de saída de mercadoria.</li>
+  </ol>
+
+  <h2>3. Relatórios, visão geral e Hoje</h2>
+  <ol>
+    <li>Relatório em cards lado a lado, com miniatura de cada produto, em vez de lista uma embaixo da outra.</li>
+    <li>Melhorar uma visualização que estava difícil de entender.</li>
+    <li>Tirar as frutas flutuando na tela.</li>
+    <li>Tirar um bloco da visão geral.</li>
+    <li>Em Hoje, diminuir os cards de “produtos que mais saíram” para caberem vários lado a lado.</li>
+    <li>Organizar números que estavam soltos, deixando cada valor identificado.</li>
+  </ol>
+
+  <h2>4. Atalhos e navegação</h2>
+  <ol>
+    <li>Tirar a aba de atalhos da tela. Atalho só pelo Ctrl+K.</li>
+    <li>No seletor de produto, botão X para apagar a pesquisa.</li>
+    <li>Layout mais compacto: as barras estavam ocupando espaço demais.</li>
+    <li>Número do bilhete automático, aba recolhida, ocupando menos espaço. Depois: poder informar o número do bilhete manualmente.</li>
+  </ol>
+
+  <h2>5. Movimentações</h2>
+  <ol>
+    <li>Movimentações de hoje em cards 16:12, lado a lado, na ordem da movimentação, com busca pelo nome do produto.</li>
+    <li>Aproveitar as laterais: não uma embaixo da outra. Cards na ordem de saída. No celular, o melhor encaixe possível.</li>
+    <li>Diminuir a rolagem das movimentações de hoje e da aba de movimentação.</li>
+    <li>Cards no estilo de uma arte de referência enviada.</li>
+    <li>No estoque, mostrar primeiro os produtos que tiveram movimentação hoje. Sem movimento no dia, ordem alfabética. Ter a opção de ver todos. O filtro “hoje”, depois de “todos”, não pode voltar a listar tudo.</li>
+    <li>No card de estoque, trocar números soltos (exemplo: 23 128 - 74 100) por texto claro: pavilhão, quantidade e unidade.</li>
+    <li>Os saldos detalhados da contagem devem aparecer de forma organizada na aba de estoque.</li>
+  </ol>
+
+  <h2>6. Histórico, estoque e clientes</h2>
+  <ol>
+    <li>No histórico, no computador: incluir nova entrada à esquerda e histórico de entradas à direita. No celular, manter o melhor empilhamento.</li>
+    <li>Organizar a aba de estoque, que estava bagunçada.</li>
+    <li>Em clientes, quatro blocos lado a lado: quem mais retirou neste mês, quem mais retirou cada produto, produto que mais sai e produto que mais entra. A busca fica em cima, não embaixo.</li>
+    <li>Botão direito nesses blocos: PDF do que o pavilhão retirou no mês, quem retirou cada produto, e, em cada produto que mais sai, as pessoas que retiraram aquele produto.</li>
+  </ol>
+
+  <h2>7. Entrada, saída e destino</h2>
+  <ol>
+    <li>Na saída, descontar do estoque mesmo sem destino. Destino não é obrigatório. Não é “sair sem descontar”.</li>
+    <li>Essa opção de descontar ou não descontar deve ser opcional. A opção de não descontar pode voltar, mas lançar sem destino continua descontando e fica sem destino.</li>
+    <li>Transferir de um lugar para outro e marcar para não somar no destino. Exemplo: 100 caixas de uva do galpão 74 para o pavilhão 23. Desconta no 74, registra que foi para o 23, e não soma +100 no 23.</li>
+    <li>No botão direito de transferir, aparecer a caixa para digitar a quantidade.</li>
+    <li>Na tela de saídas, filtros combináveis: data inicial, data final, pavilhão ou galpão de origem, mercadoria, variedade, destino, cliente, bilhete e usuário. Totais automáticos de pallets, volumes por pallet e total. Agrupar por mercadoria e por pavilhão. Exportar PDF, Excel e imprimir. Limpar filtros. Não duplicar nem alterar saídas já lançadas.</li>
+    <li>Depois, só na área de filtros: mercadoria vira pesquisa por código ou nome, no formato “código — nome”, usando o cadastro. Remover os filtros Variedade e Bilhete. Manter data, origem, mercadoria, destino, cliente e usuário. Reorganizar o espaço. Não criar produto nessa tela.</li>
+    <li>Na tabela de saídas, remover as colunas Pallets e Por pallet. Incluir Horário de saída e Horário de chegada, no formato HH:MM. Sem chegada, mostrar “Aguardando chegada”. Registrar os dois horários na nova saída e permitir completar ou editar só a chegada depois. Ordem: Data, Origem, Mercadoria, Variedade, Horário de saída, Horário de chegada, Total, Destino, Cliente, Usuário.</li>
+    <li>Validar os horários.</li>
+  </ol>
+
+  <h2>8. Contagem e fechamento do dia</h2>
+  <ol>
+    <li>Na contagem, o seletor de produto mostra só o que teve entrada naquele pavilhão ou galpão, para não esquecer uma saída.</li>
+    <li>A lista da contagem mostra o que foi registrado hoje naquele lugar, não o histórico de todo o tempo.</li>
+    <li>No dia seguinte, mostrar o que foi contado ontem e o dia atual ainda sem contagem. Não marcar “bateu” ou “não bateu” se ninguém contou hoje.</li>
+    <li>O saldo de ontem continua visível hoje. Exemplo: 500 caixas de laranja ontem aparecem hoje, porque ainda estão lá. A diferença é que ainda não houve contagem de hoje.</li>
+    <li>Poder corrigir se bateu ou não.</li>
+    <li>Filtro de data na aba de contagem, de forma organizada.</li>
+    <li>O dia fecha com o dia. O relatório de um dia não muda quando o outro começa. O dia seguinte inicia com o saldo do último fechamento.</li>
+    <li>Abrir e fechar estoque. Se o fechamento de ontem estava errado, editar esse fechamento e o início de hoje acompanha. Botão de salvar e fechar estoque no topo. Dias anteriores também abrem e fecham.</li>
+    <li>Corrigir sobra e falta conforme o áudio enviado: a conta exibida não batia com a regra de operação.</li>
+  </ol>
+
+  <h2>9. Zerar estoque</h2>
+  <ol>
+    <li>Zerar por pavilhão, um de cada vez: 23, 44 ou 74. Confirmação com o nome do pavilhão. Sem opção de zerar todos. Sem pavilhão, a API não altera nada. Registrar data, hora, usuário, pavilhão, produtos e quantidade anterior.</li>
+    <li>Aviso antes de zerar e forma de recuperar se alguém fizer sem querer.</li>
+    <li>Zerar sozinho um lugar escolhido: todo dia depois da meia-noite, ou só nos dias selecionados.</li>
+  </ol>
+
+  <h2>10. Notificações</h2>
+  <ol>
+    <li>Alertar só quando algo realmente não bater, para lembrar de conferir. Se a pessoa dispensar, não enviar de novo. Sem alerta frequente.</li>
+  </ol>
+
+  <h2>11. Fretes</h2>
+  <ol>
+    <li>Design mais profissional. Ao montar o pagamento do frete, ver em tempo real como a nota está ficando.</li>
+    <li>Tirar “data de alteração” da aba de pagamentos de frete.</li>
+    <li>A busca do histórico de fretes fica em cima. Na nota, deixar linha para assinatura de caneta, não só escrita na tela: “Assinatura do motorista” e “Autorização de pagamento”.</li>
+    <li>No PDF completo do dia, não mostrar um bloco de informações que foi marcado na imagem enviada.</li>
+  </ol>
+
+  <h2>12. PDFs</h2>
+  <ol>
+    <li>PDF do produto, do lugar e das contagens precisam trazer os dados de verdade.</li>
+    <li>Os PDFs que saíam só com números soltos devem ficar organizados e detalhados. Revisar os outros PDFs com o mesmo problema.</li>
+  </ol>
+
+  <h2>13. Configurações, tema e modo lite</h2>
+  <ol>
+    <li>A aba de configurações estava vazia. Criar funções que funcionem, separadas por usuário e por função, sem uma conta alterar a outra.</li>
+    <li>Organizar configurações como sistema de empresa, não como tela improvisada. Memória acima de 1000 MB aparece em gigabyte.</li>
+    <li>A tela de memória não pode piscar. Se o número mudar, a barra e o número sobem ou descem animados. Detalhar, sem jogar tudo de cara: entradas, saídas e montagens ainda possíveis; produtos cadastrados e quantos ainda cabem; fotos cadastradas e quantas ainda cabem.</li>
+    <li>Botão “Sistema lite”, por perfil, para computador fraco: sem transição, sem fade, sem efeito de mouse, o mais seco possível. Ativar não mexe nos dados. No F5, não pode aparecer erro de transição.</li>
+    <li>Temas: dark full, white full, verde e branco, branco e verde, cerca de 10 temas e uma cor livre. Fundo claro com letra escura, fundo escuro com letra clara, sem contraste quebrado. A troca de cor deve ser fluida.</li>
+    <li>Mostrar na operação o que é importante de verdade, depois de analisar o sistema.</li>
+  </ol>
+
+  <h2>14. Botão direito</h2>
+  <ol>
+    <li>Menu contextual de verdade, no maior número de lugares possível. Não só abrir, editar e excluir.</li>
+    <li>Clicar com o direito num nome e alterar esse nome no sistema.</li>
+    <li>Camada operacional completa: a ação depende da tela, do registro, do ponto clicado, do status, do estoque, do pavilhão, do usuário e da permissão. Atalhos, submenu, confirmação, auditoria e desfazer quando existir. Cerca de 70% das ações sem sair da tela. Menu curto, com o resto em submenus. Excluir, cancelar e desativar sempre embaixo.</li>
+    <li>Cada item tem que levar ao lugar certo. Fixar e PDF do produto têm que funcionar. Cada aba só mostra ação que tem a ver com ela. Não abrir menu em área vazia.</li>
+  </ol>
+
+  <h2>15. Empilhadores</h2>
+  <ol>
+    <li>Módulo completo, em tempo real, com a mesma base da JG Garcia. Celular do empilhador e central administrativa. Informar nome, produto, quantidade, origem e destino. Iniciar transporte. A central vê na hora: tempo, localização, origem, destino, carga, quantidade, início e situação. Ao terminar: foto do último transporte, enviar e encerrar. Conta individual, histórico, PWA e log.</li>
+    <li>Unificar central e sessão de empilhadores. Ligar a carga a uma entrada ou saída já lançada. Editar a movimentação depois. Remover o celular usado para entrar. A foto aparece no próprio card.</li>
+    <li>Botão direito nesse módulo. Ao abrir, mostrar localização, foto e o que foi movido hoje, com opção de excluir.</li>
+    <li>Lista só da data selecionada, sem movimento de outro dia embaixo.</li>
+    <li>Explicação do registro mais completa, com datas.</li>
+    <li>Card minimalista e última localização visível.</li>
+    <li>Arrumar o celular: menos botão, menos falha, mais responsivo.</li>
+    <li>Excluir transporte de verdade. Não pode sumir e voltar.</li>
+  </ol>
+
+  <h2>16. Memória e continuidade dos dados</h2>
+  <ol>
+    <li>Como saber quanto de memória ainda há no banco.</li>
+    <li>Como aumentar o limite de 5 MB.</li>
+    <li>Se no futuro o sistema for vendido para outras empresas, com centenas de usuários, produtos e fotos, a memória enche? Dá para continuar cadastrando, dando entrada e saída, sem perder dado?</li>
+  </ol>
+
+  <h2>17. Assistente e animações</h2>
+  <ol>
+    <li>Um assistente dentro da plataforma, ligado ao banco, capaz de responder em tempo real. Exemplo: quantos produtos foram cadastrados hoje. Depois: responder qualquer pergunta, não só consultas limitadas.</li>
+    <li>Animações de nível alto ao clicar, voltar, expandir, recolher, cadastrar, contar, excluir, salvar e trocar de tema, sem perder a cara de sistema de empresa.</li>
+  </ol>
+
+  <h2>18. Login, celular e pedido de retorno</h2>
+  <ol>
+    <li>O login deixou de entrar. No telefone, a tela vinha como computador, no escuro, com botões sem função, IP preso em “reconhecendo” e o botão Entrar sem abrir o painel. No preview às vezes ia; no site publicado, não. Pedido: modo claro, celular reconhecido na hora, todos os botões funcionando e entrada com a conta.</li>
+    <li>Como o login não entrava, tirar o login por um tempo e abrir direto no painel.</li>
+    <li>Depois das animações e do assistente, a plataforma parecia ter perdido entradas, saídas, produtos, usuários, IPs e logs, e os cliques pararam. Pedido: voltar para antes desses dois pedidos, com os dados da semana.</li>
+    <li>Tratar como incidente: preservar dados, achar a causa, recuperar login, busca, botões e a diferença entre celular e computador, sem apagar banco e sem inventar lançamento.</li>
+    <li>Voltar o sistema para a época da pergunta sobre memória e venda do sistema, quando ainda funcionava.</li>
+    <li>Explicar por que a correção não tinha chegado na plataforma.</li>
+    <li>Voltar o código para a última atualização do Git e manter entradas, saídas, cadastros e contagens desta semana.</li>
+  </ol>
+
+  <h2>O que essa subida do Git já não continha</h2>
+  <p>O commit de 22 de setembro não tem, no código, o assistente, o menu avançado do botão direito, o módulo novo de empilhadores no celular, os horários de saída e chegada na tabela, o zerar automático por pavilhão e as animações pedidas depois. Isso ficou só nas alterações feitas em seguida, que não tinham sido salvas no Git. Os números abaixo são do banco, não desse commit.</p>
+  <table>
+    <tr><th>Registro no banco</th><th>Quantidade copiada em 24/09/2026</th></tr>
+    <tr><td>Produtos</td><td>132</td></tr>
+    <tr><td>Movimentações</td><td>241, sendo 53 entradas</td></tr>
+    <tr><td>Contagens</td><td>136</td></tr>
+    <tr><td>Logs</td><td>633</td></tr>
+    <tr><td>Fretes</td><td>11</td></tr>
+    <tr><td>Movimentações em 24/09</td><td>37</td></tr>
+    <tr><td>Movimentações em 23/09</td><td>60</td></tr>
+    <tr><td>Movimentações em 22/09</td><td>123</td></tr>
+  </table>
+  <p class="small">Cópia do banco: recovery-snapshot/banco-semana.json. Cópia do código de antes do retorno: recovery-snapshot/src-antes-de-reverter.tgz.</p>
+</body>
+</html>

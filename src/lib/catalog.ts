@@ -54,10 +54,12 @@ export function pavTipo(p: { codigo?: string; nome?: string; tipo?: string } | n
 }
 
 export function pavTitle(p: { codigo: string; nome?: string; tipo?: string }) {
-  const tipo = inferTipoLugar(p);
+  const nome = (p.nome || "").trim();
+  if (nome) return nome;
+  const tipo = (p.tipo || "").trim();
   const code = (p.codigo || "").trim();
-  if (code) return `${tipo} ${code}`;
-  return (p.nome || "").trim() || tipo;
+  if (tipo && code) return `${tipo} ${code}`;
+  return code || tipo || "Lugar";
 }
 
 export function lugarLabel(
@@ -89,8 +91,9 @@ export function lugarDaSaida(
 
 export function destinoDaSaida(
   pavilhoes: { id: string; codigo: string; nome?: string; tipo?: string }[],
-  s: { destino_pavilhao_id?: string | null; destino?: { nome?: string } | null; destino_id?: string | null },
+  s: { destino_pavilhao_id?: string | null; destino?: { nome?: string } | null; destino_id?: string | null; somente_saida?: boolean | null },
 ) {
+  if (s.somente_saida) return "Sem destino";
   if (s.destino_pavilhao_id) {
     const label = lugarLabel(pavilhoes, s.destino_pavilhao_id);
     if (label && label !== "—") return label;

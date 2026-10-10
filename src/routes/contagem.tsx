@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
-import { createFileRoute } from "@tanstack/react-router";
-import { ClipboardCheck, Search, Undo2 } from "lucide-react";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { ClipboardCheck, Search, Undo2, X } from "lucide-react";
 import { db } from "@/lib/store";
 import { useDb } from "@/lib/use-db";
 import { useSession } from "@/lib/session";
 import { MOTIVOS_CONTAGEM, motivoContagemLabel } from "@/lib/constants";
-import { formatDateTimeBR, formatNumber, unitShort } from "@/lib/format";
+import { formatDateTimeBR, formatNumber, isoDaysAgo, todayISO, unitShort } from "@/lib/format";
 import { pavTitle, pavilhaoNome } from "@/lib/catalog";
 import { notify } from "@/lib/notify";
 import { fold, cn } from "@/lib/utils";
@@ -16,12 +16,23 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { PageHeader } from "@/components/page-header";
 import { PageStage } from "@/components/motion/page-stage";
+import { ViewSwitch, useChartView } from "@/components/analytics/view-switch";
+import { ScreenCharts } from "@/components/analytics/screen-charts";
 import { EmptyState } from "@/components/empty-state";
+import { OpNote } from "@/components/motion/lottie-clip";
 import { ProductIcon, ProductLabel } from "@/components/inventory/product-icon";
 import { StockSplit } from "@/components/inventory/stock-split";
 import { CountCalc } from "@/components/inventory/count-calc";
 import { ConfirmDialog } from "@/components/feedback/confirm-dialog";
 import { ActionButton } from "@/components/motion/action-button";
+
+function lugarNoCard(p: { codigo: string; nome?: string; tipo?: string }) {
+  const tipo = (p.tipo || "").trim() || (p.codigo === "74" ? "Galpão" : "Pavilhão");
+  const nome = (p.nome || "").trim();
+  const padrao = `${tipo} ${p.codigo}`.trim().toLowerCase();
+  if (nome && nome.toLowerCase() !== padrao && nome.toLowerCase() !== tipo.toLowerCase()) return nome;
+  return p.codigo;
+}
 
 export const Route = createFileRoute("/contagem")({
   validateSearch: (s: Record<string, unknown>): { pav?: string; produto?: string } => ({
@@ -50,6 +61,7 @@ function LiveClock() {
 
 function ContagemPage() {
   const { pav: pavParam, produto: produtoParam } = Route.useSearch();
+  const navigate = useNavigate();
   const live = useDb();
   const { perfil } = useSession();
   const pavilhoes = live.listPavilhoes();
@@ -57,14 +69,17 @@ function ContagemPage() {
   const historico = live.listContagens();
 
   const [pavId, setPavId] = useState(() => pavParam || pavilhoes[0]?.id || "p74");
+  const [verTodos, setVerTodos] = useState(false);
   const [busca, setBusca] = useState("");
   const [mercId, setMercId] = useState(produtoParam || "");
-  const [aberto, setAberto] = useState(false);
+  const [aberto, setAberto] = useState(true);
   const [contado, setContado] = useState("");
   const [motivo, setMotivo] = useState("");
   const [obs, setObs] = useState("");
   const [undoId, setUndoId] = useState<string | null>(null);
   const [escopo, setEscopo] = useState<"pav" | "todos">("pav");
+  const [periodo, setPeriodo] = useState<"hoje" | "7d" | "15d" | "30d" | "tudo">("tudo");
+  const { vista } = useChartView("contagem");
   const nomesSalvos = live.listContadores();
   const [contador, setContador] = useState(() => {
     try {
@@ -82,15 +97,21 @@ function ContagemPage() {
 
   useEffect(() => {
     if (!produtoParam) return;
-    const m = produtos.find((x) => x.id === produtoParam || x.codigo === produtoParam);
-    if (m) {
-      setMercId(m.id);
-      setBusca(`${m.codigo} · ${m.nome}`);
-    }
-  }, [produtoParam, produtos]);
+    const m = db.listMercadorias(true).find((x) => x.id === produtoParam || x.codigo === produtoParam);
+    if (!m) return;
+    setMercId(m.id);
+    setBusca(`${m.codigo} · ${m.nome}`);
+    setAberto(false);
+  }, [produtoParam]);
 
   const pav = pavilhoes.find((p) => p.id === pavId) ?? pavilhoes[0];
   const merc = produtos.find((m) => m.id === mercId) ?? null;
+  const totalLugar = useMemo(() => {
+    if (!pav) return 0;
+    let qtd = 0;
+    for (const m of produtos) qtd += live.stockAt(m.id, pav.id);
+    return Math.round(qtd * 1000) / 1000;
+  }, [pav, produtos, live]);
   const esperado = merc && pav ? live.stockAt(merc.id, pav.id) : 0;
   const nContado = contado === "" ? null : Number(contado.replace(",", "."));
   const validNum = nContado != null && Number.isFinite(nContado) && nContado >= 0;
@@ -98,26 +119,72 @@ function ContagemPage() {
   const bateu = validNum && delta === 0;
   const divergiu = validNum && delta !== 0;
 
+  const contadosHoje = useMemo(() => {
+    const ids = new Set<string>();
+    const hoje = todayISO();
+    for (const c of historico) {
+      if (c.data !== hoje) continue;
+      if (!verTodos && c.pavilhao_id !== pav?.id) continue;
+      ids.add(`${c.mercadoria_id}\t${c.pavilhao_id}`);
+    }
+    return ids;
+  }, [historico, pav, verTodos]);
+
   const sugeridos = useMemo(() => {
     const term = fold(busca.trim());
+    const lugares = verTodos ? pavilhoes : pav ? [pav] : [];
+    const rows: { id: string; mercId: string; pavId: string; pavNome: string }[] = [];
+    for (const m of produtos) {
+      if (term) {
+        const codigo = fold(m.codigo);
+        const curto = term.replace(/^0+/, "");
+        const ok = fold(m.nome).includes(term) || codigo.includes(term) || (curto.length > 0 && codigo.replace(/^0+/, "").includes(curto));
+        if (!ok) continue;
+      }
+      for (const lugar of lugares) {
+        if (!(live.stockAt(m.id, lugar.id) > 0)) continue;
+        rows.push({ id: `${m.id}\t${lugar.id}`, mercId: m.id, pavId: lugar.id, pavNome: pavTitle(lugar) });
+      }
+    }
+    return rows
+      .map((row) => ({ ...row, merc: produtos.find((m) => m.id === row.mercId) }))
+      .filter((row): row is typeof row & { merc: NonNullable<typeof row.merc> } => Boolean(row.merc))
+      .sort((a, b) => {
+        const ca = contadosHoje.has(a.id) ? 1 : 0;
+        const cb = contadosHoje.has(b.id) ? 1 : 0;
+        if (ca !== cb) return ca - cb;
+        const nome = a.merc.nome.localeCompare(b.merc.nome, "pt-BR");
+        if (nome !== 0) return nome;
+        return a.pavNome.localeCompare(b.pavNome, "pt-BR");
+      });
+  }, [produtos, busca, live, pavilhoes, pav, verTodos, contadosHoje]);
+
+  const catalogo = useMemo(() => {
+    const term = fold(busca.trim());
+    if (!term || (merc && term === fold(`${merc.codigo} · ${merc.nome}`))) return [];
     return produtos
       .filter((m) => {
-        if (!term) return true;
         const codigo = fold(m.codigo);
-        return fold(m.nome).includes(term) || codigo.includes(term) || codigo.replace(/^0+/, "").includes(term.replace(/^0+/, ""));
+        const curto = term.replace(/^0+/, "");
+        return fold(m.nome).includes(term) || codigo.includes(term) || (curto.length > 0 && codigo.replace(/^0+/, "").includes(curto));
       })
-      .slice(0, 16);
-  }, [produtos, busca]);
+      .slice(0, 40);
+  }, [produtos, busca, merc]);
 
-  function escolher(id: string) {
+  function escolher(id: string, placeId?: string) {
     const m = produtos.find((x) => x.id === id);
     if (!m) return;
+    if (placeId) setPavId(placeId);
     setMercId(m.id);
     setBusca(`${m.codigo} · ${m.nome}`);
     setAberto(false);
     setContado("");
     setMotivo("");
     setObs("");
+    const nextPav = placeId || pavId;
+    if (m.id !== produtoParam || (placeId && placeId !== pavParam)) {
+      void navigate({ to: "/contagem", search: { pav: nextPav, produto: m.id }, replace: true });
+    }
   }
 
   function limparProduto() {
@@ -126,6 +193,10 @@ function ContagemPage() {
     setContado("");
     setMotivo("");
     setObs("");
+    setAberto(true);
+    if (produtoParam) {
+      void navigate({ to: "/contagem", search: { pav: pavId || pavParam, produto: undefined }, replace: true });
+    }
   }
 
   function salvar() {
@@ -155,7 +226,9 @@ function ContagemPage() {
       }
       setContador(quem);
       setContadorNovo("");
-      notify.success(divergiu ? "Estoque do pavilhão corrigido." : "Contagem conferida. Quantidade bateu.");
+      let total = 0;
+      for (const m of db.listMercadorias(true)) total += db.stockAt(m.id, pav.id);
+      notify.success(`Contagem registrada. Total do ${pavTitle(pav)}: ${formatNumber(Math.round(total * 1000) / 1000)}.`);
       setContado("");
       setMotivo("");
       setObs("");
@@ -167,14 +240,17 @@ function ContagemPage() {
   }
 
   const recentes = useMemo(() => {
-    const rows = escopo === "pav" && pav ? historico.filter((c) => c.pavilhao_id === pav.id) : historico;
+    const hoje = todayISO();
+    const from = periodo === "hoje" ? hoje : periodo === "7d" ? isoDaysAgo(6) : periodo === "15d" ? isoDaysAgo(14) : periodo === "30d" ? isoDaysAgo(29) : "";
+    let rows = escopo === "pav" && pav ? historico.filter((c) => c.pavilhao_id === pav.id) : historico;
+    if (from) rows = rows.filter((c) => c.data >= from && c.data <= hoje);
     return rows.slice(0, 80);
-  }, [historico, escopo, pav]);
+  }, [historico, escopo, pav, periodo]);
 
   const posicoes = useMemo(() => {
     const ids = new Set(recentes.map((c) => c.mercadoria_id));
     if (merc) ids.add(merc.id);
-    for (const m of sugeridos) ids.add(m.id);
+    for (const row of sugeridos) ids.add(row.mercId);
     const map = new Map<string, { id: string; nome: string; quantidade: number }[]>();
     for (const id of ids) map.set(id, live.stockPositions(id));
     return map;
@@ -188,45 +264,79 @@ function ContagemPage() {
   return (
     <PageStage className="space-y-4">
       <PageHeader
-        icon="count"
+        clip="/lottie/prancheta.json"
         title="Contagem"
         description="Conferir o que realmente tem em cada pavilhão. O histórico ao lado atualiza na hora e já mostra o estoque completo — sem precisar abrir o Estoque."
       >
+        <ViewSwitch page="contagem" />
         <CountCalc />
       </PageHeader>
+
+      {vista !== "lista" ? (
+        <ScreenCharts
+          screen="contagem"
+          movs={[]}
+          contagens={recentes}
+          pavilhoes={pavilhoes}
+          periodLabel="Mesmo recorte do histórico ao lado"
+        />
+      ) : null}
 
       <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(22rem,32rem)]">
         <div className="space-y-4">
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-5">
+            <button
+              type="button"
+              onClick={() => {
+                setVerTodos(true);
+                setEscopo("todos");
+                limparProduto();
+                setAberto(true);
+              }}
+              className={cn(
+                "min-h-16 rounded-xl border px-3 py-2.5 text-left transition-colors",
+                verTodos ? "border-primary bg-primary text-primary-foreground" : "border-border bg-card hover:bg-muted",
+              )}
+            >
+              <p className="text-[11px] font-semibold uppercase tracking-wide opacity-70">Lugares</p>
+              <p className="text-xl font-semibold leading-tight">Todos</p>
+            </button>
             {pavilhoes.map((p) => {
-              const active = pav?.id === p.id;
+              const active = !verTodos && pav?.id === p.id;
               return (
                 <button
                   key={p.id}
                   type="button"
+                  data-ctx="pavilhao"
+                  data-id={p.id}
+                  data-nome={p.nome || p.codigo}
                   onClick={() => {
+                    setVerTodos(false);
+                    setEscopo("pav");
                     setPavId(p.id);
                     limparProduto();
+                    setAberto(true);
                   }}
                   className={cn(
                     "min-h-16 rounded-xl border px-3 py-2.5 text-left transition-colors",
                     active ? "border-primary bg-primary text-primary-foreground" : "border-border bg-card hover:bg-muted",
                   )}
                 >
-                  <p className="text-[11px] font-semibold uppercase tracking-wide opacity-70">{p.codigo === "74" ? "Galpão" : "Pavilhão"}</p>
-                  <p className="text-xl font-semibold tabular-nums leading-tight">{p.codigo}</p>
+                  <p className="text-[11px] font-semibold uppercase tracking-wide opacity-70">{(p.tipo || "").trim() || (p.codigo === "74" ? "Galpão" : "Pavilhão")}</p>
+                  <p className="text-xl font-semibold leading-tight">{lugarNoCard(p)}</p>
+                  {active ? <p className="text-[11px] font-medium tabular-nums opacity-80">Total {formatNumber(totalLugar)}</p> : null}
                 </button>
               );
             })}
           </div>
 
           {!pav ? (
-            <EmptyState icon={ClipboardCheck} title="Cadastre um pavilhão" description="A contagem precisa de um local." />
+            <EmptyState icon={ClipboardCheck} clip="/lottie/prancheta.json" title="Cadastre um pavilhão" description="A contagem precisa de um local." />
           ) : (
             <Card>
               <CardContent className="space-y-4 pt-5">
                 <div className="space-y-1.5">
-                  <Label htmlFor="busca-contagem">Produto</Label>
+                  <Label htmlFor="busca-contagem">{verTodos ? "O que tem na empresa" : "O que tem neste lugar"}</Label>
                   <div className="relative">
                     <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                     <Input
@@ -240,16 +350,33 @@ function ContagemPage() {
                         setMotivo("");
                       }}
                       onFocus={() => setAberto(true)}
-                      placeholder="Nome ou código"
+                      placeholder={verTodos ? "Nome ou código do que entrou hoje em qualquer lugar" : "Nome ou código do produto"}
                       autoComplete="off"
-                      className="h-12 pl-9"
+                      className={cn("h-12 pl-9", busca ? "pr-10" : "")}
                     />
+                    {busca ? (
+                      <button
+                        type="button"
+                        aria-label="Limpar produto"
+                        onClick={limparProduto}
+                        className="absolute right-2 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    ) : null}
                   </div>
-                  {aberto && sugeridos.length > 0 ? (
-                    <ul className="max-h-56 overflow-y-auto rounded-xl border border-border bg-card shadow-card">
-                      {sugeridos.map((m) => {
-                        const qtd = live.stockAt(m.id, pav.id);
-                        const total = (posicoes.get(m.id) ?? []).reduce((a, p) => a + p.quantidade, 0);
+                  <p className="text-[11px] text-muted-foreground">
+                    {sugeridos.length === 0
+                      ? verTodos
+                        ? "Nenhum produto com estoque na empresa."
+                        : "Nenhum produto com estoque neste lugar."
+                      : `${sugeridos.length} ${sugeridos.length === 1 ? "produto com estoque" : "produtos com estoque"}${verTodos ? " na empresa" : " neste lugar"}. O que ainda não foi contado fica primeiro.`}
+                  </p>
+                  {aberto && catalogo.length > 0 ? (
+                    <ul className="max-h-72 overflow-y-auto rounded-xl border border-border bg-card shadow-card">
+                      {catalogo.map((m) => {
+                        const qtd = pav ? live.stockAt(m.id, pav.id) : 0;
+                        const total = (posicoes.get(m.id) ?? live.stockPositions(m.id)).reduce((a, p) => a + p.quantidade, 0);
                         return (
                           <li key={m.id}>
                             <button
@@ -269,6 +396,42 @@ function ContagemPage() {
                         );
                       })}
                     </ul>
+                  ) : aberto ? (
+                    sugeridos.length === 0 ? (
+                      <OpNote
+                        src={busca.trim() ? "/lottie/prancheta.json" : "/lottie/conferencia.json"}
+                        clipClassName={busca.trim() ? undefined : "lottie-clip h-24 w-32 shrink-0"}
+                        title={busca.trim() ? "Nenhum produto com esse nome ou código" : verTodos ? "Nenhum produto com estoque na empresa" : "Nenhum produto com estoque neste lugar"}
+                        detail="A conferência só lista o que já tem saldo."
+                      />
+                    ) : (
+                    <ul className="max-h-72 overflow-y-auto rounded-xl border border-border bg-card shadow-card">
+                      {sugeridos.map((row) => {
+                        const m = row.merc;
+                        const qtd = live.stockAt(m.id, row.pavId);
+                        const total = (posicoes.get(m.id) ?? []).reduce((a, p) => a + p.quantidade, 0);
+                        return (
+                          <li key={row.id}>
+                            <button
+                              type="button"
+                              onClick={() => escolher(m.id, row.pavId)}
+                              className="flex w-full items-center gap-3 px-3 py-2.5 text-left hover:bg-muted"
+                            >
+                              <ProductLabel nome={m.nome} codigo={m.codigo} className="min-w-0 flex-1" extra={verTodos ? row.pavNome : undefined} />
+                              <span className="shrink-0 text-right text-sm tabular-nums">
+                                <span className="block font-medium">
+                                  {formatNumber(qtd)} {m.unidade}
+                                </span>
+                                <span className="block text-[11px] text-muted-foreground">
+                                  {contadosHoje.has(row.id) ? "já contado hoje" : `empresa ${formatNumber(total)}`}
+                                </span>
+                              </span>
+                            </button>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                    )
                   ) : null}
                 </div>
 
@@ -416,6 +579,29 @@ function ContagemPage() {
               <span className="shrink-0 text-xs tabular-nums text-muted-foreground">{recentes.length} registros</span>
             </div>
             <div className="flex flex-wrap gap-1.5">
+              {(
+                [
+                  ["hoje", "Hoje"],
+                  ["7d", "7 dias"],
+                  ["15d", "15 dias"],
+                  ["30d", "30 dias"],
+                  ["tudo", "Tudo"],
+                ] as const
+              ).map(([id, label]) => (
+                <button
+                  key={id}
+                  type="button"
+                  onClick={() => setPeriodo(id)}
+                  className={cn(
+                    "min-h-8 rounded-full border px-3 text-xs font-medium",
+                    periodo === id ? "border-primary bg-primary text-primary-foreground" : "border-border bg-background hover:bg-muted",
+                  )}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            <div className="flex flex-wrap gap-1.5">
               <button
                 type="button"
                 onClick={() => setEscopo("pav")}
@@ -441,7 +627,7 @@ function ContagemPage() {
 
           {recentes.length === 0 ? (
             <p className="m-4 rounded-xl border border-dashed border-border px-4 py-10 text-center text-sm text-muted-foreground">
-              Nenhuma contagem {escopo === "pav" ? "neste pavilhão" : ""} ainda. Ao registrar, a linha aparece aqui na hora.
+              Nenhuma contagem neste período{escopo === "pav" ? " neste lugar" : ""}.
             </p>
           ) : (
             <ol className="min-h-0 flex-1 divide-y divide-border overflow-y-auto">
@@ -491,30 +677,36 @@ function ContagemPage() {
                       </div>
                     </dl>
 
-                    <div className="mt-2 space-y-1 pl-7">
-                      <p className="text-xs tabular-nums">
-                        <span className="text-muted-foreground">Agora neste pavilhão </span>
-                        <span className="font-semibold">
+                    <div className="mt-2 space-y-1.5 pl-7">
+                      <p className="text-xs">
+                        <span className="text-muted-foreground">Neste lugar </span>
+                        <span className="font-semibold tabular-nums">
                           {formatNumber(agoraPav)} {un}
                         </span>
-                        <span className="text-muted-foreground"> · empresa </span>
-                        <span className="font-semibold">
+                        <span className="text-muted-foreground"> · na empresa </span>
+                        <span className="font-semibold tabular-nums">
                           {formatNumber(total)} {un}
                         </span>
                       </p>
                       {pos.length > 0 ? (
-                        <p className="flex flex-wrap gap-x-2 gap-y-0.5 text-[11px] tabular-nums">
-                          {pos.map((p) => (
-                            <span
-                              key={p.id}
-                              className={cn(
-                                p.id === c.pavilhao_id ? "font-semibold text-foreground" : p.quantidade ? "text-foreground/80" : "text-muted-foreground",
-                              )}
-                            >
-                              {p.nome.replace(/Pavilhão |Galpão /, "")} {formatNumber(p.quantidade)}
-                            </span>
-                          ))}
-                        </p>
+                        <div className="flex flex-wrap gap-1">
+                          {pos
+                            .filter((p) => p.quantidade > 0 || p.id === c.pavilhao_id)
+                            .map((p) => (
+                              <span
+                                key={p.id}
+                                className={cn(
+                                  "inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-[11px] leading-tight",
+                                  p.id === c.pavilhao_id ? "border-primary/40 bg-primary/10" : "border-border bg-muted/40",
+                                )}
+                              >
+                                <span className={p.id === c.pavilhao_id ? "font-medium" : "text-muted-foreground"}>{p.nome}</span>
+                                <span className="tabular-nums font-semibold">
+                                  {formatNumber(p.quantidade)} {short}
+                                </span>
+                              </span>
+                            ))}
+                        </div>
                       ) : null}
                       <p className="text-[11px] text-muted-foreground">
                         {c.contador || c.usuario_nome} · {formatDateTimeBR(c.created_at)}

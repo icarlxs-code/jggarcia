@@ -1,6 +1,15 @@
 import { createServerFn } from "@tanstack/react-start";
 import type { Usuario } from "./types";
 
+function semSenha<T>(res: T): T {
+  if (res && typeof res === "object" && "senha" in res) {
+    const copia = { ...res };
+    delete (copia as { senha?: unknown }).senha;
+    return copia;
+  }
+  return res;
+}
+
 export const startQrLogin = createServerFn({ method: "POST" })
   .validator(() => ({}))
   .handler(async () => {
@@ -12,14 +21,14 @@ export const pollQrLogin = createServerFn({ method: "POST" })
   .validator((d: { id: string; secret: string }) => d)
   .handler(async ({ data }) => {
     const { pollTicket } = await import("./auth-store.server");
-    return pollTicket(data.id, data.secret);
+    return semSenha(await pollTicket(data.id, data.secret));
   });
 
 export const approveQrLogin = createServerFn({ method: "POST" })
   .validator((d: { id: string; secret: string; identificador: string; senha: string }) => d)
   .handler(async ({ data }) => {
     const { approveTicket } = await import("./auth-store.server");
-    return approveTicket(data.id, data.secret, data.identificador, data.senha);
+    return semSenha(await approveTicket(data.id, data.secret, data.identificador, data.senha));
   });
 
 export const linkQrDevice = createServerFn({ method: "POST" })
@@ -97,7 +106,7 @@ export const loginThisDevice = createServerFn({ method: "POST" })
       data.print ?? "",
     );
     if (res.ok) writeDeviceCookie(res.deviceId, res.secret);
-    return res;
+    return semSenha(res);
   });
 
 export const rememberQrStation = createServerFn({ method: "POST" })
@@ -113,7 +122,7 @@ export const resumeQrStation = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     const { clientIp } = await import("./client-ip.server");
     const { resumeStation } = await import("./auth-store.server");
-    return resumeStation(data.id, data.secret, clientIp());
+    return semSenha(await resumeStation(data.id, data.secret, clientIp()));
   });
 
 export const peekQrStation = createServerFn({ method: "POST" })
@@ -187,8 +196,7 @@ export const authenticateRemote = createServerFn({ method: "POST" })
       },
       Boolean(data.rememberDevice),
     );
-    if (res.ok && "deviceId" in res && res.deviceId && res.secret) writeDeviceCookie(res.deviceId, res.secret);
-    return res;
+    return semSenha(res);
   });
 
 export const forgetThisDevice = createServerFn({ method: "POST" })
@@ -220,6 +228,8 @@ export const releasePhoneSeat = createServerFn({ method: "POST" })
 export const deleteRemoteUser = createServerFn({ method: "POST" })
   .validator((d: { id: string }) => d)
   .handler(async ({ data }) => {
+    const { guardRequest } = await import("./request-guard.server");
+    await guardRequest();
     const { deleteUser } = await import("./auth-store.server");
     return deleteUser(data.id);
   });
@@ -236,6 +246,8 @@ export const upsertRemoteUser = createServerFn({ method: "POST" })
     }) => d,
   )
   .handler(async ({ data }) => {
+    const { guardRequest } = await import("./request-guard.server");
+    await guardRequest();
     const { upsertUser } = await import("./auth-store.server");
     return upsertUser(data);
   });
@@ -243,6 +255,8 @@ export const upsertRemoteUser = createServerFn({ method: "POST" })
 export const resetRemotePassword = createServerFn({ method: "POST" })
   .validator((d: { email: string; nome: string; novaSenha: string }) => d)
   .handler(async ({ data }) => {
+    const { guardRequest } = await import("./request-guard.server");
+    await guardRequest();
     const { resetPassword } = await import("./auth-store.server");
     return resetPassword(data.email, data.nome, data.novaSenha);
   });
@@ -250,6 +264,8 @@ export const resetRemotePassword = createServerFn({ method: "POST" })
 export const importRemoteUsers = createServerFn({ method: "POST" })
   .validator((d: { users: { user: Usuario; senha?: string }[] }) => d)
   .handler(async ({ data }) => {
+    const { guardRequest } = await import("./request-guard.server");
+    await guardRequest();
     const { importUsers } = await import("./auth-store.server");
     return importUsers(data.users);
   });

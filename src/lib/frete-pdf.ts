@@ -5,22 +5,29 @@ import type { FretePagamento } from "./types";
 
 const FIELDS: { key: keyof FretePagamento; label: string; filled: (f: FretePagamento) => boolean }[] = [
   { key: "fornecedor", label: "Nome do fornecedor", filled: (f) => Boolean(f.fornecedor?.trim()) },
-  { key: "numero_bilhete", label: "Número do bilhete", filled: (f) => Boolean(f.numero_bilhete?.trim()) },
   { key: "valor", label: "Valor do frete", filled: (f) => Number(f.valor) > 0 },
   { key: "data_entrada", label: "Data de entrada", filled: (f) => Boolean(f.data_entrada) },
   { key: "pavilhao", label: "Pavilhão onde descarregou", filled: (f) => Boolean(f.pavilhao?.trim()) },
   { key: "placa", label: "Placa do veículo", filled: (f) => Boolean(f.placa?.trim()) },
   { key: "motorista", label: "Nome do motorista", filled: (f) => Boolean(f.motorista?.trim()) },
   { key: "cpf", label: "CPF do motorista", filled: (f) => Boolean(f.cpf?.trim()) },
-  { key: "assinatura_motorista", label: "Assinatura do motorista", filled: (f) => Boolean(f.assinatura_motorista) },
   { key: "forma_pagamento", label: "Forma de pagamento", filled: (f) => Boolean(f.forma_pagamento) },
-  { key: "rubrica", label: "Rubrica / autorização", filled: (f) => Boolean(f.rubrica) },
-  { key: "data_autorizacao", label: "Data da autorização", filled: (f) => Boolean(f.data_autorizacao) },
   { key: "observacoes", label: "Observações", filled: (f) => Boolean(f.observacoes?.trim()) },
 ];
 
 export function missingFreteFields(f: FretePagamento) {
-  return FIELDS.filter((x) => !x.filled(f)).map((x) => x.label);
+  const gaps = FIELDS.filter((x) => !x.filled(f)).map((x) => x.label);
+  if (f.forma_pagamento === "PIX") {
+    if (!f.pix_chave?.trim()) gaps.push("Chave PIX");
+    if (!f.pix_favorecido?.trim()) gaps.push("Nome do favorecido");
+    if (!f.pix_banco?.trim()) gaps.push("Banco / Instituição");
+  }
+  return gaps;
+}
+
+function penLine(label: string, img?: string | null) {
+  const drawn = img?.trim() ? `<img class="sign" src="${esc(img)}" alt="${esc(label)}" />` : "";
+  return `<div class="cell pen"><span>${esc(label)}</span>${drawn}<i></i></div>`;
 }
 
 function padDocNo(raw?: string | null) {
@@ -47,10 +54,11 @@ const ICO = {
   pen: badge('<path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"/>'),
 };
 
-function cell(label: string, value?: string | null, extraClass = "") {
+function cell(label: string, value?: string | null, extraClass = "", showEmpty = false) {
   const v = (value || "").trim();
-  if (!v) return "";
-  return `<div class="cell${extraClass ? ` ${extraClass}` : ""}"><span>${esc(label)}</span><b>${esc(v)}</b></div>`;
+  if (!v && !showEmpty) return "";
+  const empty = !v;
+  return `<div class="cell${extraClass ? ` ${extraClass}` : ""}${empty ? " is-empty" : ""}"><span>${esc(label)}</span><b>${empty ? "—" : esc(v)}</b></div>`;
 }
 
 function grid(cols: number, inner: string) {
@@ -58,22 +66,24 @@ function grid(cols: number, inner: string) {
   return `<div class="grid cols-${cols}">${inner}</div>`;
 }
 
-function section(title: string, ico: string, inner: string) {
-  if (!inner.trim()) return "";
+function section(title: string, ico: string, inner: string, showEmpty = false) {
+  if (!inner.trim() && !showEmpty) return "";
   return `<section class="block">
     <h2>${ico}<span>${esc(title)}</span></h2>
     ${inner}
   </section>`;
 }
 
-function pagamentoHtml(f: FretePagamento) {
+function pagamentoHtml(f: FretePagamento, showEmpty = false) {
   const cells = [
-    cell("Forma de Pagamento:", f.forma_pagamento),
-    f.forma_pagamento === "PIX" ? cell("Tipo de chave PIX:", pixTipoLabel(f.pix_tipo)) : "",
-    f.forma_pagamento === "PIX" ? cell("Chave PIX:", f.pix_chave) : "",
+    cell("Forma de Pagamento:", f.forma_pagamento, "", showEmpty),
+    f.forma_pagamento === "PIX" || showEmpty ? cell("Tipo de chave PIX:", f.forma_pagamento === "PIX" ? pixTipoLabel(f.pix_tipo) : "", "", showEmpty && f.forma_pagamento === "PIX") : "",
+    f.forma_pagamento === "PIX" ? cell("Chave PIX:", f.pix_chave, "", showEmpty) : "",
+    f.forma_pagamento === "PIX" ? cell("Favorecido:", f.pix_favorecido, "", showEmpty) : "",
+    f.forma_pagamento === "PIX" ? cell("Banco:", f.pix_banco, "", showEmpty) : "",
   ].filter(Boolean);
   if (!cells.length) return "";
-  return section("Pagamento", ICO.card, grid(cells.length, cells.join("")));
+  return section("Pagamento", ICO.card, grid(Math.min(cells.length, 3), cells.join("")), showEmpty);
 }
 
 export function logoUrl() {
@@ -81,55 +91,38 @@ export function logoUrl() {
   return `${origin}/logo.png`;
 }
 
-export function buildFreteHtml(f: FretePagamento, logo = logoUrl()) {
-  const docNo = padDocNo(f.numero_bilhete) || padDocNo(f.numero) || f.numero || "000000";
+export function buildFreteHtml(f: FretePagamento, logo = logoUrl(), opts?: { live?: boolean }) {
+  const live = Boolean(opts?.live);
+  const docNo = padDocNo(f.numero) || (f.numero || "").trim();
+  const bilhete = (f.numero_bilhete || "").trim();
   const pav = (f.pavilhao || "").trim();
   const endereco = pav ? `${EMPRESA.logradouro} — ${pav}` : EMPRESA.logradouro;
   const emitido = formatEmissao(f.updated_at || f.created_at);
   const dataDoc = formatDateBR(f.data_entrada || f.created_at?.slice(0, 10));
 
   const freteTop = [
-    cell("Fornecedor:", f.fornecedor),
-    cell("Número do Bilhete:", f.numero_bilhete),
-    cell("Valor do Frete:", Number(f.valor) > 0 ? formatBRL(f.valor) : ""),
-    cell("Data de Entrada:", f.data_entrada ? formatDateBR(f.data_entrada) : ""),
+    cell("Fornecedor:", f.fornecedor, "", live),
+    cell("Número do Bilhete:", bilhete, "", true),
+    cell("Valor do Frete:", Number(f.valor) > 0 ? formatBRL(f.valor) : "", "", live),
+    cell("Data de Entrada:", f.data_entrada ? formatDateBR(f.data_entrada) : "", "", live),
   ].filter(Boolean);
-  const pavCell = cell("Pavilhão:", f.pavilhao, "wide");
-  const transCells = [cell("Placa do Veículo:", f.placa), cell("Motorista:", f.motorista), cell("CPF:", f.cpf)].filter(Boolean);
-
-  const signMotorista = f.assinatura_motorista
-    ? `<img class="sign" src="${esc(f.assinatura_motorista)}" alt="Assinatura do motorista" />`
-    : "";
-  const signRubrica = f.rubrica ? `<img class="sign sign-sm" src="${esc(f.rubrica)}" alt="Rubrica" />` : "";
-
-  const assinaTop = [
-    signMotorista ? `<div class="cell"><span>Motorista:</span>${signMotorista}</div>` : "",
-    f.cpf?.trim() ? `<div class="cell"><span>CPF:</span><b>${esc(f.cpf)}</b></div>` : "",
+  const pavCell = cell("Pavilhão:", f.pavilhao, "wide", live);
+  const transCells = [
+    cell("Placa do Veículo:", f.placa, "", live),
+    cell("Motorista:", f.motorista, "", live),
+    cell("CPF:", f.cpf, "", live),
   ].filter(Boolean);
 
-  const assinaBottomBits = [
-    signRubrica || f.data_autorizacao
-      ? `<div class="cell wide auth">
-          <span>Autorização do Pagamento:</span>
-          <div class="auth-row">
-            ${
-              signRubrica
-                ? `<div class="auth-rub"><span>Rubrica:</span>${signRubrica}</div>`
-                : ""
-            }
-            ${f.data_autorizacao ? `<div class="auth-date"><span>Data:</span><b>${esc(formatDateBR(f.data_autorizacao))}</b></div>` : ""}
-          </div>
-        </div>`
-      : "",
-  ].filter(Boolean);
-
-  const assinaInner = [...assinaTop, ...assinaBottomBits].join("");
+  const titulo = f.tipo === "despesa" ? "COMPROVANTE DE DESPESA DE FRETE" : "COMPROVANTE DE PAGAMENTO DE FRETE";
+  const tituloCurto = f.tipo === "despesa" ? "despesa de frete" : "pagamento de frete";
+  const signs = `<div class="grid signs">${penLine("Assinatura do motorista", f.assinatura_motorista)}${penLine("Autorização de Pagamento", f.rubrica)}</div>`;
+  const obsInner = f.observacoes?.trim() || live ? grid(1, cell("Observações:", f.observacoes, "", live)) : "";
 
   return `<!doctype html>
 <html lang="pt-BR">
 <head>
   <meta charset="utf-8" />
-  <title>Comprovante de pagamento de frete nº ${esc(docNo)}</title>
+  <title>Comprovante de ${tituloCurto} nº ${esc(docNo)}</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
   <style>
@@ -138,17 +131,17 @@ export function buildFreteHtml(f: FretePagamento, logo = logoUrl()) {
     @page { size: A4; margin: 10mm 12mm 12mm; }
     html, body { margin: 0; padding: 0; background: #fff; color: #14261c; font-family: Inter, "Segoe UI", system-ui, sans-serif; }
     body { font-size: 11.5px; line-height: 1.35; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-    .sheet { position: relative; min-height: 277mm; padding: 2mm 1mm 16mm; overflow: hidden; }
+    .sheet { position: relative; min-height: ${live ? "auto" : "277mm"}; padding: ${live ? "10px 10px 18px" : "2mm 1mm 16mm"}; overflow: hidden; }
     .wm { position: absolute; inset: 28% 8% 18%; display: flex; align-items: center; justify-content: center; pointer-events: none; z-index: 0; }
     .wm img { width: 78%; max-width: 460px; opacity: 0.06; }
     header.top { position: relative; z-index: 1; display: flex; align-items: center; gap: 18px; padding: 0 2px 12px; }
-    header.top img.logo { height: 78px; width: auto; }
+    header.top img.logo { height: ${live ? "58px" : "78px"}; width: auto; }
     .id { flex: 1; min-width: 0; }
     .id .brand { font-size: 11px; font-weight: 800; letter-spacing: 0.16em; color: #14532d; }
-    .id .razao { margin-top: 2px; font-size: 16.5px; font-weight: 800; letter-spacing: -0.02em; color: #10241a; line-height: 1.15; }
+    .id .razao { margin-top: 2px; font-size: ${live ? "14px" : "16.5px"}; font-weight: 800; letter-spacing: -0.02em; color: #10241a; line-height: 1.15; }
     .id p { margin: 3px 0 0; color: #2a4336; font-size: 11.5px; }
     .banner { position: relative; z-index: 1; display: flex; align-items: center; justify-content: space-between; gap: 12px; background: #14532d; color: #fff; border-radius: 10px; padding: 10px 18px; margin: 4px 0 16px; }
-    .banner strong { font-size: 13.5px; letter-spacing: 0.12em; font-weight: 800; }
+    .banner strong { font-size: ${live ? "11px" : "13.5px"}; letter-spacing: 0.08em; font-weight: 800; }
     .banner .no { font-size: 14px; font-weight: 800; letter-spacing: 0.04em; border-left: 1px solid rgba(255,255,255,.4); padding: 2px 0 2px 16px; white-space: nowrap; }
     section.block { position: relative; z-index: 1; margin: 0 0 12px; }
     h2 { display: flex; align-items: center; gap: 8px; margin: 0 0 6px; font-size: 11.5px; letter-spacing: 0.1em; text-transform: uppercase; color: #14532d; font-weight: 800; }
@@ -157,18 +150,19 @@ export function buildFreteHtml(f: FretePagamento, logo = logoUrl()) {
     .cols-4 { grid-template-columns: repeat(4, 1fr); }
     .cols-3 { grid-template-columns: repeat(3, 1fr); }
     .cols-2 { grid-template-columns: 1.45fr 1fr; }
+    .signs { grid-template-columns: 1fr 1fr; }
     .cols-1 { grid-template-columns: 1fr; }
     .cell { padding: 8px 11px; border-right: 1px solid #c5d8cc; min-height: 46px; }
     .cell span { display: block; font-size: 10px; color: #4b6256; font-weight: 500; }
-    .cell b { display: block; margin-top: 3px; font-size: 12.5px; font-weight: 700; color: #12261c; }
+    .cell b { display: block; margin-top: 3px; font-size: 12.5px; font-weight: 700; color: #12261c; word-break: break-word; }
+    .cell.is-empty b { color: #8aa094; font-weight: 600; }
     .wide { grid-column: 1 / -1; border-top: 1px solid #c5d8cc; border-right: none; }
     .decl { border: 1.5px solid #1b5c3e; border-radius: 8px; padding: 11px 13px; font-size: 12px; color: #1a2e24; background: #fff; }
-    .sign { height: 44px; width: auto; max-width: 200px; object-fit: contain; display: block; margin-top: 4px; }
-    .sign-sm { height: 36px; }
-    .auth-row { display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; margin-top: 6px; }
-    .auth-rub { display: flex; align-items: flex-end; gap: 8px; }
-    .auth-rub span, .auth-date span { display: inline; font-size: 10px; color: #4b6256; }
-    footer.bar { position: absolute; left: 0; right: 0; bottom: 0; z-index: 1; display: grid; grid-template-columns: 1fr 1fr 1.3fr; gap: 8px; padding: 8px 4px 0; border-top: 1px solid #c5d8cc; color: #3d5248; font-size: 10.5px; font-weight: 500; }
+    .sign { height: 46px; width: auto; max-width: 220px; object-fit: contain; display: block; margin: 2px 0 -18px; }
+    .pen { min-height: 92px; padding: 10px 14px 12px; }
+    .pen span { display: block; font-size: 11px; font-weight: 800; letter-spacing: 0.04em; text-transform: uppercase; color: #14532d; }
+    .pen i { display: block; margin-top: 36px; border-bottom: 1.5px solid #14261c; }
+    footer.bar { position: ${live ? "relative" : "absolute"}; left: 0; right: 0; bottom: 0; z-index: 1; display: grid; grid-template-columns: 1fr 1fr 1.3fr; gap: 8px; margin-top: 12px; padding: 8px 4px 0; border-top: 1px solid #c5d8cc; color: #3d5248; font-size: 10.5px; font-weight: 500; }
     footer.bar span { padding: 0 8px; }
     footer.bar span + span { border-left: 1px solid #c5d8cc; }
     footer.bar span:last-child { text-align: right; }
@@ -177,6 +171,7 @@ export function buildFreteHtml(f: FretePagamento, logo = logoUrl()) {
       .sheet { min-height: auto; }
       .wm { position: fixed; }
     }
+    ${live ? `@media (max-width: 520px) { .cols-4, .cols-3 { grid-template-columns: 1fr 1fr; } .banner strong { letter-spacing: 0.04em; } }` : ""}
   </style>
 </head>
 <body>
@@ -193,22 +188,22 @@ export function buildFreteHtml(f: FretePagamento, logo = logoUrl()) {
       </div>
     </header>
     <div class="banner">
-      <strong>COMPROVANTE DE PAGAMENTO DE FRETE</strong>
-      <span class="no">Nº ${esc(docNo)}</span>
+      <strong>${titulo}</strong>
+      <span class="no">Nº ${esc(docNo || "—")}</span>
     </div>
     ${
       freteTop.length || pavCell
-        ? section("Dados do frete", ICO.truck, grid(Math.max(freteTop.length, 1), `${freteTop.join("")}${pavCell}`))
+        ? section("Dados do frete", ICO.truck, grid(Math.max(Math.min(freteTop.length, 4), 1), `${freteTop.join("")}${pavCell}`), live)
         : ""
     }
-    ${transCells.length ? section("Dados do transporte", ICO.van, grid(transCells.length, transCells.join(""))) : ""}
-    ${pagamentoHtml(f)}
-    ${f.observacoes?.trim() ? section("Observações", ICO.note, grid(1, cell("Observações:", f.observacoes))) : ""}
-    ${section("Declaração", ICO.shield, `<div class="decl">Declaro que as informações acima correspondem ao transporte realizado e autorizo o pagamento referente ao serviço prestado.</div>`)}
-    ${assinaInner ? section("Assinaturas", ICO.pen, `<div class="grid ${assinaTop.length === 2 ? "cols-2" : "cols-1"}">${assinaInner}</div>`) : ""}
+    ${transCells.length ? section("Dados do transporte", ICO.van, grid(Math.min(transCells.length, 3), transCells.join("")), live) : ""}
+    ${pagamentoHtml(f, live)}
+    ${obsInner ? section("Observações", ICO.note, obsInner, live) : ""}
+    ${section("Declaração", ICO.shield, `<div class="decl">Declaro que as informações acima correspondem ao transporte realizado e autorizo o pagamento referente ao serviço prestado.</div>`, true)}
+    ${section("Assinaturas", ICO.pen, signs, true)}
     <footer class="bar">
-      <span>Bilhete: ${esc(docNo)}</span>
-      <span>Data: ${esc(dataDoc)}</span>
+      <span>Bilhete: ${esc(bilhete || "—")}</span>
+      <span>Data: ${esc(dataDoc || "—")}</span>
       <span>Data/Hora da emissão: ${esc(emitido)}</span>
     </footer>
   </div>

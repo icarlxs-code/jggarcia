@@ -4,6 +4,7 @@ import { useNavigate } from "@tanstack/react-router";
 import {
   ArrowDownToLine,
   ArrowUpFromLine,
+  Bookmark,
   FileText,
   Hash,
   LogOut,
@@ -17,10 +18,12 @@ import {
   User,
 } from "lucide-react";
 import { globalSearch, type SearchHit } from "@/lib/search";
+import { db } from "@/lib/store";
 import { formatNumber } from "@/lib/format";
-import { toggleTheme } from "@/lib/theme";
+import { toggleUserTheme } from "@/lib/ui-prefs";
 import { useSession } from "@/lib/session";
 import { ProductIcon } from "@/components/inventory/product-icon";
+import { AtalhoDialog } from "@/components/search/atalho-dialog";
 import { cn } from "@/lib/utils";
 
 const ICONS: Record<SearchHit["kind"], typeof Package> = {
@@ -41,6 +44,7 @@ export function CommandPalette({ open, onOpenChange }: { open: boolean; onOpenCh
   const navigate = useNavigate();
   const { signOut } = useSession();
   const [q, setQ] = useState("");
+  const [atalhoOpen, setAtalhoOpen] = useState(false);
   const hits = useMemo(() => globalSearch(q), [q, open]);
   const grouped = useMemo(() => {
     const map = new Map<string, SearchHit[]>();
@@ -75,13 +79,24 @@ export function CommandPalette({ open, onOpenChange }: { open: boolean; onOpenCh
 
   function run(hit: SearchHit) {
     if (hit.run === "theme") {
-      toggleTheme();
+      toggleUserTheme();
       onOpenChange(false);
       return;
     }
     if (hit.run === "logout") {
       signOut();
       onOpenChange(false);
+      return;
+    }
+    if (hit.run === "atalho") {
+      onOpenChange(false);
+      setAtalhoOpen(true);
+      return;
+    }
+    if (hit.atalhoId) {
+      db.touchAtalho(hit.atalhoId);
+      onOpenChange(false);
+      void navigate({ to: hit.to, search: hit.search } as never);
       return;
     }
     const produtoId = featured?.id ?? hits.find((h) => h.kind === "produto")?.id;
@@ -108,9 +123,9 @@ export function CommandPalette({ open, onOpenChange }: { open: boolean; onOpenCh
     void navigate({ to: hit.to });
   }
 
-  if (!open) return null;
-
   return (
+    <>
+    {open ? (
     <div className="fixed inset-0 z-[70] flex items-start justify-center px-3 pt-3 sm:px-4 sm:pt-[10vh]" role="dialog" aria-label="Busca">
       <button type="button" className="absolute inset-0 bg-forest/40" onClick={() => onOpenChange(false)} aria-label="Fechar busca" />
       <Command
@@ -196,6 +211,8 @@ export function CommandPalette({ open, onOpenChange }: { open: boolean; onOpenCh
                     ? Moon
                     : hit.run === "logout"
                       ? LogOut
+                      : hit.run === "atalho" || hit.atalhoId
+                        ? Bookmark
                       : hit.kind === "acao" && hit.to === "/entradas"
                         ? ArrowDownToLine
                         : hit.kind === "acao" && hit.to === "/nova-saida"
@@ -246,5 +263,8 @@ export function CommandPalette({ open, onOpenChange }: { open: boolean; onOpenCh
         </Command.List>
       </Command>
     </div>
+    ) : null}
+    <AtalhoDialog open={atalhoOpen} onOpenChange={setAtalhoOpen} />
+    </>
   );
 }

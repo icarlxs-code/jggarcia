@@ -15,6 +15,7 @@ import { PageHeader } from "@/components/page-header";
 import { EmptyState } from "@/components/empty-state";
 import { PageStage } from "@/components/motion/page-stage";
 import { playCeremony, ceremonyDock } from "@/lib/ceremony";
+import { useQueuedEdit } from "@/lib/ctx-edit";
 import { ConfirmDialog } from "@/components/feedback/confirm-dialog";
 
 export const Route = createFileRoute("/fornecedores")({ component: Fornecedores });
@@ -30,9 +31,17 @@ function Fornecedores() {
   const [eContato, setEContato] = useState("");
   const [pending, setPending] = useState<Fornecedor | null>(null);
 
+  useQueuedEdit("fornecedor", (id) => {
+    const f = list.find((x) => x.id === id);
+    if (!f) return;
+    setEdit(f);
+    setENome(f.nome);
+    setEContato(f.contato);
+  });
+
   return (
     <PageStage className="space-y-4">
-      <PageHeader icon="truck" title="Fornecedores" description="Origem das entradas do Ceasa. Toque para editar o nome.">
+      <PageHeader clip="/lottie/caminhao.json" title="Fornecedores" description="Origem das entradas do Ceasa. Toque para editar o nome.">
         <Button onClick={() => setOpen(true)}>
           <Plus /> Novo fornecedor
         </Button>
@@ -45,6 +54,7 @@ function Fornecedores() {
           {list.length === 0 ? (
             <EmptyState
               icon={Truck}
+              clip="/lottie/caminhao.json"
               title="Nenhum fornecedor"
               description="Cadastre quem envia a mercadoria para o galpão."
             >
@@ -61,7 +71,7 @@ function Fornecedores() {
               </TableHeader>
               <TableBody>
                 {list.map((f) => (
-                  <TableRow key={f.id}>
+                  <TableRow key={f.id} data-ctx="fornecedor" data-id={f.id} data-nome={f.nome} data-extra={f.contato}>
                     <TableCell className="font-medium">{f.nome}</TableCell>
                     <TableCell>{f.contato}</TableCell>
                     <TableCell className="text-right">

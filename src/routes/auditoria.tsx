@@ -170,7 +170,7 @@ function Auditoria() {
   return (
     <div className="space-y-4">
       <PageHeader
-        icon="log"
+        clip="/lottie/prancheta.json"
         title="Log de alterações"
         description="Tudo que a equipe lançou, alterou ou removeu — com nome, horário e opção de desfazer."
       />
@@ -217,6 +217,7 @@ function Auditoria() {
           <CardContent>
             <EmptyState
               icon={ScrollText}
+              clip={q.trim() ? undefined : "/lottie/prancheta.json"}
               title={q.trim() ? "Nada neste filtro" : "Nenhum registro"}
               description={q.trim() ? "A busca já filtra enquanto você escreve. Tente outro termo." : "Quando alguém lançar entrada, saída ou alterar um cadastro, aparece aqui."}
             />

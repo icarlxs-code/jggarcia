@@ -1,10 +1,18 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Monitor, Smartphone } from "lucide-react";
 import { applyViewport, getViewport, readViewportPref, setViewportPref, subscribeViewport, type ViewportKind } from "@/lib/viewport";
 import { cn } from "@/lib/utils";
 
 export function ViewportToggle({ compact = false, className }: { compact?: boolean; className?: string }) {
   const [kind, setKind] = useState<ViewportKind>("computer");
+  const last = useRef(0);
+
+  function press(pref: "phone" | "computer") {
+    const now = Date.now();
+    if (now - last.current < 350) return;
+    last.current = now;
+    setKind(setViewportPref(pref));
+  }
 
   useEffect(() => {
     applyViewport(readViewportPref());
@@ -27,7 +35,8 @@ export function ViewportToggle({ compact = false, className }: { compact?: boole
         aria-label="Modo telefone"
         aria-pressed={kind === "phone"}
         title="Telefone"
-        onClick={() => setKind(setViewportPref("phone"))}
+        onPointerUp={() => press("phone")}
+        onClick={() => press("phone")}
       >
         <Smartphone className="h-3.5 w-3.5" />
       </button>
@@ -40,7 +49,8 @@ export function ViewportToggle({ compact = false, className }: { compact?: boole
         aria-label="Modo computador"
         aria-pressed={kind === "computer"}
         title="Computador"
-        onClick={() => setKind(setViewportPref("computer"))}
+        onPointerUp={() => press("computer")}
+        onClick={() => press("computer")}
       >
         <Monitor className="h-3.5 w-3.5" />
       </button>

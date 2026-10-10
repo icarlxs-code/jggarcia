@@ -20,13 +20,16 @@ import { ActionButton } from "@/components/motion/action-button";
 import { ProductIcon, ProductLabel } from "@/components/inventory/product-icon";
 import { StockSplit } from "@/components/inventory/stock-split";
 import { ConfirmDialog } from "@/components/feedback/confirm-dialog";
-import { DuplicateLaunchDialog } from "@/components/feedback/duplicate-launch-dialog";
 import { StockRiseOverlay, type StockRise } from "@/components/motion/stock-rise-overlay";
 import { hydrateFromCloud } from "@/lib/store";
+import { enterNext, focusFlow } from "@/lib/field-flow";
 import { fold } from "@/lib/utils";
+import { readUiPrefs } from "@/lib/ui-prefs";
 import { rowEl, tossAway } from "@/lib/toss";
 import type { Saida } from "@/lib/types";
 import { PeriodFilter, periodRange, type PeriodKey } from "@/components/inventory/period-filter";
+import { ViewSwitch, useChartView } from "@/components/analytics/view-switch";
+import { ScreenCharts } from "@/components/analytics/screen-charts";
 
 export const Route = createFileRoute("/entradas")({
   validateSearch: (s: Record<string, unknown>): { produto?: string; pav?: string } => ({
@@ -41,6 +44,7 @@ function Entradas() {
   const { perfil } = useSession();
   const live = useDb();
   const [tick, setTick] = useState(0);
+  const { vista } = useChartView("entradas");
   const mercadorias = useMemo(() => live.listMercadorias(true), [live, tick]);
   const pavilhoes = useMemo(() => live.listPavilhoes(), [live, tick]);
   const [busca, setBusca] = useState("");
@@ -48,17 +52,19 @@ function Entradas() {
   const [aberto, setAberto] = useState(false);
   const [destaque, setDestaque] = useState(0);
   const [quantidade, setQuantidade] = useState("");
-  const [pavilhao, setPavilhao] = useState("");
+  const [observacao, setObservacao] = useState("");
+  const [pavilhao, setPavilhao] = useState(() => readUiPrefs(db.getSessionUser()?.id).pavilhaoPadraoId);
   const [edit, setEdit] = useState<Saida | null>(null);
   const [qtd, setQtd] = useState("");
+  const [editObs, setEditObs] = useState("");
   const [pending, setPending] = useState<Saida | null>(null);
-  const [dup, setDup] = useState<Saida | null>(null);
   const [rise, setRise] = useState<StockRise | null>(null);
-  const [period, setPeriod] = useState<PeriodKey>("hoje");
+  const [period, setPeriod] = useState<PeriodKey>(() => readUiPrefs(db.getSessionUser()?.id).periodoPadrao);
   const [day, setDay] = useState(todayISO());
+  const [span, setSpan] = useState({ from: todayISO(), to: todayISO() });
 
   const hoje = todayISO();
-  const range = periodRange(period, day);
+  const range = periodRange(period, day, span);
   const registros = useMemo(
     () => live.listSaidas({ tipo: "entrada", from: range.from, to: range.to }),
     [live, tick, range.from, range.to],
@@ -94,11 +100,12 @@ function Entradas() {
 
   function limpar() {
     setQuantidade("");
+    setObservacao("");
     setMercadoriaId("");
     setBusca("");
   }
 
-  async function lancarEntrada(force = false) {
+  async function lancarEntrada() {
     if (!merc || !perfil) {
       toast.error("Selecione o produto.");
       return false;
@@ -113,18 +120,6 @@ function Entradas() {
       return false;
     }
     await hydrateFromCloud();
-    if (!force) {
-      const hit = db.findDuplicateLaunch({
-        mercadoriaId: merc.id,
-        quantidade: n,
-        tipo: "entrada",
-        userId: perfil.id,
-      });
-      if (hit) {
-        setDup(hit);
-        return false;
-      }
-    }
     const from = Number(merc.estoque || 0);
     const pav = pavilhoes.find((p) => p.id === pavilhao);
     db.createEntrada({
@@ -141,6 +136,7 @@ function Entradas() {
       tipo: "entrada",
       pavilhao,
       pavilhao_id: pavilhao,
+      observacao: observacao.trim() || undefined,
     });
     setRise({
       nome: merc.nome,
@@ -151,17 +147,19 @@ function Entradas() {
     });
     limpar();
     setTick((t) => t + 1);
-    setDup(null);
     return true;
   }
 
   return (
-    <div className="mx-auto max-w-3xl space-y-4">
-      <PageHeader icon="in" title="Entrada do Ceasa" description="Produto, quantidade e o pavilhão ou galpão onde entra." />
+    <div className="mx-auto w-full max-w-[1400px] space-y-4" data-vista={vista}>
+      <PageHeader clip="/lottie/caixa.json" title="Entrada do Ceasa" description="Produto, quantidade e o pavilhão ou galpão onde entra.">
+        <ViewSwitch page="entradas" />
+      </PageHeader>
       {mercadorias.length === 0 ? (
         <Card>
           <EmptyState
             icon={Package}
+            clip="/lottie/caixa.json"
             title="Cadastre um produto primeiro"
             description="A entrada precisa de um item do catálogo."
           >
@@ -171,12 +169,13 @@ function Entradas() {
           </EmptyState>
         </Card>
       ) : (
+        <div className="grid items-start gap-4 lg:grid-cols-2">
         <Card>
           <CardHeader>
             <CardTitle>Nova entrada</CardTitle>
             <CardDescription>O estoque sobe na hora e o lançamento fica no histórico automaticamente.</CardDescription>
           </CardHeader>
-          <CardContent className="grid gap-4">
+          <CardContent className="grid gap-4" data-flow="entrada">
             <div className="space-y-2">
               <Label htmlFor="busca-prod">Produto</Label>
               <div className="relative">
@@ -195,20 +194,28 @@ function Entradas() {
                   }}
                   onFocus={() => setAberto(true)}
                   onBlur={() => window.setTimeout(() => setAberto(false), 140)}
+                  data-step={1}
                   onKeyDown={(e) => {
-                    if (!aberto || filtradas.length === 0) return;
-                    if (e.key === "ArrowDown") {
+                    if (e.key === "ArrowDown" && aberto && filtradas.length > 0) {
                       e.preventDefault();
                       setDestaque((n) => Math.min(n + 1, filtradas.length - 1));
-                    } else if (e.key === "ArrowUp") {
+                      return;
+                    }
+                    if (e.key === "ArrowUp" && aberto && filtradas.length > 0) {
                       e.preventDefault();
                       setDestaque((n) => Math.max(n - 1, 0));
-                    } else if (e.key === "Enter") {
+                      return;
+                    }
+                    if (e.key === "Escape") {
+                      setAberto(false);
+                      return;
+                    }
+                    if (e.key !== "Enter" || e.shiftKey) return;
+                    if (aberto && filtradas.length > 0) {
                       e.preventDefault();
                       escolher(filtradas[destaque] ?? filtradas[0]);
-                    } else if (e.key === "Escape") {
-                      setAberto(false);
                     }
+                    enterNext(e);
                   }}
                   placeholder="Digite o nome ou o código"
                   autoComplete="off"
@@ -252,12 +259,18 @@ function Entradas() {
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
                 <Label htmlFor="qtd">Quantidade</Label>
-                <Input id="qtd" type="number" min="1" value={quantidade} onChange={(e) => setQuantidade(e.target.value)} />
+                <Input id="qtd" data-step={2} type="number" min="1" value={quantidade} onChange={(e) => setQuantidade(e.target.value)} onKeyDown={(e) => enterNext(e)} />
               </div>
               <div className="space-y-2">
                 <Label>Entra em</Label>
-                <Select value={pavilhao} onValueChange={setPavilhao}>
-                  <SelectTrigger>
+                <Select
+                  value={pavilhao}
+                  onValueChange={(id) => {
+                    setPavilhao(id);
+                    window.setTimeout(() => focusFlow(document.getElementById("qtd"), 4), 0);
+                  }}
+                >
+                  <SelectTrigger id="entra-em" data-step={3} data-open-select="1">
                     <SelectValue placeholder="Pavilhão ou galpão" />
                   </SelectTrigger>
                   <SelectContent>
@@ -270,6 +283,19 @@ function Entradas() {
                   </SelectContent>
                 </Select>
               </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="obs-entrada">Observação</Label>
+              <textarea
+                id="obs-entrada"
+                data-step={4}
+                value={observacao}
+                onChange={(e) => setObservacao(e.target.value)}
+                onKeyDown={(e) => enterNext(e)}
+                rows={3}
+                placeholder="Anota o que precisar: palete, avaria, recado da expedição…"
+                className="min-h-20 w-full resize-y rounded-lg border border-border bg-card px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
+              />
             </div>
             <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
               <Button
@@ -295,29 +321,43 @@ function Entradas() {
                 Salvar atalho
               </Button>
               <ActionButton
-                idleLabel="Registrar chegada"
+                id="registrar-entrada"
+                data-step={5}
+                idleLabel="Registrar entrada"
                 pendingLabel="Registrando"
                 doneLabel="Entrada lançada"
-                onAction={() => lancarEntrada(false)}
+                onAction={() => lancarEntrada()}
               />
             </div>
           </CardContent>
         </Card>
-      )}
 
-      <Card>
+      {vista !== "lista" ? (
+        <ScreenCharts screen="entradas" movs={registros} pavilhoes={pavilhoes} periodLabel={`${range.from.split("-").reverse().join("/")} a ${range.to.split("-").reverse().join("/")}`} />
+      ) : null}
+
+      <Card className="jg-lista lg:sticky lg:top-4 lg:flex lg:max-h-[calc(100dvh-5.5rem)] lg:flex-col">
         <CardHeader>
           <CardTitle>Histórico de entradas</CardTitle>
           <CardDescription>Altere a quantidade, diminua ou desfaça um lançamento errado. O estoque se ajusta na hora.</CardDescription>
-          <PeriodFilter value={period} day={day} onChange={(k, d) => { setPeriod(k); setDay(d); }} />
+          <PeriodFilter allowRange value={period} day={day} span={span} onChange={(k, d, s) => { setPeriod(k); setDay(d); if (s) setSpan(s); }} />
         </CardHeader>
-        <CardContent>
+        <CardContent className="lg:min-h-0 lg:flex-1 lg:overflow-y-auto">
           {registros.length === 0 ? (
             <p className="text-sm text-muted-foreground">Nenhuma entrada neste período.</p>
           ) : (
             <ul className="divide-y divide-border">
               {registros.map((s) => (
-                <li key={s.id} data-toss-id={s.id} className="flex items-center gap-3 py-3 first:pt-0 last:pb-0">
+                <li
+                  key={s.id}
+                  data-toss-id={s.id}
+                  data-ctx="entrada"
+                  data-id={s.id}
+                  data-produto={s.mercadoria_id}
+                  data-nome={s.mercadoria?.nome ?? ""}
+                  data-codigo={s.mercadoria?.codigo ?? ""}
+                  className="flex items-center gap-3 py-3 first:pt-0 last:pb-0"
+                >
                   <ProductIcon nome={s.mercadoria?.nome ?? ""} size="sm" />
                   <div className="min-w-0 flex-1">
                     <p className="truncate font-mono text-[11px] font-bold tabular-nums">{s.mercadoria?.codigo}</p>
@@ -325,6 +365,7 @@ function Entradas() {
                     <p className="text-[11px] text-muted-foreground">
                       {s.data === hoje ? "Hoje" : formatDateBR(s.data)} · {formatTime(s.hora_chegada) || formatTime(s.hora_saida)} · entrou no {lugarDaSaida(pavilhoes, s)}
                     </p>
+                    {s.observacao ? <p className="truncate text-[11px] text-muted-foreground">{s.observacao}</p> : null}
                   </div>
                   <p className="shrink-0 text-sm font-semibold tabular-nums">
                     {formatNumber(s.quantidade)} {s.unidade}
@@ -337,6 +378,7 @@ function Entradas() {
                       onClick={() => {
                         setEdit(s);
                         setQtd(String(s.quantidade));
+                        setEditObs(s.observacao || "");
                       }}
                     >
                       <Pencil className="h-4 w-4" />
@@ -351,11 +393,13 @@ function Entradas() {
           )}
         </CardContent>
       </Card>
+        </div>
+      )}
 
       <Dialog open={!!edit} onOpenChange={(o) => !o && setEdit(null)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Alterar quantidade</DialogTitle>
+            <DialogTitle>Alterar entrada</DialogTitle>
           </DialogHeader>
           <div className="space-y-2">
             <Label htmlFor="eq-ent">{edit?.mercadoria?.nome}</Label>
@@ -373,6 +417,17 @@ function Entradas() {
               </Button>
             </div>
             <p className="text-xs text-muted-foreground">Aumenta ou diminui as caixas. O estoque acompanha na hora.</p>
+            <div className="space-y-2 pt-2">
+              <Label htmlFor="eq-obs">Observação</Label>
+              <textarea
+                id="eq-obs"
+                value={editObs}
+                onChange={(e) => setEditObs(e.target.value)}
+                rows={3}
+                placeholder="Anota o que precisar: palete, avaria, recado da expedição…"
+                className="min-h-20 w-full resize-y rounded-lg border border-border bg-card px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
+              />
+            </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setEdit(null)}>
@@ -386,7 +441,7 @@ function Entradas() {
                   notify.error("Quantidade inválida.");
                   return;
                 }
-                db.updateSaida(edit.id, { quantidade: n });
+                db.updateSaida(edit.id, { quantidade: n, observacao: editObs.trim() });
                 setEdit(null);
                 setTick((t) => t + 1);
                 notify.success("Entrada atualizada.");
@@ -421,15 +476,6 @@ function Entradas() {
                 }
               : undefined,
           });
-        }}
-      />
-      <DuplicateLaunchDialog
-        open={!!dup}
-        match={dup}
-        tipo="entrada"
-        onCancel={() => setDup(null)}
-        onConfirm={() => {
-          void lancarEntrada(true);
         }}
       />
       <StockRiseOverlay rise={rise} onDone={() => setRise(null)} />

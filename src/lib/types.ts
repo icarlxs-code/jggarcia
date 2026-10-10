@@ -27,6 +27,10 @@ export interface Mercadoria {
   categoria?: string;
   pavilhao_id?: string;
   pavilhao_ids?: string[];
+  /** Replacement photo (data URL). Never overwrites foto_original. */
+  foto?: string;
+  /** Catalog photo, or the first photo when the product has none. Kept forever. */
+  foto_original?: string;
 }
 
 export interface Destino {
@@ -57,6 +61,7 @@ export interface Pavilhao {
   ativo: boolean;
   logo?: string;
   tipo?: string;
+  deleted_at?: string | null;
 }
 
 export interface Lote {
@@ -102,6 +107,13 @@ export interface Saida {
   estoque_destino_antes?: number;
   estoque_destino_depois?: number;
   observacao?: string;
+  /** Exit recorded with no destination and no entry into another place. */
+  somente_saida?: boolean;
+  /** Transfer that is recorded at the destination but does not add to its stock. */
+  soma_destino?: boolean;
+  /** Optional breakdown. Existing exits keep only `quantidade` as the total. */
+  pallets?: number | null;
+  volumes_pallet?: number | null;
   mercadoria?: Pick<Mercadoria, "id" | "codigo" | "nome"> | null;
   destino?: Pick<Destino, "id" | "nome"> | null;
   usuario?: Pick<Usuario, "id" | "nome"> | null;
@@ -122,7 +134,8 @@ export type AuditEntidade =
   | "seguranca"
   | "fornecedor"
   | "empilhador"
-  | "frete";
+  | "frete"
+  | "requisicao";
 
 export interface AuditLog {
   id: string;
@@ -165,6 +178,8 @@ export interface SaidaInput {
   estoque_destino_depois?: number;
   observacao?: string;
   permitir_negativo?: boolean;
+  somente_saida?: boolean;
+  soma_destino?: boolean;
 }
 
 export interface Contagem {
@@ -204,9 +219,68 @@ export interface Atalho {
 export interface Empilhador {
   id: string;
   nome: string;
+  usuario?: string;
+  status?: "ativo" | "inativo";
   created_at: string;
   updated_at?: string;
   deleted_at?: string | null;
+}
+
+export type ForkliftJobStatus = "em_transporte" | "concluido" | "cancelado";
+
+export interface ForkliftDevice {
+  id: string;
+  operator_id: string;
+  token_hash: string;
+  device_name: string;
+  authorized_at: string;
+  revoked_at?: string | null;
+  status: "ativo" | "revogado";
+}
+
+export interface ForkliftPairing {
+  id: string;
+  operator_id: string;
+  code_hash: string;
+  expires_at: string;
+  used_at?: string | null;
+}
+
+export interface ForkliftJob {
+  id: string;
+  codigo: string;
+  operator_id: string;
+  operator_nome: string;
+  product_id: string;
+  product_nome: string;
+  product_codigo: string;
+  quantity: number;
+  unit: string;
+  origin_id: string;
+  origin_nome: string;
+  destination_id: string;
+  destination_nome: string;
+  started_at: string;
+  finished_at?: string | null;
+  status: ForkliftJobStatus;
+  photo?: string | null;
+  photo_at?: string | null;
+  device_id?: string | null;
+  cancel_motivo?: string | null;
+  movimento_id?: string | null;
+  deleted_at?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ForkliftLocation {
+  id: string;
+  job_id: string;
+  operator_id: string;
+  latitude: number;
+  longitude: number;
+  accuracy: number;
+  captured_at: string;
 }
 
 export type FreteStatus = "rascunho" | "gerado";
@@ -226,6 +300,8 @@ export interface FretePagamento {
   forma_pagamento: string;
   pix_tipo?: string;
   pix_chave?: string;
+  pix_favorecido?: string;
+  pix_banco?: string;
   rubrica: string;
   data_autorizacao: string;
   observacoes: string;
@@ -235,7 +311,32 @@ export interface FretePagamento {
   created_by?: string;
   created_by_nome?: string;
   deleted_at?: string | null;
+  tipo?: "pagamento" | "despesa";
 }
+
+export interface RequisicaoFornecedor {
+  id: string;
+  numero: string;
+  fornecedor: string;
+  mercadoria: string;
+  mercadoria_id?: string;
+  mercadoria_codigo?: string;
+  quantidade: number;
+  valor: number;
+  carregador: string;
+  vendedor: string;
+  assinatura_responsavel: string;
+  assinatura_fornecedor: string;
+  data: string;
+  horario: string;
+  usuario_id: string;
+  usuario_nome: string;
+  created_at: string;
+  updated_at?: string;
+  deleted_at?: string | null;
+}
+
+export type RequisicaoInput = Omit<RequisicaoFornecedor, "id" | "numero" | "created_at" | "deleted_at">;
 
 export type FreteInput = Omit<FretePagamento, "id" | "numero" | "created_at" | "status" | "deleted_at"> & {
   numero?: string;

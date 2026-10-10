@@ -1,4 +1,5 @@
-import type { Atalho, AuditLog, Contagem, Destino, Empilhador, Fornecedor, FretePagamento, Lote, Mercadoria, Pavilhao, Saida, Usuario } from "./types";
+import { readFileSync } from "node:fs";
+import type { Atalho, AuditLog, Contagem, Destino, Empilhador, Fornecedor, FretePagamento, Lote, Mercadoria, Pavilhao, RequisicaoFornecedor, Saida, Usuario } from "./types";
 
 export type CloudPayload = {
   usuarios: Usuario[];
@@ -16,6 +17,8 @@ export type CloudPayload = {
   empilhadeiras?: string[];
   empilhadoresPessoas?: Empilhador[];
   fretes?: FretePagamento[];
+  requisicoes?: RequisicaoFornecedor[];
+  requisicaoSeq?: number;
   stockResetAt?: string | null;
 };
 
@@ -116,7 +119,15 @@ export function mergePayload(a: CloudPayload | null | undefined, b: CloudPayload
     for (const m of mercadorias) m.estoque = Math.max(0, qty.get(m.id) || 0);
     for (const l of lotes) l.quantidade = 0;
   }
+  const requisicoes = mergeRows(left.requisicoes, right.requisicoes);
+  let requisicaoSeq = Math.max(Number(left.requisicaoSeq) || 0, Number(right.requisicaoSeq) || 0);
+  for (const row of requisicoes) {
+    const n = parseInt(String(row.numero || "").replace(/\D/g, ""), 10);
+    if (Number.isFinite(n) && n > requisicaoSeq) requisicaoSeq = n;
+  }
   return {
+    ...left,
+    ...right,
     usuarios: mergeRows(left.usuarios, right.usuarios),
     mercadorias,
     destinos: mergeRows(left.destinos, right.destinos),
@@ -132,6 +143,8 @@ export function mergePayload(a: CloudPayload | null | undefined, b: CloudPayload
     empilhadeiras: [...new Set([...(left.empilhadeiras ?? []), ...(right.empilhadeiras ?? [])])].filter(Boolean).sort((a, b) => a.localeCompare(b, "pt-BR")),
     empilhadoresPessoas: mergeEmpilhadores(left.empilhadoresPessoas, right.empilhadoresPessoas),
     fretes: mergeRows(left.fretes, right.fretes),
+    requisicoes,
+    requisicaoSeq,
     stockResetAt,
   };
 }
@@ -153,19 +166,176 @@ export function emptyPayload(): CloudPayload {
     empilhadeiras: [],
     empilhadoresPessoas: [],
     fretes: [],
+    requisicoes: [],
+    requisicaoSeq: 0,
     stockResetAt: null,
   };
 }
 
 function weight(p: CloudPayload) {
-  return (p.saidas?.length || 0) + (p.usuarios?.length || 0) + (p.destinos?.length || 0) + (p.logs?.length || 0) + (p.mercadorias?.length || 0) + (p.contagens?.length || 0);
+  return (p.saidas?.length || 0) + (p.usuarios?.length || 0) + (p.destinos?.length || 0) + (p.logs?.length || 0) + (p.mercadorias?.length || 0) + (p.contagens?.length || 0) + (p.requisicoes?.length || 0) + (p.fretes?.length || 0);
+}
+
+function unionById<T extends { id: string }>(current: T[] = [], older: T[] = []): T[] {
+  const map = new Map<string, T>();
+  for (const row of older) if (row?.id) map.set(row.id, row);
+  for (const row of current) if (row?.id) map.set(row.id, row);
+  return [...map.values()];
+}
+
+function peopleFromLogs(payload: CloudPayload): Usuario[] {
+  const found = new Map<string, Usuario>();
+  for (const log of payload.logs ?? []) {
+    const id = log.usuario_id;
+    const nome = log.usuario_nome?.trim();
+    if (!id || id === "sistema" || !nome) continue;
+    const slug = nome
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "");
+    found.set(id, {
+      id,
+      nome,
+      email: `${slug || "equipe"}@jggarcia.com.br`,
+      nivel_acesso: "admin",
+      status: true,
+      created_at: log.created_at || "2026-09-18T11:54:17.699Z",
+    });
+  }
+  return [...found.values()];
+}
+
+function restoreHistory(current: CloudPayload, history: CloudPayload[]): CloudPayload {
+  let saidas = current.saidas ?? [];
+  let lotes = current.lotes ?? [];
+  let logs = current.logs ?? [];
+  let mercadorias = current.mercadorias ?? [];
+  let usuarios = current.usuarios ?? [];
+  let fretes = current.fretes ?? [];
+  let requisicoes = current.requisicoes ?? [];
+  let contagens = current.contagens ?? [];
+  for (const old of history) {
+    saidas = unionById(saidas, old.saidas);
+    lotes = unionById(lotes, old.lotes);
+    logs = unionById(logs, old.logs);
+    mercadorias = unionById(mercadorias, old.mercadorias);
+    usuarios = unionById(usuarios, old.usuarios);
+    fretes = unionById(fretes, old.fretes);
+    requisicoes = unionById(requisicoes, old.requisicoes);
+    contagens = unionById(contagens, old.contagens);
+    usuarios = unionById(usuarios, peopleFromLogs(old));
+  }
+  usuarios = unionById(usuarios, peopleFromLogs({ ...current, logs }));
+  return { ...current, saidas, lotes, logs, mercadorias, usuarios, fretes, requisicoes, contagens };
+}
+
+export async function databaseUsage() {
+  const { getSql } = await import("@/lib/db");
+  const sql = await getSql();
+  try {
+    const rows = await sql.query<{
+      db_bytes: number;
+      payload_bytes: number;
+      revisions: number;
+      revisions_bytes: number;
+    }>(
+      `select
+        pg_database_size(current_database())::float8 as db_bytes,
+        coalesce((select pg_column_size(payload)::float8 from jg_store where id = 'main'), 0) as payload_bytes,
+        coalesce((select count(*)::float8 from jg_store_revisions), 0) as revisions,
+        coalesce((select coalesce(sum(pg_column_size(payload)), 0)::float8 from jg_store_revisions), 0) as revisions_bytes`,
+    );
+    const row = rows[0];
+    return {
+      ok: true as const,
+      dbBytes: Number(row?.db_bytes || 0),
+      payloadBytes: Number(row?.payload_bytes || 0),
+      revisions: Number(row?.revisions || 0),
+      revisionsBytes: Number(row?.revisions_bytes || 0),
+    };
+  } catch {
+    return { ok: false as const, dbBytes: 0, payloadBytes: 0, revisions: 0, revisionsBytes: 0 };
+  }
+}
+
+let weekCache: CloudPayload | null | undefined;
+
+function readWeekBackup(): CloudPayload | null {
+  if (weekCache !== undefined) return weekCache;
+  const paths = [
+    "/workspace/recovery-snapshot/banco-semana.json",
+    "/workspace/public/recovery/banco-semana.json",
+  ];
+  for (const path of paths) {
+    try {
+      const parsed = JSON.parse(readFileSync(path, "utf8")) as CloudPayload;
+      if ((parsed.saidas?.length || 0) > 0) {
+        weekCache = parsed;
+        return parsed;
+      }
+    } catch {
+      /* tenta o próximo arquivo */
+    }
+  }
+  weekCache = null;
+  return null;
 }
 
 export async function pullPayload(): Promise<CloudPayload | null> {
   const { getSql } = await import("@/lib/db");
   const sql = await getSql();
   const rows = await sql.query<{ payload: CloudPayload }>("select payload from jg_store where id = $1", ["main"]);
-  return rows[0]?.payload ?? null;
+  const current = rows[0]?.payload ?? null;
+  const base = current ?? emptyPayload();
+  const history: CloudPayload[] = [];
+  const backup = readWeekBackup();
+  if (backup) history.push(backup);
+  try {
+    const revisions = await sql.query<{ payload: CloudPayload }>(
+      "select payload from jg_store_revisions order by created_at desc limit 40",
+    );
+    for (const row of revisions) if (row.payload) history.push(row.payload);
+  } catch {
+    /* sem revisões */
+  }
+  try {
+    const auth = await sql.query<{
+      id: string;
+      nome: string;
+      email: string;
+      nivel_acesso: string;
+      status: unknown;
+      created_at: string;
+    }>("select id, nome, email, nivel_acesso, status, created_at from jg_auth_users");
+    if (auth.length) {
+      history.push({
+        ...emptyPayload(),
+        usuarios: auth.map((user) => ({
+          id: user.id,
+          nome: user.nome,
+          email: user.email,
+          nivel_acesso: user.nivel_acesso === "admin" ? "admin" : "operador",
+          status: user.status !== false && user.status !== "f" && user.status !== "false" && user.status !== 0,
+          created_at: user.created_at,
+        })),
+      });
+    }
+  } catch {
+    /* tabela de login é separada */
+  }
+  const restored = restoreHistory(base, history);
+  const before = (current?.usuarios?.length || 0) + (current?.saidas?.length || 0) + (current?.lotes?.length || 0);
+  const after = (restored.usuarios?.length || 0) + (restored.saidas?.length || 0) + (restored.lotes?.length || 0);
+  if ((restored.saidas?.length || 0) > 0 && (!current || after > before)) {
+    await sql.query(
+      `insert into jg_store (id, payload, updated_at) values ('main', $1::jsonb, now())
+       on conflict (id) do update set payload = excluded.payload, updated_at = now()`,
+      [JSON.stringify(restored)],
+    );
+    return restored;
+  }
+  return current;
 }
 
 export async function pushPayload(incoming: CloudPayload): Promise<CloudPayload> {
@@ -175,7 +345,20 @@ export async function pushPayload(incoming: CloudPayload): Promise<CloudPayload>
   if (current && weight(incoming) === 0 && weight(current) > 0) {
     return current;
   }
-  const merged = mergePayload(current, incoming);
+  const mergedRaw = mergePayload(current, incoming);
+  const merged = current
+    ? {
+        ...mergedRaw,
+        saidas: unionById(current.saidas, mergedRaw.saidas),
+        mercadorias: unionById(current.mercadorias, mergedRaw.mercadorias),
+        contagens: unionById(current.contagens, mergedRaw.contagens),
+        logs: unionById(current.logs, mergedRaw.logs),
+        lotes: unionById(current.lotes, mergedRaw.lotes),
+        usuarios: unionById(current.usuarios, mergedRaw.usuarios),
+        fretes: unionById(current.fretes, mergedRaw.fretes),
+        requisicoes: unionById(current.requisicoes, mergedRaw.requisicoes),
+      }
+    : mergedRaw;
   if (current && weight(merged) < weight(current)) {
     return current;
   }

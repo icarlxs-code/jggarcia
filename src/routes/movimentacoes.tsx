@@ -4,7 +4,7 @@ import { ArrowDownToLine, ArrowLeftRight, ArrowUpFromLine, ClipboardCheck, Penci
 import { useDb } from "@/lib/use-db";
 import { db } from "@/lib/store";
 import { buildTimeline, movementSearchBlob, qtyLine, statusLabel, tipoMovLabel, type TimelineItem } from "@/lib/movement";
-import { calcTransportTime, completeTime, formatDateBR, formatNumber, isoDaysAgo, isValidTime, nowHHMM, todayISO } from "@/lib/format";
+import { calcTransportTime, completeTime, formatDateBR, isoDaysAgo, isValidTime, nowHHMM, todayISO } from "@/lib/format";
 import { cn, fold } from "@/lib/utils";
 import { notify } from "@/lib/notify";
 import type { Saida } from "@/lib/types";
@@ -15,24 +15,40 @@ import { Badge } from "@/components/ui/badge";
 import { PageHeader } from "@/components/page-header";
 import { PageStage } from "@/components/motion/page-stage";
 import { EmptyState } from "@/components/empty-state";
-import { ProductLabel } from "@/components/inventory/product-icon";
+import { ProductIcon } from "@/components/inventory/product-icon";
 import { MovementDetail } from "@/components/inventory/movement-detail";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { TimeField } from "@/components/ui/time-field";
 import { NameRecall } from "@/components/inventory/name-recall";
 import { ProductPicker } from "@/components/inventory/product-picker";
+import { readUiPrefs } from "@/lib/ui-prefs";
+import { ViewSwitch, useChartView } from "@/components/analytics/view-switch";
+import { ScreenCharts } from "@/components/analytics/screen-charts";
 
-export const Route = createFileRoute("/movimentacoes")({ component: Movimentacoes });
+export const Route = createFileRoute("/movimentacoes")({
+  validateSearch: (s: Record<string, unknown>): { q?: string; periodo?: "hoje" | "ontem" | "7d" | "tudo" | "periodo"; tipo?: "tudo" | "entrada" | "saida" | "transferencia" | "contagem" } => {
+    const periodo = s.periodo === "hoje" || s.periodo === "ontem" || s.periodo === "7d" || s.periodo === "tudo" || s.periodo === "periodo" ? s.periodo : undefined;
+    const tipo = s.tipo === "entrada" || s.tipo === "saida" || s.tipo === "transferencia" || s.tipo === "contagem" || s.tipo === "tudo" ? s.tipo : undefined;
+    return {
+      q: typeof s.q === "string" ? s.q : undefined,
+      periodo,
+      tipo,
+    };
+  },
+  component: Movimentacoes,
+});
 
 type KindFilter = "tudo" | "entrada" | "saida" | "transferencia" | "contagem";
 type Period = "hoje" | "ontem" | "7d" | "tudo" | "periodo";
 
 function Movimentacoes() {
   const live = useDb();
-  const [q, setQ] = useState("");
-  const [kind, setKind] = useState<KindFilter>("tudo");
-  const [period, setPeriod] = useState<Period>("hoje");
+  const { q: qParam, periodo, tipo } = Route.useSearch();
+  const [q, setQ] = useState(qParam || "");
+  const { vista } = useChartView("movimentacoes");
+  const [kind, setKind] = useState<KindFilter>(tipo || "tudo");
+  const [period, setPeriod] = useState<Period>(periodo || (qParam ? "tudo" : readUiPrefs(db.getSessionUser()?.id).periodoPadrao === "hoje" ? "hoje" : "7d"));
   const [from, setFrom] = useState(isoDaysAgo(7));
   const [to, setTo] = useState(todayISO());
   const [view, setView] = useState<Saida | null>(null);
@@ -122,12 +138,14 @@ function Movimentacoes() {
   }
 
   return (
-    <PageStage className="space-y-4">
+    <PageStage className="space-y-4" data-vista={vista}>
       <PageHeader
-        icon="log"
+        clip="/lottie/caminhao.json"
         title="Movimentações"
         description="Entradas, saídas, transferências e contagens em uma linha do tempo."
-      />
+      >
+        <ViewSwitch page="movimentacoes" />
+      </PageHeader>
       <div className="relative max-w-xl">
         <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
         <Input
@@ -185,11 +203,22 @@ function Movimentacoes() {
           </div>
         </div>
       ) : null}
-      <Card>
-        <CardContent className="p-0">
-          {filtered.length === 0 ? (
+      {vista !== "lista" ? (
+        <ScreenCharts
+          screen="movimentacoes"
+          movs={filtered.flatMap((item) => (item.saida ? [item.saida] : []))}
+          contagens={filtered.flatMap((item) => (item.contagem ? [item.contagem] : []))}
+          pavilhoes={pavilhoes}
+          periodLabel={period === "hoje" ? "Hoje" : period === "ontem" ? "Ontem" : period === "7d" ? "Últimos 7 dias" : period === "tudo" ? "Todo o histórico" : `${from} a ${to}`}
+        />
+      ) : null}
+      {vista !== "graficos" ? (filtered.length === 0 ? (
+        <Card>
+          <CardContent className="p-0">
             <EmptyState
+              className="px-4 py-8"
               icon={ArrowLeftRight}
+              clip="/lottie/caminhao.json"
               title="Nada neste filtro"
               description="Registre uma entrada ou uma saída para aparecer aqui."
             >
@@ -197,39 +226,70 @@ function Movimentacoes() {
                 <Link to="/nova-saida">Nova saída</Link>
               </Button>
             </EmptyState>
-          ) : (
-            <ul className="divide-y divide-border">
-              {filtered.map((item) => (
-                <li key={item.id}>
-                  <button type="button" className="flex w-full items-start gap-3 px-4 py-3 text-left hover:bg-muted/40" onClick={() => openItem(item)}>
-                    <KindMark tipo={item.tipo} />
-                    <div className="min-w-0 flex-1">
-                      <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                        {formatDateBR(item.data)} · {item.hora} · {tipoMovLabel(item.tipo)}
-                      </p>
-                      <ProductLabel nome={item.titulo} extra={qtyLine(item.quantidade, item.unidade)} />
-                      <p className="mt-1 truncate text-[11px] text-muted-foreground">
-                        {item.detalhe}
-                        {item.empilhador ? ` · ${item.empilhador}` : ""}
-                        {item.usuario ? ` · ${item.usuario}` : ""}
-                      </p>
-                      <div className="mt-1 flex flex-wrap gap-1">
-                        {item.status ? <Badge variant={item.status === "em_transito" ? "gold" : "muted"}>{statusLabel(item.status)}</Badge> : null}
-                        {item.desconta === false && item.tipo !== "entrada" && item.tipo !== "contagem" ? <Badge variant="gold">Somente registro</Badge> : null}
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="space-y-2">
+          <p className="text-xs text-muted-foreground">
+            {filtered.length} {filtered.length === 1 ? "movimentação" : "movimentações"} · mais recente primeiro
+          </p>
+          <ul className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+            {filtered.map((item) => {
+              const accent =
+                item.tipo === "entrada"
+                  ? "bg-primary"
+                  : item.tipo === "transferencia"
+                    ? "bg-foreground/30"
+                    : item.tipo === "contagem"
+                      ? "bg-gold"
+                      : "bg-foreground/15";
+              return (
+                <li key={item.id} className="min-w-0">
+                  <button
+                    type="button"
+                    data-ctx={item.tipo === "entrada" ? "entrada" : item.tipo === "contagem" ? "contagem" : "saida"}
+                    data-id={item.saida?.id || item.id}
+                    data-produto={item.saida?.mercadoria_id || item.contagem?.mercadoria_id || ""}
+                    data-nome={item.titulo}
+                    data-codigo={item.codigo || ""}
+                    data-extra={item.detalhe}
+                    onClick={() => openItem(item)}
+                    className="flex h-full w-full flex-col overflow-hidden rounded-2xl border border-border bg-card text-left shadow-card"
+                  >
+                    <div className={cn("h-1 shrink-0", accent)} />
+                    <div className="flex items-center gap-3 p-3">
+                      <ProductIcon nome={item.titulo} codigo={item.codigo} size="lg" className="h-14 w-14 shrink-0" />
+                      <div className="min-w-0 flex-1">
+                        <p className="flex items-center gap-1.5 truncate text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                          <KindMark tipo={item.tipo} />
+                          <span className="truncate">
+                            {formatDateBR(item.data)} · {item.hora} · {tipoMovLabel(item.tipo)}
+                          </span>
+                        </p>
+                        <p className="mt-1 truncate text-sm font-semibold text-foreground">{item.titulo}</p>
+                        {item.quantidade != null ? (
+                          <p className="text-base font-semibold tabular-nums leading-tight text-foreground">{qtyLine(item.quantidade, item.unidade)}</p>
+                        ) : null}
+                        <p className="mt-1 truncate text-[11px] text-muted-foreground">
+                          {item.detalhe}
+                          {item.empilhador ? ` · ${item.empilhador}` : ""}
+                          {item.usuario ? ` · ${item.usuario}` : ""}
+                        </p>
+                        {item.status || (item.desconta === false && item.tipo !== "entrada" && item.tipo !== "contagem") ? (
+                          <div className="mt-1.5 flex flex-wrap gap-1">
+                            {item.status ? <Badge variant={item.status === "em_transito" ? "gold" : "muted"}>{statusLabel(item.status)}</Badge> : null}
+                            {item.desconta === false && item.tipo !== "entrada" && item.tipo !== "contagem" ? <Badge variant="gold">Somente registro</Badge> : null}
+                          </div>
+                        ) : null}
                       </div>
                     </div>
-                    {item.quantidade != null ? (
-                      <p className="shrink-0 text-sm font-semibold tabular-nums">
-                        {formatNumber(item.quantidade)} {item.unidade}
-                      </p>
-                    ) : null}
                   </button>
                 </li>
-              ))}
-            </ul>
-          )}
-        </CardContent>
-      </Card>
+              );
+            })}
+          </ul>
+        </div>
+      )) : null}
       <MovementDetail
         view={view}
         onClose={() => setView(null)}

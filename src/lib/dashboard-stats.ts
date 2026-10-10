@@ -107,3 +107,39 @@ export function dailySeries(movs: Saida[], from: string, to: string): DayPoint[]
   }
   return [...by.values()];
 }
+
+export function hourOf(raw: string | null | undefined): number | null {
+  if (!raw) return null;
+  const clock = raw.match(/T(\d{2}):(\d{2})/) || raw.match(/(\d{1,2}):(\d{2})/);
+  if (clock) {
+    const h = Number(clock[1]);
+    return h >= 0 && h <= 23 ? h : null;
+  }
+  if (/^\d{4}$/.test(raw)) {
+    const h = Number(raw.slice(0, 2));
+    return h >= 0 && h <= 23 ? h : null;
+  }
+  return null;
+}
+
+/** Reparte um total nas horas do dia. A soma dos pontos é a soma do que entrou na função. */
+export function countsByHour(stamps: (string | null | undefined)[]): number[] {
+  const hours = Array.from({ length: 24 }, () => 0);
+  for (const stamp of stamps) {
+    const h = hourOf(stamp);
+    if (h == null) continue;
+    hours[h] += 1;
+  }
+  return trimHours(hours);
+}
+
+export function trimHours(hours: number[]): number[] {
+  let start = hours.findIndex((n) => n > 0);
+  if (start < 0) return [0];
+  let end = hours.length - 1;
+  while (end > start && hours[end] === 0) end -= 1;
+  if (start > 0) start -= 1;
+  if (end < 23) end += 1;
+  const slice = hours.slice(start, end + 1);
+  return slice.length === 1 ? [slice[0], slice[0]] : slice;
+}

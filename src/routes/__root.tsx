@@ -1,93 +1,63 @@
-import { useEffect, useRef, useState } from "react";
+import { Component, useEffect, type ReactNode } from "react";
 import { createRootRoute, HeadContent, Outlet, Scripts, useRouterState } from "@tanstack/react-router";
 import { AuthProvider } from "@/lib/auth/provider";
 import { PreviewHostBridge } from "@/components/preview-host-bridge";
 import { SessionProvider, useSession } from "@/lib/session";
 import { LoginScreen } from "@/components/login-screen";
 import { AppShell } from "@/components/layout/app-shell";
-import { BrandIntro } from "@/components/motion/brand-intro";
 import { Toaster } from "@/components/ui/sonner";
-import { useViewport } from "@/lib/use-viewport";
+import { toggleUserTheme } from "@/lib/ui-prefs";
 import appCss from "../styles.css?url";
 
 const APP_NAME = "JG Garcia";
-const SPLIT_MS = 1800;
+const BUILD_ID = (import.meta.env as { VITE_BUILD_ID?: string }).VITE_BUILD_ID || "dev";
 
-let introDone = false;
+function NightModeHotkey() {
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (!(e.ctrlKey || e.metaKey) || e.altKey || e.shiftKey || e.key !== "ArrowDown") return;
+      e.preventDefault();
+      toggleUserTheme();
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+  return null;
+}
 
 function Gate() {
   const { perfil } = useSession();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
-  const phone = useViewport() === "phone";
-  const [intro, setIntro] = useState(() => !introDone);
-  const [reveal, setReveal] = useState(() => introDone);
 
-  const [opening, setOpening] = useState(false);
-  const sawLogin = useRef(false);
-
-  useEffect(() => {
-    if (!perfil) {
-      sawLogin.current = true;
-      setOpening(false);
-      return;
-    }
-    if (!sawLogin.current) {
-      setOpening(false);
-      return;
-    }
-    setOpening(true);
-    const t = window.setTimeout(() => setOpening(false), SPLIT_MS);
-    return () => window.clearTimeout(t);
-  }, [perfil]);
-
-  useEffect(() => {
-    if (perfil) return;
-    if (pathname.startsWith("/qr-acesso") || pathname === "/") return;
-    try {
-      window.history.replaceState(null, "", "/");
-    } catch {
-      /* ignore */
-    }
-  }, [perfil, pathname]);
-
-  useEffect(() => {
-    if (!phone || introDone) return;
-    introDone = true;
-    setIntro(false);
-    setReveal(true);
-  }, [phone]);
-
-  function startReveal() {
-    setReveal(true);
-  }
-
-  function endIntro() {
-    introDone = true;
-    setIntro(false);
-    setReveal(true);
-  }
-
-  if (pathname.startsWith("/qr-acesso")) return <Outlet />;
-  if (perfil) {
-    return (
-      <>
-        <div className={opening ? "split-stage" : undefined}>
-          <AppShell />
-        </div>
-        {opening ? (
-          <div className="split-overlay" aria-hidden>
-            <LoginScreen mediaActive={false} entering={false} leaving />
-          </div>
-        ) : null}
-      </>
-    );
-  }
+  if (pathname.startsWith("/qr-acesso") || pathname.startsWith("/operar")) return <Outlet />;
+  if (!perfil) return <LoginScreen />;
   return (
-    <>
-      <LoginScreen mediaActive={reveal && !phone} entering={reveal} />
-      {intro ? <BrandIntro onFadeStart={startReveal} onDone={endIntro} /> : null}
-    </>
+    <PanelBoundary>
+      <AppShell />
+    </PanelBoundary>
   );
+}
+
+class PanelBoundary extends Component<{ children: ReactNode }, { erro: string }> {
+  state = { erro: "" };
+
+  static getDerivedStateFromError(error: unknown) {
+    return { erro: error instanceof Error ? error.message : "Falha ao abrir o painel." };
+  }
+
+  render() {
+    if (this.state.erro) {
+      return (
+        <main className="login-plain">
+          <section className="login-form">
+            <h2>Não abriu</h2>
+            <p className="login-plain-erro">{this.state.erro}</p>
+          </section>
+        </main>
+      );
+    }
+    return this.props.children;
+  }
 }
 
 export const Route = createRootRoute({
@@ -110,6 +80,10 @@ export const Route = createRootRoute({
     <html lang="pt-BR" suppressHydrationWarning>
       <head>
         <HeadContent />
+        <meta httpEquiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+        <meta httpEquiv="Pragma" content="no-cache" />
+        <meta httpEquiv="Expires" content="0" />
+        <meta name="jg-build" content={BUILD_ID} />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link
@@ -122,7 +96,12 @@ export const Route = createRootRoute({
         />
         <script
           dangerouslySetInnerHTML={{
-            __html: `(function(){try{if(localStorage.getItem('jg-theme-v2')==='dark'){document.documentElement.classList.add('dark');document.documentElement.style.colorScheme='dark'}else{document.documentElement.classList.remove('dark');document.documentElement.style.colorScheme='light'}var m=localStorage.getItem('jg-viewport');var phone=false;if(m==='phone')phone=true;else if(m==='computer')phone=false;else phone=/Android|iPhone|iPod|iPad|Mobile|webOS|BlackBerry/i.test(navigator.userAgent)||window.innerWidth<768;document.documentElement.classList.toggle('is-phone',phone);document.documentElement.classList.toggle('is-computer',!phone);document.documentElement.dataset.viewport=phone?'phone':'computer'}catch(e){}})()`,
+            __html: `(function(){try{if(navigator.serviceWorker){navigator.serviceWorker.getRegistrations().then(function(rs){rs.forEach(function(r){r.unregister()})})}}catch(e){}try{if(window.caches)caches.keys().then(function(ns){ns.forEach(function(n){caches.delete(n)})})}catch(e){}var meta=document.querySelector('meta[name="jg-build"]');var here=meta&&meta.content;function umaVez(id){var key="jg-html-"+id;try{if(sessionStorage.getItem(key))return false;sessionStorage.setItem(key,"1");return true}catch(e){return false}}function abrirNovo(id){if(!umaVez(id))return;var u=new URL(location.href);u.searchParams.set("novo",id);location.replace(u.toString())}if(!here){abrirNovo("sem-versao");return}fetch("/api/versao",{cache:"no-store"}).then(function(r){return r.json()}).then(function(d){if(!d||!d.id||d.id===here)return;abrirNovo(d.id)}).catch(function(){})})();`,
+          }}
+        />
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){try{var root=document.documentElement;var ua=/Android|iPhone|iPod|iPad|Mobile|webOS|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);var m=localStorage.getItem('jg-viewport');if(ua&&m==='computer'){localStorage.removeItem('jg-viewport');m=null}var phone=false;if(m==='phone')phone=true;else if(m==='computer')phone=false;else phone=ua||window.innerWidth<768;root.classList.toggle('is-phone',phone);root.classList.toggle('is-computer',!phone);root.dataset.viewport=phone?'phone':'computer';if(localStorage.getItem('jg-theme-v2')==='dark'){root.classList.add('dark');root.style.colorScheme='dark'}else{root.classList.remove('dark');root.style.colorScheme='light'}}catch(e){}})()`,
           }}
         />
       </head>
@@ -131,9 +110,15 @@ export const Route = createRootRoute({
         <AuthProvider>
           <SessionProvider>
             <Gate />
+            <NightModeHotkey />
             <Toaster />
           </SessionProvider>
         </AuthProvider>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){var busy=false;function abrir(pass){pass=String(pass||"").trim();if(!pass||busy)return;busy=true;fetch("/api/acesso",{method:"POST",headers:{"content-type":"application/json"},credentials:"same-origin",body:JSON.stringify({senha:pass})}).then(function(r){return r.json().then(function(d){return {ok:r.ok,d:d};}).catch(function(){return {ok:false,d:null};});}).then(function(res){busy=false;var user=res.d&&res.d.user;if(!res.ok||!user||!user.id)return;try{localStorage.setItem("jg-plain-user",JSON.stringify(user));}catch(e){}if(typeof window.__jgEntrar==="function")window.__jgEntrar(user);else window.__jgPendingUser=user;}).catch(function(){busy=false;});}document.addEventListener("click",function(e){var n=e.target;if(!n||!n.closest)return;if(!n.closest(".login-plain button"))return;var input=document.querySelector(".login-plain input[name=password]");abrir(input&&input.value);},true);document.addEventListener("keydown",function(e){if(e.key!=="Enter")return;var input=e.target;if(!input||input.name!=="password"||!input.closest||!input.closest(".login-plain"))return;e.preventDefault();abrir(input.value);},true);})();`,
+          }}
+        />
         <Scripts />
       </body>
     </html>

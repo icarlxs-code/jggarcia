@@ -21,7 +21,7 @@ function dockPoint(selector?: string) {
 
 function Mark({ event }: { event: CeremonyEvent }) {
   if (event.productName) {
-    return <ProductIcon nome={event.productName} size="lg" className="h-20 w-20 shadow-none ring-0" />;
+    return <ProductIcon nome={event.productName} size="lg" className="h-24 w-24 rounded-none border-0 bg-transparent shadow-none ring-0" />;
   }
   if (event.initials) {
     return <span className="ceremony-initials">{event.initials.slice(0, 2).toUpperCase()}</span>;
@@ -351,7 +351,7 @@ export function CeremonyOverlay() {
             </div>
           </div>
           <div ref={shipRef} className="dispatch-ship" aria-hidden>
-            {event.desconta === false ? null : event.productName ? <ProductIcon nome={event.productName} size="lg" className="h-16 w-16 shadow-none ring-0" /> : <Package />}
+            {event.desconta === false ? null : event.productName ? <ProductIcon nome={event.productName} size="lg" className="h-20 w-20 rounded-none border-0 bg-transparent shadow-none ring-0" /> : <Package />}
           </div>
         </div>
       ) : null}
