@@ -26,6 +26,7 @@ import { CommandPalette } from "@/components/search/command-palette";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { ViewportToggle } from "@/components/viewport-toggle";
 import { CeremonyOverlay } from "@/components/motion/ceremony-overlay";
+import { DataActivity } from "@/components/motion/data-activity";
 import { AppContextMenu } from "@/components/ui/app-context-menu";
 import { AssistenteButton } from "@/components/assistente/painel";
 import { operadorPodeVer } from "@/lib/acesso-operador";
@@ -308,6 +309,7 @@ export function AppShell() {
                 </div>
               )}
             </div>
+            <DataActivity />
           </div>
         </aside>
 

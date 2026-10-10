@@ -12,6 +12,8 @@ import { PeriodFilter, periodRange, type PeriodKey } from "@/components/inventor
 import { notify } from "@/lib/notify";
 import { exportDiaCompletoPdf } from "@/lib/reports";
 import { Button } from "@/components/ui/button";
+import { ActionMenu } from "@/components/ui/action-menu";
+import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { fold, cn } from "@/lib/utils";
@@ -99,12 +101,10 @@ function Hoje() {
           </h1>
           <p className="page-desc hoje-date">{periodoTxt}</p>
         </div>
-        <div className="hoje-banner-tools">
+        <div className="hoje-banner-tools page-actions" role="group" aria-label="Ações da página">
           {isAdmin ? <><Button asChild variant="outline"><Link to="/entradas">Registrar entrada</Link></Button><Button asChild><Link to="/nova-saida">Nova saída</Link></Button></> : null}
           {umDia ? (
-            <Button variant="outline" className="hoje-pdf" onClick={() => exportDiaCompletoPdf(range.from)}>
-              <FileText /> PDF do dia
-            </Button>
+            <ActionMenu label="Exportar"><DropdownMenuItem onSelect={() => exportDiaCompletoPdf(range.from)}><FileText />PDF do dia</DropdownMenuItem></ActionMenu>
           ) : null}
         </div>
       </div>

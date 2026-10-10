@@ -21,9 +21,11 @@ import { pavTitle } from "@/lib/catalog";
 import { pavilhaoParaZerar } from "@/lib/zero-pav";
 import { pinnedIds } from "@/lib/pins";
 import { exportEstoqueDiaPdf } from "@/lib/reports";
-import { PeriodFilter, periodRange, type PeriodKey } from "@/components/inventory/period-filter";
+import { periodRange, type PeriodKey } from "@/components/inventory/period-filter";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { ActionMenu } from "@/components/ui/action-menu";
+import { DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { Card, CardContent } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -426,47 +428,20 @@ function Estoque() {
   return (
     <PageStage className="space-y-4" data-vista={vista}>
       <PageHeader clip="/lottie/caixa.json" title="Estoque" description="Busque produtos e confira saldo, unidade, localização e situação.">
-        <ViewSwitch page="estoque" />
-        <Button
-          className="hidden sm:inline-flex"
-          variant="ghost"
-          size="sm"
-          aria-label="Baixar estoque do dia"
-          onClick={() => exportEstoqueDiaPdf(upto)}
-        >
-          <Download />
-          PDF
-        </Button>
-        {isAdmin ? (
-          <>
-            <Button
-              className="hidden border-destructive/30 text-destructive hover:bg-destructive/5 sm:inline-flex"
-              variant="outline"
-              onClick={() => {
-                setZeroPav("");
-                setConfirmZero(true);
-              }}
-            >
-              <Trash2 /> Zerar estoque
-            </Button>
-            {db.listStockBackups().length ? (
-              <Button className="hidden sm:inline-flex" variant="outline" onClick={() => setRecoverOpen(true)}>
-                Recuperar
-              </Button>
-            ) : null}
-          </>
-        ) : null}
-        <Button variant="outline" onClick={() => setCloseOpen(true)}>
-          {dayClosed ? "Abrir estoque" : "Fechar estoque"}
-        </Button>
-        <Button asChild variant="outline">
-          <Link to="/contagem">
-            <ClipboardCheck /> Contagem
-          </Link>
-        </Button>
-        <Button asChild>
-          <Link to="/entradas">Registrar entrada</Link>
-        </Button>
+        <Button asChild><Link to="/entradas">Registrar entrada</Link></Button>
+        <ActionMenu label="Ações do estoque">
+          <DropdownMenuLabel>Operação</DropdownMenuLabel>
+          <DropdownMenuItem asChild><Link to="/contagem"><ClipboardCheck />Contagem</Link></DropdownMenuItem>
+          <DropdownMenuItem onSelect={() => setCloseOpen(true)}>{dayClosed ? "Abrir estoque" : "Fechar estoque"}</DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuLabel>Exportar</DropdownMenuLabel>
+          <DropdownMenuItem onSelect={() => exportEstoqueDiaPdf(upto)}><Download />PDF do estoque</DropdownMenuItem>
+          {isAdmin ? <>
+            <DropdownMenuSeparator /><DropdownMenuLabel>Administração</DropdownMenuLabel>
+            {db.listStockBackups().length ? <DropdownMenuItem onSelect={() => setRecoverOpen(true)}>Recuperar estoque</DropdownMenuItem> : null}
+            <DropdownMenuItem className="text-destructive focus:bg-destructive/10" onSelect={() => { setZeroPav(""); setConfirmZero(true); }}><Trash2 />Zerar estoque</DropdownMenuItem>
+          </> : null}
+        </ActionMenu>
       </PageHeader>
 
       <section className="space-y-3 rounded-2xl border border-border bg-card p-3 shadow-card sm:p-4">
@@ -490,165 +465,39 @@ function Estoque() {
           </Badge>
         </div>
 
-        <button
-          type="button"
-          className="flex h-10 w-full items-center justify-between gap-2 rounded-xl border border-border px-3 text-sm sm:hidden"
-          onClick={() => setFiltersOpen((v) => !v)}
-        >
-          <span className="min-w-0 truncate text-left">
-            {view === "atual" ? "Posição atual" : view === "hoje" ? "Hoje" : view === "dia" ? formatDateBR(day) : `${view} dias`}
-            {" · "}
-            {pavFilter === "todos" ? "Todos os lugares" : pavTitle(pavilhoes.find((p) => p.id === pavFilter) || { codigo: "" })}
-            {" · "}
-            {chips.find((c) => c.id === quick)?.label || "Todos"}
-          </span>
-          <span className="shrink-0 text-xs font-medium text-primary">{filtersOpen ? "Fechar" : "Filtros"}</span>
+        <button type="button" className="filter-summary flex sm:hidden" onClick={() => setFiltersOpen((v) => !v)} aria-label="Filtros e visualização" aria-expanded={filtersOpen} aria-controls="stock-filters">
+          <SlidersHorizontal className="h-4 w-4 shrink-0" aria-hidden="true" />
+          <span className="min-w-0 text-left"><span className="block">Filtros e visualização</span><span className="block truncate text-xs text-muted-foreground">{view === "atual" ? "Posição atual" : view === "hoje" ? "Hoje" : view === "dia" ? formatDateBR(day) : `${view} dias`} · {pavFilter === "todos" ? "Todos os lugares" : pavTitle(pavilhoes.find((p) => p.id === pavFilter) || { codigo: "" })} · {chips.find((c) => c.id === quick)?.label || "Todos"}</span></span>
+          <span className="ml-auto text-xs text-muted-foreground">{filtersOpen ? "Fechar" : "Abrir"}</span>
         </button>
-
-        <div className={cn("grid gap-3 xl:grid-cols-2", "max-sm:hidden")}>
-          <FilterGroup label="Período" flatten>
-            <button
-              type="button"
-              onClick={() => {
-                setView("atual");
-                setPage(0);
-              }}
-              className={cn(
-                "inline-flex h-8 shrink-0 items-center rounded-full border px-3 text-xs font-medium",
-                view === "atual" ? "border-primary bg-primary text-primary-foreground" : "border-border bg-background text-muted-foreground hover:bg-muted",
-              )}
-            >
-              Posição atual
-            </button>
-            <PeriodFilter
-              value={view}
-              day={day}
-              onChange={(k, d) => {
-                setView(k);
-                setDay(d);
-                setPage(0);
-              }}
-            />
-          </FilterGroup>
-          <FilterGroup label="Lugar">
-            <button
-              type="button"
-              onClick={() => {
-                setPavFilter("todos");
-                setQuick((q) => (q === "falta" || q === "sobra" || q === "bateu" ? "todos" : q));
-                setPage(0);
-              }}
-              className={cn(
-                "inline-flex h-8 shrink-0 items-center rounded-full border px-3 text-xs font-medium",
-                pavFilter === "todos" ? "border-primary bg-primary text-primary-foreground" : "border-border bg-background text-muted-foreground hover:bg-muted",
-              )}
-            >
-              Todos os lugares
-            </button>
-            {pavilhoes.map((p) => {
-              const title = pavTitle(p);
-              const same = pavilhoes.filter((x) => pavTitle(x) === title).length > 1;
-              return (
-              <button
-                key={p.id}
-                type="button"
-                onClick={() => {
-                  setPavFilter(p.id);
-                  setPage(0);
-                }}
-                className={cn(
-                  "inline-flex h-8 shrink-0 items-center rounded-full border px-3 text-xs font-medium",
-                  pavFilter === p.id ? "border-primary bg-primary text-primary-foreground" : "border-border bg-background text-muted-foreground hover:bg-muted",
-                )}
-              >
-                {same ? `${title} · ${p.codigo}` : title}
-              </button>
-              );
-            })}
-          </FilterGroup>
-        </div>
-
-        <div className="max-sm:hidden">
-        <FilterGroup label="Situação">
-          {chips.map((c) => (
-            <button
-              key={c.id}
-              type="button"
-              onClick={() => {
-                setQuick(c.id);
-                setPage(0);
-              }}
-              className={cn(
-                "inline-flex h-8 shrink-0 items-center gap-2 rounded-full border px-3 text-xs font-medium transition-colors",
-                quick === c.id
-                  ? c.id === "falta"
-                    ? "border-destructive bg-destructive text-destructive-foreground"
-                    : "border-primary bg-primary text-primary-foreground"
-                  : c.id === "falta" && c.n > 0
-                    ? "border-destructive/25 bg-destructive/5 text-destructive hover:bg-destructive/10"
-                    : c.id === "sobra" && c.n > 0
-                      ? "border-primary/25 bg-mint text-primary hover:bg-mint/80"
-                      : "border-border bg-background text-muted-foreground hover:bg-muted",
-              )}
-            >
-              {c.label}
-              <span className="tabular">{c.n}</span>
-            </button>
-          ))}
-        </FilterGroup>
-        </div>
-        {filtersOpen ? (
-          <div className="grid gap-2 sm:hidden">
-            <select
-              aria-label="Período"
-              value={view}
-              onChange={(e) => {
-                const next = e.target.value as typeof view;
-                setView(next);
-                setPage(0);
-              }}
-              className="h-10 rounded-xl border border-border bg-background px-3 text-sm"
-            >
-              <option value="atual">Posição atual</option>
-              <option value="hoje">Hoje</option>
-              <option value="7">7 dias</option>
-              <option value="15">15 dias</option>
-              <option value="30">30 dias</option>
-              <option value="dia">Um dia</option>
-            </select>
-            {view === "dia" ? (
-              <input type="date" value={day} onChange={(e) => { setDay(e.target.value); setPage(0); }} className="h-10 rounded-xl border border-border bg-background px-3 text-sm" />
-            ) : null}
-            <select
-              aria-label="Lugar"
-              value={pavFilter}
-              onChange={(e) => {
-                const next = e.target.value;
-                setPavFilter(next);
-                if (next === "todos") setQuick((q) => (q === "falta" || q === "sobra" || q === "bateu" ? "todos" : q));
-                setPage(0);
-              }}
-              className="h-10 rounded-xl border border-border bg-background px-3 text-sm"
-            >
-              <option value="todos">Todos os lugares</option>
-              {pavilhoes.map((p) => {
-                const title = pavTitle(p);
-                const same = pavilhoes.filter((x) => pavTitle(x) === title).length > 1;
-                return <option key={p.id} value={p.id}>{same ? `${title} · ${p.codigo}` : title}</option>;
-              })}
-            </select>
-            <select
-              aria-label="Situação"
-              value={quick}
-              onChange={(e) => { setQuick(e.target.value as Quick); setPage(0); }}
-              className="h-10 rounded-xl border border-border bg-background px-3 text-sm"
-            >
-              {chips.map((c) => (
-                <option key={c.id} value={c.id}>{c.label} ({c.n})</option>
-              ))}
-            </select>
+        <div id="stock-filters" className={cn(phone && !filtersOpen && "hidden")}>
+          <div className="filter-controls grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <Select value={view} onValueChange={(value) => { setView(value as typeof view); setPage(0); }}>
+              <SelectTrigger aria-label="Período"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="atual">Posição atual</SelectItem><SelectItem value="hoje">Hoje</SelectItem>
+                <SelectItem value="7">7 dias</SelectItem><SelectItem value="15">15 dias</SelectItem><SelectItem value="30">30 dias</SelectItem><SelectItem value="dia">Um dia</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select value={pavFilter} onValueChange={(value) => { setPavFilter(value); if (value === "todos") setQuick((q) => (q === "falta" || q === "sobra" || q === "bateu" ? "todos" : q)); setPage(0); }}>
+              <SelectTrigger aria-label="Lugar"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todos">Todos os lugares</SelectItem>
+                {pavilhoes.map((p) => {
+                  const title = pavTitle(p);
+                  const same = pavilhoes.filter((x) => pavTitle(x) === title).length > 1;
+                  return <SelectItem key={p.id} value={p.id}>{same ? `${title} · ${p.codigo}` : title}</SelectItem>;
+                })}
+              </SelectContent>
+            </Select>
+            <Select value={quick} onValueChange={(value) => { setQuick(value as Quick); setPage(0); }}>
+              <SelectTrigger aria-label="Situação"><SelectValue /></SelectTrigger>
+              <SelectContent>{chips.map((c) => <SelectItem key={c.id} value={c.id}>{c.label} ({c.n})</SelectItem>)}</SelectContent>
+            </Select>
+            <ViewSwitch page="estoque" />
+            {view === "dia" ? <Input aria-label="Dia do estoque" type="date" value={day} onChange={(e) => { setDay(e.target.value); setPage(0); }} className="w-40" /> : null}
           </div>
-        ) : null}
+        </div>
       </section>
 
       {vista !== "lista" ? (
@@ -1286,15 +1135,6 @@ function FecharEstoqueDialog({ initialDay, onClose }: { initialDay: string; onCl
         </DialogFooter>
       </DialogContent>
     </Dialog>
-  );
-}
-
-function FilterGroup({ label, children, flatten }: { label: string; children: ReactNode; flatten?: boolean }) {
-  return (
-    <div className="min-w-0 space-y-1.5">
-      <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{label}</p>
-      <div className={cn("flex flex-wrap items-center gap-1.5", flatten && "[&>div]:contents")}>{children}</div>
-    </div>
   );
 }
 

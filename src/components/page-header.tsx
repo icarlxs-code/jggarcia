@@ -30,7 +30,7 @@ export function PageHeader({
         </h1>
         {description ? <p className="page-desc mt-2 max-w-2xl text-sm leading-relaxed text-muted-foreground">{description}</p> : null}
       </div>
-      {children ? <div className="flex flex-wrap items-center gap-2">{children}</div> : null}
+      {children ? <div className="page-actions flex shrink-0 flex-wrap items-center gap-2" role="group" aria-label="Ações da página">{children}</div> : null}
     </div>
   );
 }

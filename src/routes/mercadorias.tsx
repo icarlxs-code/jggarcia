@@ -12,6 +12,8 @@ import { useQueuedEdit } from "@/lib/ctx-edit";
 import { notify } from "@/lib/notify";
 import type { Mercadoria } from "@/lib/types";
 import { Button } from "@/components/ui/button";
+import { ActionMenu } from "@/components/ui/action-menu";
+import { DropdownMenuItem, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -226,23 +228,16 @@ function Mercadorias() {
                           <Badge variant={m.status ? "success" : "muted"}>{m.status ? "Ativo" : "Inativo"}</Badge>
                         </TableCell>
                         <TableCell className="text-right">
-                          <Button variant="ghost" size="icon" aria-label="Editar produto" onClick={() => openEdit(m)}>
-                            <Pencil />
-                          </Button>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => {
+                          <ActionMenu label="Ações" ariaLabel={`Ações de ${m.nome}`}>
+                            <DropdownMenuItem onSelect={() => openEdit(m)}><Pencil />Editar produto</DropdownMenuItem>
+                            <DropdownMenuItem onSelect={() => {
                               db.updateMercadoria(m.id, { status: !m.status });
                               setTick((n) => n + 1);
                               notify.success(m.status ? "Produto desativado." : "Produto ativado.");
-                            }}
-                          >
-                            {m.status ? "Desativar" : "Ativar"}
-                          </Button>
-                          <Button variant="ghost" size="icon" className="ml-1" aria-label="Excluir produto" onClick={() => setPending(m)}>
-                            <Trash2 className="text-destructive" />
-                          </Button>
+                            }}>{m.status ? "Desativar" : "Ativar"}</DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem className="text-destructive" onSelect={() => setPending(m)}><Trash2 />Excluir produto</DropdownMenuItem>
+                          </ActionMenu>
                         </TableCell>
                       </TableRow>
                     ))}
@@ -551,3 +546,4 @@ function PhotoEdit({
     </div>
   );
 }
+

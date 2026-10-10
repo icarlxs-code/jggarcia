@@ -11,6 +11,8 @@ import { notify } from "@/lib/notify";
 import { fold, cn } from "@/lib/utils";
 import type { FretePagamento } from "@/lib/types";
 import { Button } from "@/components/ui/button";
+import { ActionMenu } from "@/components/ui/action-menu";
+import { DropdownMenuItem, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
@@ -317,17 +319,12 @@ export function FretePage({ kind = "pagamento" }: { kind?: "pagamento" | "despes
                           </span>
                         </td>
                         <td className="px-2 py-1.5">
-                          <div className="flex justify-end gap-1">
-                            <Button variant="outline" size="sm" onClick={() => loadRow(f)}>
-                              Abrir
-                            </Button>
-                            <Button variant="outline" size="sm" onClick={() => setPreview(f)}>
-                              PDF
-                            </Button>
-                            <Button variant="ghost" size="sm" onClick={() => setPending(f)}>
-                              Excluir
-                            </Button>
-                          </div>
+                          <ActionMenu label="Ações" ariaLabel={`Ações do frete ${f.numero}`}>
+                            <DropdownMenuItem onSelect={() => loadRow(f)}>Abrir frete</DropdownMenuItem>
+                            <DropdownMenuItem onSelect={() => setPreview(f)}>Ver PDF</DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem className="text-destructive" onSelect={() => setPending(f)}>Excluir frete</DropdownMenuItem>
+                          </ActionMenu>
                         </td>
                       </tr>
                     ))}

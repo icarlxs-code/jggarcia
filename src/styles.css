@@ -128,6 +128,35 @@ html.dark {
 
 .page-stage { width: 100%; max-width: 100rem; margin-inline: auto; }
 
+.page-hero { padding-bottom: 1rem; border-bottom: 1px solid var(--color-border); }
+.page-actions { gap: .75rem; }
+.action-menu { min-width: 15rem; max-height: min(26rem, var(--radix-dropdown-menu-content-available-height, 26rem)); overflow-y: auto; transform-origin: var(--radix-dropdown-menu-content-transform-origin); }
+.action-menu svg { width: 1rem; height: 1rem; flex: none; color: currentColor; }
+.filter-summary { align-items: center; gap: .75rem; min-height: 2.75rem; width: 100%; border: 1px solid var(--color-border); border-radius: .75rem; padding: .75rem; font-size: .875rem; }
+.filter-group { padding-block: .25rem; }
+.analysis-card { position: relative; min-width: 0; box-shadow: var(--shadow-card), inset 0 2px 0 color-mix(in srgb, var(--color-primary) 14%, transparent); transition: border-color 200ms, box-shadow 200ms; }
+.analysis-card:focus-within { border-color: var(--color-ring); }
+.chart-title { line-height: 1.4; letter-spacing: -.015em; }
+.chart-canvas { border-radius: .75rem; background: color-mix(in srgb, var(--color-muted) 35%, transparent); padding: .5rem .25rem; }
+.an-rank-fill { transform-origin: left; transition: width 280ms var(--ease-standard); }
+.an-board .recharts-cartesian-grid line { stroke-dasharray: 3 5; }
+.an-board .recharts-tooltip-wrapper { outline: none; }
+.data-activity { display: flex; align-items: center; justify-content: center; gap: .5rem; padding-top: .75rem; color: var(--color-sidebar-foreground); font-size: .75rem; opacity: .85; }
+.data-activity-dot { width: .375rem; height: .375rem; flex: none; border-radius: 50%; background: var(--color-sidebar-foreground); }
+.jg-sidebar.w-64 .data-activity { justify-content: flex-start; padding-inline: .75rem; }
+.jg-sidebar:not(.w-64) .data-activity-label { display: none; }
+@media (prefers-reduced-motion: no-preference) {
+  html:not(.is-lite) .an-rank-fill { animation: chart-grow 300ms var(--ease-enter); }
+  html:not(.is-lite) .data-activity-dot.is-updated { animation: data-pulse 650ms ease-out; }
+  html:not(.is-lite) .pop-in[data-state="closed"] { animation: panel-leave 150ms ease-in both; }
+  html:not(.is-lite) .filter-controls { animation: row-arrive 200ms var(--ease-enter); }
+}
+@keyframes panel-leave { from { opacity: 1; transform: none; } to { opacity: 0; transform: translateY(4px) scale(.98); } }
+@keyframes chart-grow { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+@keyframes data-pulse { 0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--color-sidebar-foreground) 55%, transparent); } 100% { box-shadow: 0 0 0 .5rem transparent; } }
+@media (max-width: 639px) { .page-actions { width: 100%; } .page-actions > .jg-btn { flex: 1; } .page-actions [role="combobox"] { flex: 1; } }
+
+
 .page-hero h1 { font-size: clamp(1.5rem, 2.5vw, 2rem); line-height: 1.2; letter-spacing: -.035em; }
 
 .page-desc { font-size: .875rem; line-height: 1.6; color: var(--color-muted-foreground); }
@@ -156,7 +185,7 @@ html.dark {
 
 .jg-modal-center > * { animation-duration: 200ms; }
 
-.jg-dialog[data-state="closed"] { animation: modal-in 150ms ease-in reverse; }
+.jg-dialog[data-state="closed"] { animation: panel-leave 150ms ease-in both; }
 
 
 .nav-group { margin: 0 0 .5rem; padding: 0 .75rem; font-size: .75rem; font-weight: 600; color: color-mix(in srgb, var(--color-sidebar-foreground) 75%, transparent); }
