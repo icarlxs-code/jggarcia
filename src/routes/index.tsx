@@ -18,6 +18,8 @@ import { useSession } from "@/lib/session";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { ActionMenu } from "@/components/ui/action-menu";
+import { DropdownMenuItem, DropdownMenuLabel } from "@/components/ui/dropdown-menu";
 import { PageHeader } from "@/components/page-header";
 import { PageStage } from "@/components/motion/page-stage";
 import { ViewSwitch, useChartView } from "@/components/analytics/view-switch";
@@ -118,16 +120,11 @@ function Dashboard() {
           description="Posição atual do estoque, alertas e tendências da operação."
         >
         <ViewSwitch page="inicio" />
-        <Button asChild variant="outline">
-          <Link to="/contagem">
-            <ClipboardCheck /> Contagem
-          </Link>
-        </Button>
-        <Button asChild variant="outline">
-          <Link to="/entradas">
-            <ArrowDownToLine /> Entrada
-          </Link>
-        </Button>
+        <ActionMenu>
+          <DropdownMenuLabel>Operação</DropdownMenuLabel>
+          <DropdownMenuItem asChild><Link to="/contagem"><ClipboardCheck />Contagem</Link></DropdownMenuItem>
+          <DropdownMenuItem asChild><Link to="/entradas"><ArrowDownToLine />Registrar entrada</Link></DropdownMenuItem>
+        </ActionMenu>
         <Button asChild>
           <Link to="/nova-saida">
             <ArrowUpFromLine /> Nova saída
@@ -220,8 +217,8 @@ function Dashboard() {
                         fontSize: 12,
                       }}
                     />
-                    <Bar dataKey="entradas" name="Entradas" fill="url(#dashIn)" radius={[8, 8, 2, 2]} maxBarSize={28} isAnimationActive={!lite} />
-                    <Bar dataKey="saidas" name="Saídas" fill="url(#dashOut)" radius={[8, 8, 2, 2]} maxBarSize={28} isAnimationActive={!lite} />
+                    <Bar dataKey="entradas" name="Entradas" fill="url(#dashIn)" radius={[8, 8, 2, 2]} maxBarSize={28} isAnimationActive={!lite} animationDuration={480} animationEasing="ease-out" />
+                    <Bar dataKey="saidas" name="Saídas" fill="url(#dashOut)" radius={[8, 8, 2, 2]} maxBarSize={28} isAnimationActive={!lite} animationDuration={480} animationEasing="ease-out" />
                   </BarChart>
                 </ResponsiveContainer>
               )}

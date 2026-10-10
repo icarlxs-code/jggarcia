@@ -82,8 +82,8 @@ export function ProductCharts({ mercadoriaId, unidade }: { mercadoriaId: string;
                       );
                     }}
                   />
-                  <Bar dataKey="entradas" name="Entrou" fill="var(--color-primary)" radius={[2, 2, 0, 0]} maxBarSize={8} isAnimationActive={!lite} animationDuration={lite ? 0 : 700} />
-                  <Bar dataKey="saidas" name="Saiu" fill="var(--color-gold)" radius={[2, 2, 0, 0]} maxBarSize={8} isAnimationActive={!lite} animationDuration={lite ? 0 : 700} />
+                  <Bar dataKey="entradas" name="Entrou" fill="var(--color-primary)" radius={[2, 2, 0, 0]} maxBarSize={8} isAnimationActive={!lite} animationDuration={480} />
+                  <Bar dataKey="saidas" name="Saiu" fill="var(--color-gold)" radius={[2, 2, 0, 0]} maxBarSize={8} isAnimationActive={!lite} animationDuration={480} />
                 </BarChart>
               </ResponsiveContainer>
             </div>

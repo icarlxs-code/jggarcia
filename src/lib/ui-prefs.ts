@@ -389,7 +389,7 @@ export function resetUiPrefs(userId: string | null | undefined) {
 export function toggleUserTheme(): ThemeMode {
   const prefs = activePrefs();
   const dark = tokensFor(prefs.temaId, prefs.temaCor).dark;
-  const nextId: ThemeId = dark ? "branco-verde" : "preto-total";
+  const nextId: ThemeId = dark ? "verde-branco" : "noite";
   writeUiPrefs(activeId, { temaId: nextId });
   applyThemeChoice(nextId);
   return dark ? "light" : "dark";

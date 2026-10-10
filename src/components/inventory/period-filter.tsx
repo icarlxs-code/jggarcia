@@ -1,6 +1,7 @@
 import { isoDaysAgo, todayISO } from "@/lib/format";
 import { Input } from "@/components/ui/input";
-import { cn } from "@/lib/utils";
+import { CalendarDays } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 export type PeriodKey = "hoje" | "7" | "15" | "30" | "dia" | "periodo";
 
@@ -45,57 +46,20 @@ export function PeriodFilter({
   const from = span?.from || day || todayISO();
   const to = span?.to || from;
   return (
-    <>
-      <div className="hidden flex-wrap items-center gap-2 sm:flex">
-        {chips.map((c) => (
-          <button
-            key={c.id}
-            type="button"
-            aria-pressed={value === c.id}
-            onClick={() => onChange(c.id, day || todayISO(), { from, to })}
-            className={cn(
-              "inline-flex h-8 shrink-0 items-center rounded-full border px-3 text-xs font-medium transition-colors",
-              value === c.id ? "border-primary bg-primary text-primary-foreground" : "border-border bg-card text-muted-foreground hover:bg-muted",
-            )}
-          >
-            {c.label}
-          </button>
-        ))}
-        {value === "periodo" && allowRange ? (
-          <>
-            <Input type="date" value={from} onChange={(e) => onChange("periodo", day, { from: e.target.value, to })} aria-label="Data inicial" className="h-8 w-[9.5rem]" />
-            <Input type="date" value={to} onChange={(e) => onChange("periodo", day, { from, to: e.target.value })} aria-label="Data final" className="h-8 w-[9.5rem]" />
-          </>
-        ) : (
-          <Input
-            type="date"
-            value={value === "dia" ? day : value === "hoje" ? todayISO() : day}
-            onChange={(e) => onChange("dia", e.target.value, { from, to })}
-            aria-label="Escolher o dia"
-            className="h-8 w-[9.5rem]"
-          />
-        )}
-      </div>
-      <div className="flex flex-wrap items-center gap-2 sm:hidden">
-        <select
-          aria-label="Período"
-          value={value === "atual" ? "hoje" : value}
-          onChange={(e) => onChange(e.target.value as PeriodKey, day || todayISO(), { from, to })}
-          className="h-10 min-w-0 flex-1 rounded-xl border border-border bg-card px-3 text-sm"
-        >
-          {chips.map((c) => (
-            <option key={c.id} value={c.id}>{c.label}</option>
-          ))}
-        </select>
-        {value === "periodo" && allowRange ? (
-          <>
-            <Input type="date" value={from} onChange={(e) => onChange("periodo", day, { from: e.target.value, to })} aria-label="Data inicial" className="h-10 w-[9.5rem]" />
-            <Input type="date" value={to} onChange={(e) => onChange("periodo", day, { from, to: e.target.value })} aria-label="Data final" className="h-10 w-[9.5rem]" />
-          </>
-        ) : value === "dia" ? (
-          <Input type="date" value={day || todayISO()} onChange={(e) => onChange("dia", e.target.value)} aria-label="Escolher o dia" className="h-10 w-[9.5rem]" />
-        ) : null}
-      </div>
-    </>
+    <div className="filter-group flex flex-wrap items-center gap-3" role="group" aria-label="Período de consulta">
+      <Select value={value === "atual" ? "hoje" : value} onValueChange={(key) => onChange(key as PeriodKey, day || todayISO(), { from, to })}>
+        <SelectTrigger className="w-44 gap-2" aria-label="Período">
+          <CalendarDays className="h-4 w-4 text-muted-foreground" aria-hidden="true" /><SelectValue />
+        </SelectTrigger>
+        <SelectContent>{chips.map((c) => <SelectItem key={c.id} value={c.id}>{c.label}</SelectItem>)}</SelectContent>
+      </Select>
+      {value === "periodo" && allowRange ? (
+        <>
+          <Input type="date" value={from} onChange={(e) => onChange("periodo", day, { from: e.target.value, to })} aria-label="Data inicial" className="w-40" />
+          <span className="text-sm text-muted-foreground">até</span>
+          <Input type="date" value={to} onChange={(e) => onChange("periodo", day, { from, to: e.target.value })} aria-label="Data final" className="w-40" />
+        </>
+      ) : value === "dia" ? <Input type="date" value={day || todayISO()} onChange={(e) => onChange("dia", e.target.value)} aria-label="Escolher o dia" className="w-40" /> : null}
+    </div>
   );
 }

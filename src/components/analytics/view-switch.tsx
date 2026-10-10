@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { useSession } from "@/lib/session";
 import { readUiPrefs, subscribePrefs, writeUiPrefs, type ChartView, type ViewPage } from "@/lib/ui-prefs";
-import { cn } from "@/lib/utils";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { PanelsTopLeft } from "lucide-react";
 
 const OPTIONS: { id: ChartView; label: string }[] = [
   { id: "lista", label: "Lista" },
@@ -27,21 +28,12 @@ export function useChartView(page: ViewPage) {
 export function ViewSwitch({ page }: { page: ViewPage }) {
   const { vista, choose } = useChartView(page);
   return (
-    <div className="inline-flex rounded-full border border-border bg-card p-0.5" role="group" aria-label="Modo de visualização">
-      {OPTIONS.map((o) => (
-        <button
-          key={o.id}
-          type="button"
-          aria-pressed={vista === o.id}
-          onClick={() => choose(o.id)}
-          className={cn(
-            "h-10 rounded-full px-3 text-xs font-medium transition-colors duration-200",
-            vista === o.id ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground",
-          )}
-        >
-          {o.label}
-        </button>
-      ))}
-    </div>
+    <Select value={vista} onValueChange={(value) => choose(value as ChartView)}>
+      <SelectTrigger className="w-44 gap-2" aria-label="Modo de visualização">
+        <PanelsTopLeft className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent>{OPTIONS.map((o) => <SelectItem key={o.id} value={o.id}>{o.label}</SelectItem>)}</SelectContent>
+    </Select>
   );
 }

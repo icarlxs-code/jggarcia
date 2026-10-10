@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { Download, FileText, Printer, Search, X } from "lucide-react";
+import { Download, FileText, Search, X } from "lucide-react";
 import { formatDateBR, formatNumber, formatTime, completeTime, isValidTime, isoDaysAgo, todayISO } from "@/lib/format";
 import { pavTitle } from "@/lib/catalog";
 import {
@@ -24,6 +24,8 @@ import { ScreenCharts } from "@/components/analytics/screen-charts";
 import type { Destino, Mercadoria, Pavilhao, Saida, Usuario } from "@/lib/types";
 import { cn, fold } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { ActionMenu } from "@/components/ui/action-menu";
+import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import { ProductIcon } from "@/components/inventory/product-icon";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -184,36 +186,14 @@ export function SaidasPainel({
           <summary className={cn("min-h-11 cursor-pointer items-center text-sm font-semibold", phone ? "flex" : "hidden")}>Filtros e exportações · {formatDateBR(filtro.de)}</summary>
           <div className="space-y-4">
       <div className="flex flex-wrap items-end gap-2">
-        <div className="flex flex-wrap gap-1">
-          {(
-            [
-              ["hoje", "Hoje"],
-              ["7", "7 dias"],
-              ["15", "15 dias"],
-              ["30", "30 dias"],
-            ] as const
-          ).map(([id, label]) => {
-            const hoje = todayISO();
-            const de = id === "hoje" ? hoje : id === "7" ? isoDaysAgo(6) : id === "15" ? isoDaysAgo(14) : isoDaysAgo(29);
-            const ativo = filtro.de === de && (filtro.ate === hoje || (id === "hoje" && !filtro.ate));
-            return (
-              <button
-                key={id}
-                type="button"
-                onClick={() => {
-                  setDraft((f) => ({ ...f, de, ate: hoje }));
-                  setFiltro((f) => ({ ...f, de, ate: hoje }));
-                }}
-                className={cn(
-                  "h-11 rounded-full border px-3 text-xs font-medium",
-                  ativo ? "border-primary bg-primary text-primary-foreground" : "border-border bg-card text-muted-foreground",
-                )}
-              >
-                {label}
-              </button>
-            );
-          })}
-        </div>
+        <Select value={["hoje", "7", "15", "30"].find((id) => filtro.de === (id === "hoje" ? todayISO() : isoDaysAgo(Number(id) - 1)) && (filtro.ate === todayISO() || (id === "hoje" && !filtro.ate))) ?? "custom"} onValueChange={(id) => {
+          if (id === "custom") return;
+          const ate = todayISO(); const de = id === "hoje" ? ate : isoDaysAgo(Number(id) - 1);
+          setDraft((f) => ({ ...f, de, ate })); setFiltro((f) => ({ ...f, de, ate }));
+        }}>
+          <SelectTrigger className="w-44" aria-label="Período rápido"><SelectValue /></SelectTrigger>
+          <SelectContent><SelectItem value="hoje">Hoje</SelectItem><SelectItem value="7">7 dias</SelectItem><SelectItem value="15">15 dias</SelectItem><SelectItem value="30">30 dias</SelectItem><SelectItem value="custom">Personalizado</SelectItem></SelectContent>
+        </Select>
         <Campo label="Data inicial" className="w-40">
           <Input
             type="date"
@@ -242,37 +222,14 @@ export function SaidasPainel({
           value={q}
           onChange={setQ}
         />
-        <div className="flex flex-wrap gap-1">
-          {(
-            [
-              ["lista", "Lista"],
-              ["mercadoria", "Agrupar por mercadoria"],
-              ["pavilhao", "Agrupar por pavilhão"],
-            ] as const
-          ).map(([id, label]) => (
-            <button
-              key={id}
-              type="button"
-              aria-pressed={grupo === id}
-              onClick={() => setGrupo(id)}
-              className={cn(
-                "min-h-11 rounded-full border px-3 py-2 text-xs",
-                grupo === id ? "border-primary bg-primary text-primary-foreground" : "border-border bg-card",
-              )}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
-        <Button type="button" variant="outline" size="sm" onClick={() => exportarPdfSaidas(visiveis, meta())}>
-          <FileText /> PDF
-        </Button>
-        <Button type="button" variant="outline" size="sm" onClick={() => exportarExcelSaidas(visiveis, meta())}>
-          <Download /> Excel
-        </Button>
-        <Button type="button" variant="outline" size="sm" onClick={() => exportarPdfSaidas(visiveis, meta())}>
-          <Printer /> Imprimir
-        </Button>
+        <Select value={grupo} onValueChange={(value) => setGrupo(value as typeof grupo)}>
+          <SelectTrigger className="w-52" aria-label="Agrupar saídas"><SelectValue /></SelectTrigger>
+          <SelectContent><SelectItem value="lista">Sem agrupamento</SelectItem><SelectItem value="mercadoria">Por mercadoria</SelectItem><SelectItem value="pavilhao">Por pavilhão</SelectItem></SelectContent>
+        </Select>
+        <ActionMenu label="Exportar">
+          <DropdownMenuItem onSelect={() => exportarPdfSaidas(visiveis, meta())}><FileText />PDF e impressão</DropdownMenuItem>
+          <DropdownMenuItem onSelect={() => exportarExcelSaidas(visiveis, meta())}><Download />Excel</DropdownMenuItem>
+        </ActionMenu>
       </div>
         <details className="rounded-xl border border-border p-4">
           <summary className="cursor-pointer text-sm font-semibold">Filtros detalhados · origem, produto, destino e responsável</summary>

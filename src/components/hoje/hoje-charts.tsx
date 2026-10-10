@@ -491,8 +491,8 @@ function MovementCard({ series }: { series: DayPoint[] }) {
                     cursor={{ fill: "color-mix(in srgb, var(--color-primary) 12%, transparent)", radius: 8 }}
                     content={<FlowTooltip />}
                   />
-                  <Bar dataKey="entradas" name="Entrou" fill="var(--color-primary)" radius={[3, 3, 0, 0]} maxBarSize={16} isAnimationActive={!lite} animationDuration={lite ? 0 : 700} animationEasing="ease-out" />
-                  <Bar dataKey="saidas" name="Saiu" fill="var(--color-gold)" radius={[3, 3, 0, 0]} maxBarSize={16} isAnimationActive={!lite} animationDuration={lite ? 0 : 700} animationEasing="ease-out" />
+                  <Bar dataKey="entradas" name="Entrou" fill="var(--color-primary)" radius={[3, 3, 0, 0]} maxBarSize={16} isAnimationActive={!lite} animationDuration={480} animationEasing="ease-out" />
+                  <Bar dataKey="saidas" name="Saiu" fill="var(--color-gold)" radius={[3, 3, 0, 0]} maxBarSize={16} isAnimationActive={!lite} animationDuration={480} animationEasing="ease-out" />
                 </BarChart>
               </ResponsiveContainer>
             </div>
