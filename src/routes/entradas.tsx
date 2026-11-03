@@ -15,6 +15,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { PageHeader } from "@/components/page-header";
+import { DockStrip } from "@/components/inventory/dock-strip";
 import { EmptyState } from "@/components/empty-state";
 import { ActionButton } from "@/components/motion/action-button";
 import { ProductIcon, ProductLabel } from "@/components/inventory/product-icon";
@@ -167,6 +168,7 @@ function Entradas() {
       <PageHeader clip="/lottie/caixa.json" title="Entradas" description="Registre o recebimento e confira os lançamentos por período.">
         <ViewSwitch page="entradas" />
       </PageHeader>
+      {mercadorias.length > 0 ? <DockStrip entradas={live.listSaidas({ tipo: "entrada", from: hoje, to: hoje })} pavilhoes={pavilhoes} /> : null}
       {mercadorias.length === 0 ? (
         <Card>
           <EmptyState

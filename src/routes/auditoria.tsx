@@ -12,6 +12,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { PageHeader } from "@/components/page-header";
+import { ModuleTile } from "@/components/brand/module-tile";
+import type { ModuleId } from "@/lib/modules";
 import { EmptyState } from "@/components/empty-state";
 import { ConfirmDialog } from "@/components/feedback/confirm-dialog";
 import { fold } from "@/lib/utils";
@@ -39,6 +41,24 @@ const ENTIDADES: { value: AuditEntidade | "todas"; label: string }[] = [
   { value: "usuario", label: "Usuários" },
   { value: "seguranca", label: "Segurança" },
 ];
+
+/** Each log line shows the glyph of the area it changed. */
+const ENTIDADE_MODULO: Record<AuditEntidade, ModuleId> = {
+  produto: "produtos",
+  entrada: "entradas",
+  saida: "saidas",
+  destino: "clientes",
+  lote: "lotes",
+  usuario: "equipe",
+  estoque: "estoque",
+  pavilhao: "pavilhoes",
+  contagem: "contagem",
+  seguranca: "config",
+  fornecedor: "fornecedores",
+  empilhador: "empilhadores",
+  frete: "fretes",
+  requisicao: "requisicoes",
+};
 
 function acaoBadge(acao: AuditAcao) {
   if (acao === "excluiu" || acao === "desativou") return "destructive" as const;
@@ -232,7 +252,8 @@ function Auditoria() {
             <Card>
               <ul className="divide-y divide-border">
                 {items.map((l) => (
-                  <li key={l.id} className="flex items-start gap-3 px-4 py-3">
+                  <li key={l.id} className="log-row glyph-host flex items-start gap-3 px-4 py-3">
+                    <ModuleTile id={ENTIDADE_MODULO[l.entidade] ?? "log"} size="sm" state={l.acao === "excluiu" ? "error" : undefined} />
                     <div className="min-w-0 flex-1">
                       <div className="flex flex-wrap items-center gap-2">
                         <Badge variant={acaoBadge(l.acao)}>

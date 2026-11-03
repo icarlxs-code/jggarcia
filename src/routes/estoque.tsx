@@ -10,7 +10,7 @@ import {
   type ColumnDef,
   type SortingState,
 } from "@tanstack/react-table";
-import { ArrowUpFromLine, ClipboardCheck, Download, Package, Pencil, Search, SlidersHorizontal, Trash2 } from "lucide-react";
+import { ArrowLeftRight, ArrowUpFromLine, ClipboardCheck, Download, Package, Pencil, Search, SlidersHorizontal, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { db, getDbGen, stockAlert } from "@/lib/store";
 import { useDb } from "@/lib/use-db";
@@ -36,6 +36,8 @@ import { PageHeader } from "@/components/page-header";
 import { EmptyState } from "@/components/empty-state";
 import { ProductIcon, ProductLabel } from "@/components/inventory/product-icon";
 import { StockBadge } from "@/components/inventory/stock-badge";
+import { StockMeter } from "@/components/inventory/stock-meter";
+import { SplitButton } from "@/components/ui/split-button";
 import { PageStage } from "@/components/motion/page-stage";
 import { ViewSwitch, useChartView } from "@/components/analytics/view-switch";
 import { ScreenCharts } from "@/components/analytics/screen-charts";
@@ -311,8 +313,11 @@ function Estoque() {
         cell: ({ row }) => {
           const total = qtyOf(row.original.id);
           return (
-            <span data-part="qtd" data-qtd={String(total)} className="tabular-nums text-sm font-semibold text-foreground">
-              {formatNumber(total)} {row.original.unidade}
+            <span className="inline-flex flex-col gap-1.5">
+              <span data-part="qtd" data-qtd={String(total)} className="tabular-nums text-sm font-semibold text-foreground">
+                {formatNumber(total)} {row.original.unidade}
+              </span>
+              <StockMeter total={total} minimo={row.original.minimo} alert={stockAlert({ ...row.original, estoque: total })} />
             </span>
           );
         },
@@ -428,7 +433,18 @@ function Estoque() {
   return (
     <PageStage className="space-y-4" data-vista={vista}>
       <PageHeader clip="/lottie/caixa.json" title="Estoque" description="Busque produtos e confira saldo, unidade, localização e situação.">
-        <Button asChild><Link to="/entradas">Registrar entrada</Link></Button>
+        <SplitButton
+          menuLabel="Outras movimentações"
+          menu={
+            <>
+              <DropdownMenuItem asChild><Link to="/nova-saida"><ArrowUpFromLine />Nova saída</Link></DropdownMenuItem>
+              <DropdownMenuItem asChild><Link to="/contagem"><ClipboardCheck />Nova contagem</Link></DropdownMenuItem>
+              <DropdownMenuItem asChild><Link to="/movimentacoes"><ArrowLeftRight />Ver movimentações</Link></DropdownMenuItem>
+            </>
+          }
+        >
+          <Button asChild><Link to="/entradas">Registrar entrada</Link></Button>
+        </SplitButton>
         <ActionMenu label="Ações do estoque">
           <DropdownMenuLabel>Operação</DropdownMenuLabel>
           <DropdownMenuItem asChild><Link to="/contagem"><ClipboardCheck />Contagem</Link></DropdownMenuItem>

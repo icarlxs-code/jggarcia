@@ -3015,3 +3015,78 @@ html.motion-on .split-button > .split-button-toggle[data-state="open"] svg { tra
 /* Command palette: pages and actions show their module glyph */
 .cmd-glyph { display: grid; place-items: center; width: 2rem; height: 2rem; flex: none; border-radius: .6rem; color: var(--mod-text); background: var(--mod-soft); border: 1px solid var(--mod-line); }
 .cmd-glyph .glyph { width: 1.05rem; height: 1.05rem; }
+
+/* Module tile: a glyph on a small lit tile */
+.mod-tile { display: grid; place-items: center; flex: none; width: 2.5rem; height: 2.5rem; border-radius: .75rem; color: var(--mod-text); border: 1px solid var(--mod-line); background: radial-gradient(120% 120% at 25% 15%, color-mix(in srgb, var(--mod) 22%, var(--color-card)), color-mix(in srgb, var(--mod) 7%, var(--color-card)) 78%); box-shadow: inset 0 1px 0 rgb(255 255 255 / .5), 0 8px 18px -12px var(--mod-glow); }
+.mod-tile .glyph { width: 1.3rem; height: 1.3rem; }
+.mod-tile.is-sm { width: 2rem; height: 2rem; border-radius: .6rem; }
+.mod-tile.is-sm .glyph { width: 1.05rem; height: 1.05rem; }
+.mod-tile.is-lg { width: 3.25rem; height: 3.25rem; border-radius: 1rem; }
+.mod-tile.is-lg .glyph { width: 1.7rem; height: 1.7rem; }
+html.dark .mod-tile { box-shadow: inset 0 1px 0 rgb(255 255 255 / .06), 0 8px 22px -12px var(--mod-glow); }
+
+/* ── Estoque: availability meter (bar spans 2× the minimum; tick = minimum) ── */
+.stock-meter { position: relative; display: block; width: 6.5rem; height: .3125rem; border-radius: 999px; background: color-mix(in srgb, var(--color-muted-foreground) 15%, transparent); }
+.stock-meter i { position: absolute; inset: 0 auto 0 0; border-radius: inherit; background: linear-gradient(90deg, #2f9e5a, #5cc489); transform-origin: left; transition: width 600ms var(--ease-standard); }
+.stock-meter[data-alert="critico"] i { background: linear-gradient(90deg, #c8322b, #ea6a5f); }
+.stock-meter[data-alert="baixo"] i { background: linear-gradient(90deg, #c4860a, #e8b24a); }
+.stock-meter[data-alert="atencao"] i { background: linear-gradient(90deg, #8a9a2a, #b5c25a); }
+.stock-meter b { position: absolute; left: 50%; top: -2px; bottom: -2px; width: 1.5px; margin-left: -.75px; border-radius: 1px; background: color-mix(in srgb, var(--color-foreground) 42%, transparent); }
+html.motion-on .stock-meter i { animation: meter-in 900ms var(--ease-enter) both; }
+@keyframes meter-in { from { transform: scaleX(0); } }
+
+/* Movimentações: each card carries the light of its movement kind */
+.mov-rail { height: 3px; flex: none; background: linear-gradient(90deg, var(--mod), color-mix(in srgb, var(--mod) 25%, transparent)); }
+.mov-kind { width: 1rem; height: 1rem; color: var(--mod-text); }
+.mov-card { transition: border-color 200ms, box-shadow 260ms var(--ease-standard); }
+.mov-card:hover { border-color: var(--mod-line); box-shadow: var(--shadow-lift), 0 0 0 1px var(--mod-soft); }
+
+/* ── Saídas: the expedition as a route ───────────────────────────────── */
+.route-card { display: grid; grid-template-columns: minmax(0, 1fr) minmax(6rem, 1.6fr) minmax(0, 1fr); align-items: center; gap: .75rem; padding: 1rem 1.25rem; border-radius: 1.25rem; border: 1px solid var(--mod-line); background: linear-gradient(180deg, var(--mod-wash), var(--color-card)); box-shadow: var(--shadow-card); }
+.route-node { display: flex; align-items: center; gap: .625rem; min-width: 0; }
+.route-node.is-end { flex-direction: row-reverse; text-align: right; }
+.route-node small { display: block; font-size: .6875rem; color: var(--color-muted-foreground); }
+.route-node strong { display: block; font-size: .9375rem; font-weight: 600; letter-spacing: -.01em; }
+.route-node.is-empty strong { color: var(--color-muted-foreground); font-weight: 500; }
+.route-node.is-empty .mod-tile { filter: grayscale(1); opacity: .55; }
+.route-road { position: relative; height: 3rem; }
+.route-road::before { content: ""; position: absolute; left: 0; right: 0; top: 46%; border-top: 2px dashed color-mix(in srgb, var(--mod) 45%, var(--color-border)); }
+.route-card[data-ready="false"] .route-road::before { border-top-color: var(--color-border); }
+.route-mover { position: absolute; inset: 0; display: flex; align-items: center; }
+.route-truck { width: 1.75rem; height: 1.75rem; margin-top: -.4rem; color: var(--mod-text); }
+.route-card[data-ready="false"] .route-truck { color: var(--color-muted-foreground); opacity: .5; }
+html.motion-on .route-card[data-ready="true"] .route-mover { animation: truck-go 3.4s var(--ease-standard) infinite; }
+@keyframes truck-go { 0% { transform: translateX(0); opacity: 0; } 12% { opacity: 1; } 82% { opacity: 1; } 100% { transform: translateX(calc(100% - 1.75rem)); opacity: 0; } }
+.route-load { position: absolute; left: 50%; bottom: -.15rem; translate: -50% 0; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: .75rem; font-weight: 600; padding: .125rem .5rem; border-radius: 999px; background: var(--mod-soft); color: var(--mod-text); }
+@media (max-width: 639px) {
+  .route-card { grid-template-columns: minmax(0, 1fr) 3.5rem minmax(0, 1fr); padding: .875rem; gap: .5rem; }
+  .route-node .mod-tile { display: none; }
+  .route-load { display: none; }
+}
+
+/* Entradas: the receiving dock today */
+.dock-strip { display: flex; flex-wrap: wrap; align-items: center; gap: 1rem 1.5rem; padding: 1rem 1.25rem; border-radius: 1.25rem; border: 1px solid var(--mod-line); background: linear-gradient(100deg, var(--mod-wash), var(--color-card) 70%); box-shadow: var(--shadow-card); }
+.dock-count { display: grid; gap: .25rem; }
+.dock-last { flex: 1 1 14rem; display: grid; gap: .125rem; }
+.dock-units { display: flex; flex-wrap: wrap; gap: .375rem; margin: 0; padding: 0; list-style: none; }
+.dock-units li { border-radius: 999px; padding: .25rem .625rem; font-size: .75rem; background: var(--mod-soft); color: var(--mod-text); }
+
+/* Pavilhões: share of the company volume per place */
+.pav-share { display: grid; gap: .375rem; }
+.pav-share-bar { position: relative; display: block; height: .4rem; border-radius: 999px; background: color-mix(in srgb, var(--color-muted-foreground) 14%, transparent); overflow: hidden; }
+.pav-share-bar i { position: absolute; inset: 0 auto 0 0; border-radius: inherit; background: linear-gradient(90deg, var(--mod), color-mix(in srgb, var(--mod) 55%, white)); transform-origin: left; }
+html.motion-on .pav-share-bar i { animation: meter-in 1s var(--ease-enter) both; }
+.pav-card { transition: border-color 200ms, box-shadow 260ms var(--ease-standard); }
+.pav-card:hover { border-color: var(--mod-line); box-shadow: var(--shadow-lift); }
+
+/* Financeiro: the month in money */
+.money-strip { display: flex; flex-wrap: wrap; align-items: center; gap: 1rem 1.75rem; padding: 1rem 1.25rem; border-radius: 1.25rem; border: 1px solid var(--mod-line); background: linear-gradient(100deg, var(--mod-wash), var(--color-card) 72%); box-shadow: var(--shadow-card); }
+.money-total { display: grid; gap: .25rem; }
+.money-facts { display: flex; flex-wrap: wrap; gap: .5rem 1.5rem; margin: 0 0 0 auto; }
+.money-facts > div { display: grid; gap: .125rem; }
+.money-facts dt { font-size: .6875rem; color: var(--color-muted-foreground); }
+.money-facts dd { margin: 0; font-size: .9375rem; font-weight: 600; display: flex; align-items: center; gap: .375rem; }
+.money-delta { border-radius: 999px; padding: 0 .375rem; font-size: .6875rem; background: var(--color-muted); color: var(--color-muted-foreground); }
+.money-delta.is-up { background: var(--mod-soft); color: var(--mod-text); }
+.money-delta.is-down { background: color-mix(in srgb, var(--color-primary) 12%, transparent); color: var(--color-primary); }
+@media (max-width: 639px) { .money-facts { margin-left: 0; } }

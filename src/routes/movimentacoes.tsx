@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { ArrowDownToLine, ArrowLeftRight, ArrowUpFromLine, ClipboardCheck, Pencil, Search } from "lucide-react";
+import { ArrowLeftRight, Pencil, Search } from "lucide-react";
 import { useDb } from "@/lib/use-db";
 import { db } from "@/lib/store";
 import { buildTimeline, movementSearchBlob, qtyLine, statusLabel, tipoMovLabel, type TimelineItem } from "@/lib/movement";
@@ -28,6 +28,8 @@ import { ScreenCharts } from "@/components/analytics/screen-charts";
 import { useRowUpdates } from "@/lib/use-row-updates";
 
 import { useAnimatedList } from "@/lib/use-animated-list";
+import { Glyph } from "@/components/brand/glyph";
+import { moduleStyle, type ModuleId } from "@/lib/modules";
 
 export const Route = createFileRoute("/movimentacoes")({
   validateSearch: (s: Record<string, unknown>): { q?: string; periodo?: "hoje" | "ontem" | "7d" | "tudo" | "periodo"; tipo?: "tudo" | "entrada" | "saida" | "transferencia" | "contagem" } => {
@@ -243,14 +245,9 @@ function Movimentacoes() {
           </p>
           <ul ref={listaRef} className="grid grid-cols-1 gap-3 xl:grid-cols-2">
             {filtered.map((item) => {
-              const accent =
-                item.tipo === "entrada"
-                  ? "bg-primary"
-                  : item.tipo === "transferencia"
-                    ? "bg-foreground/30"
-                    : item.tipo === "contagem"
-                      ? "bg-gold"
-                      : "bg-foreground/15";
+              // Each kind of movement carries the light of the module it belongs to.
+              const mod: ModuleId =
+                item.tipo === "entrada" ? "entradas" : item.tipo === "transferencia" ? "movimentacoes" : item.tipo === "contagem" ? "contagem" : "saidas";
               return (
                 <li key={item.id} className={cn("min-w-0 rounded-2xl", changed.has(item.id) && "row-updated")}>
                   <button
@@ -262,14 +259,16 @@ function Movimentacoes() {
                     data-codigo={item.codigo || ""}
                     data-extra={item.detalhe}
                     onClick={() => openItem(item)}
-                    className="flex h-full w-full flex-col overflow-hidden rounded-2xl border border-border bg-card text-left shadow-card"
+                    data-module={mod}
+                    style={moduleStyle(mod)}
+                    className="mov-card glyph-host flex h-full w-full flex-col overflow-hidden rounded-2xl border border-border bg-card text-left shadow-card"
                   >
-                    <div className={cn("h-1 shrink-0", accent)} />
+                    <div className="mov-rail" />
                     <div className="flex items-center gap-3 p-4">
                       <ProductIcon nome={item.titulo} codigo={item.codigo} size="lg" className="h-14 w-14 shrink-0" />
                       <div className="min-w-0 flex-1">
                         <p className="flex items-center gap-1.5 truncate text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                          <KindMark tipo={item.tipo} />
+                          <Glyph name={mod} className="mov-kind" />
                           <span className="truncate">
                             {formatDateBR(item.data)} · {item.hora} · {tipoMovLabel(item.tipo)}
                           </span>
@@ -417,10 +416,3 @@ function Movimentacoes() {
   );
 }
 
-function KindMark({ tipo }: { tipo: TimelineItem["tipo"] }) {
-  const cls = "mt-0.5 h-4 w-4 text-muted-foreground";
-  if (tipo === "entrada") return <ArrowDownToLine className={cls} />;
-  if (tipo === "transferencia") return <ArrowLeftRight className={cls} />;
-  if (tipo === "contagem") return <ClipboardCheck className={cls} />;
-  return <ArrowUpFromLine className={cls} />;
-}

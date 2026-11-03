@@ -27,7 +27,8 @@ import { FlowChart, OperationRadar, StockHealthGauge } from "@/components/analyt
 import { Warehouse3D, type PavilionStack } from "@/components/three/lazy";
 import { usePrefersReducedMotion } from "@/lib/motion";
 import { CountUp } from "@/components/motion/count-up";
-import { LottieClip } from "@/components/motion/lottie-clip";
+import { ModuleTile } from "@/components/brand/module-tile";
+import type { ModuleId } from "@/lib/modules";
 import { SpotlightCard } from "@/components/motion/spotlight-card";
 import { ProductLabel } from "@/components/inventory/product-icon";
 import { StockBadge } from "@/components/inventory/stock-badge";
@@ -39,6 +40,9 @@ import type { Saida } from "@/lib/types";
 import { useAnimatedList } from "@/lib/use-animated-list";
 
 export const Route = createFileRoute("/")({ component: Dashboard });
+
+/** Which module each headline number belongs to. */
+const KPI_MODULE: Record<string, ModuleId> = { estoque: "estoque", skus: "produtos", entradas: "entradas", saidas: "saidas", critico: "estoque" };
 
 function unitShort(unidade: string) {
   const n = (unidade || "").trim().toLowerCase();
@@ -359,7 +363,6 @@ function Kpi({
   suffix = "",
   mix,
   hint,
-  icon: Icon,
   warn,
   delta,
 }: {
@@ -374,26 +377,12 @@ function Kpi({
   delta?: number;
 }) {
   return (
-    <SpotlightCard data-ctx="kpi" data-id={ctx} data-nome={label} data-warn={warn ? "true" : undefined} className="kpi-card flex flex-col p-5">
+    <SpotlightCard data-ctx="kpi" data-id={ctx} data-nome={label} data-warn={warn ? "true" : undefined} className="kpi-card glyph-host flex flex-col p-5">
       <div className="flex min-h-10 items-start justify-between gap-2">
         <span className="flex items-center gap-1.5 text-[0.8125rem] font-medium text-muted-foreground">
-          {ctx === "critico" ? <Icon className={warn ? "h-4 w-4 text-destructive" : "h-4 w-4"} /> : null}
           {label}
         </span>
-        {ctx === "critico" ? null : (
-          <LottieClip
-            src={
-              ctx === "saidas"
-                ? "/lottie/caminhao.json"
-                : ctx === "entradas"
-                  ? "/lottie/caixa.json"
-                  : ctx === "estoque"
-                    ? "/lottie/galpao.json"
-                    : "/lottie/caixa.json"
-            }
-            className="lottie-clip h-10 w-14 shrink-0"
-          />
-        )}
+        <ModuleTile id={KPI_MODULE[ctx] ?? "inicio"} state={ctx === "critico" && warn ? "warning" : undefined} />
       </div>
       {mix ? (
         mix.length ? (

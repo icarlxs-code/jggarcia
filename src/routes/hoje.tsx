@@ -27,6 +27,9 @@ import { ProductIcon } from "@/components/inventory/product-icon";
 import { ViewSwitch, useChartView } from "@/components/analytics/view-switch";
 import { ScreenCharts } from "@/components/analytics/screen-charts";
 import { CountUp } from "@/components/motion/count-up";
+import { ModuleTile } from "@/components/brand/module-tile";
+import { Glyph } from "@/components/brand/glyph";
+import type { ModuleId } from "@/lib/modules";
 import { useRowUpdates } from "@/lib/use-row-updates";
 
 import { useAnimatedList } from "@/lib/use-animated-list";
@@ -97,11 +100,16 @@ function Hoje() {
   return (
     <PageStage className="space-y-6">
       <div className="page-hero hoje-banner">
-        <div className="hoje-banner-copy">
+        <div className="hoje-banner-copy flex items-center gap-4">
+          <span className="page-mark glyph-host" aria-hidden="true">
+            <Glyph name="hoje" live />
+          </span>
+          <div className="min-w-0">
           <h1 className="page-title">
             {saudacao}, {nome}
           </h1>
           <p className="page-desc hoje-date">{eHoje ? `Operação de hoje · ${periodoTxt}` : periodoTxt}</p>
+          </div>
         </div>
         <div className="hoje-banner-tools page-actions" role="group" aria-label="Ações da página">
           {isAdmin ? <><Button asChild variant="outline"><Link to="/entradas">Registrar entrada</Link></Button><Button asChild><Link to="/nova-saida">Nova saída</Link></Button></> : null}
@@ -291,6 +299,9 @@ function firstProductHour(movs: { mercadoria_id: string; hora_saida?: string | n
   return stamps;
 }
 
+/** The area each count of the day belongs to. */
+const KPI_MODULE: Record<KpiKind, ModuleId> = { in: "entradas", out: "saidas", go: "movimentacoes", move: "estoque", count: "contagem" };
+
 function Kpi({ kind, label, value, hint, series }: { kind: KpiKind; label: string; value: number; hint: string; series: number[] }) {
   const live = value > 0;
   const [fresh, setFresh] = useState(false);
@@ -306,9 +317,12 @@ function Kpi({ kind, label, value, hint, series }: { kind: KpiKind; label: strin
   }, [value]);
 
   return (
-    <Card className={cn("hoje-kpi", `is-${kind}`, live && "is-live", fresh && "is-fresh")}>
+    <Card className={cn("hoje-kpi glyph-host", `is-${kind}`, live && "is-live", fresh && "is-fresh")}>
       <CardContent className="flex h-full flex-col p-5">
-        <p className="text-[0.8125rem] font-medium leading-tight text-muted-foreground">{label}</p>
+        <div className="flex items-start justify-between gap-2">
+          <p className="text-[0.8125rem] font-medium leading-tight text-muted-foreground">{label}</p>
+          <ModuleTile id={KPI_MODULE[kind]} size="sm" live={fresh} />
+        </div>
         <div className="mt-2 flex items-end justify-between gap-2">
           <p className="kpi-figure leading-none">
             <CountUp value={value} />
