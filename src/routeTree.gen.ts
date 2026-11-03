@@ -16,6 +16,7 @@ import { Route as CentralEmpilhadoresRouteImport } from './routes/central-empilh
 import { Route as ClientesRouteImport } from './routes/clientes'
 import { Route as ConfiguracoesRouteImport } from './routes/configuracoes'
 import { Route as ContagemRouteImport } from './routes/contagem'
+import { Route as DesignRouteImport } from './routes/design'
 import { Route as DespesasFreteRouteImport } from './routes/despesas-frete'
 import { Route as DestinosRouteImport } from './routes/destinos'
 import { Route as EmpilhadoresRouteImport } from './routes/empilhadores'
@@ -76,6 +77,11 @@ const ConfiguracoesRoute = ConfiguracoesRouteImport.update({
 const ContagemRoute = ContagemRouteImport.update({
   id: '/contagem',
   path: '/contagem',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DesignRoute = DesignRouteImport.update({
+  id: '/design',
+  path: '/design',
   getParentRoute: () => rootRouteImport,
 } as any)
 const DespesasFreteRoute = DespesasFreteRouteImport.update({
@@ -217,6 +223,7 @@ export interface FileRoutesByFullPath {
   '/clientes': typeof ClientesRouteWithChildren
   '/configuracoes': typeof ConfiguracoesRoute
   '/contagem': typeof ContagemRoute
+  '/design': typeof DesignRoute
   '/despesas-frete': typeof DespesasFreteRoute
   '/destinos': typeof DestinosRoute
   '/empilhadores': typeof EmpilhadoresRoute
@@ -252,6 +259,7 @@ export interface FileRoutesByTo {
   '/clientes': typeof ClientesRouteWithChildren
   '/configuracoes': typeof ConfiguracoesRoute
   '/contagem': typeof ContagemRoute
+  '/design': typeof DesignRoute
   '/despesas-frete': typeof DespesasFreteRoute
   '/destinos': typeof DestinosRoute
   '/empilhadores': typeof EmpilhadoresRoute
@@ -288,6 +296,7 @@ export interface FileRoutesById {
   '/clientes': typeof ClientesRouteWithChildren
   '/configuracoes': typeof ConfiguracoesRoute
   '/contagem': typeof ContagemRoute
+  '/design': typeof DesignRoute
   '/despesas-frete': typeof DespesasFreteRoute
   '/destinos': typeof DestinosRoute
   '/empilhadores': typeof EmpilhadoresRoute
@@ -325,6 +334,7 @@ export interface FileRouteTypes {
     | '/clientes'
     | '/configuracoes'
     | '/contagem'
+    | '/design'
     | '/despesas-frete'
     | '/destinos'
     | '/empilhadores'
@@ -360,6 +370,7 @@ export interface FileRouteTypes {
     | '/clientes'
     | '/configuracoes'
     | '/contagem'
+    | '/design'
     | '/despesas-frete'
     | '/destinos'
     | '/empilhadores'
@@ -395,6 +406,7 @@ export interface FileRouteTypes {
     | '/clientes'
     | '/configuracoes'
     | '/contagem'
+    | '/design'
     | '/despesas-frete'
     | '/destinos'
     | '/empilhadores'
@@ -431,6 +443,7 @@ export interface RootRouteChildren {
   ClientesRoute: typeof ClientesRouteWithChildren
   ConfiguracoesRoute: typeof ConfiguracoesRoute
   ContagemRoute: typeof ContagemRoute
+  DesignRoute: typeof DesignRoute
   DespesasFreteRoute: typeof DespesasFreteRoute
   DestinosRoute: typeof DestinosRoute
   EmpilhadoresRoute: typeof EmpilhadoresRoute
@@ -507,6 +520,13 @@ declare module '@tanstack/react-router' {
       path: '/contagem'
       fullPath: '/contagem'
       preLoaderRoute: typeof ContagemRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/design': {
+      id: '/design'
+      path: '/design'
+      fullPath: '/design'
+      preLoaderRoute: typeof DesignRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/despesas-frete': {
@@ -714,6 +734,7 @@ const rootRouteChildren: RootRouteChildren = {
   ClientesRoute: ClientesRouteWithChildren,
   ConfiguracoesRoute: ConfiguracoesRoute,
   ContagemRoute: ContagemRoute,
+  DesignRoute: DesignRoute,
   DespesasFreteRoute: DespesasFreteRoute,
   DestinosRoute: DestinosRoute,
   EmpilhadoresRoute: EmpilhadoresRoute,

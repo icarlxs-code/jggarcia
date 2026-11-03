@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { createPortal } from "react-dom";
-import { ArrowUp, Sparkles, X } from "lucide-react";
+import { ArrowUp, X } from "lucide-react";
+import { Glyph } from "@/components/brand/glyph";
 import { perguntarAssistente } from "@/lib/assistente.functions";
 import { retratoOperacao } from "@/lib/assistente-brief";
 import { respostaLocal } from "@/lib/assistente-local";
@@ -21,8 +22,8 @@ export function AssistenteButton() {
   const [aberto, setAberto] = useState(false);
   return (
     <>
-      <Button type="button" variant="ghost" size="icon" aria-label="Assistente" onClick={() => setAberto((v) => !v)}>
-        <Sparkles className="h-4 w-4" />
+      <Button type="button" variant="ghost" size="icon" className="glyph-host" aria-label="Assistente" onClick={() => setAberto((v) => !v)}>
+        <Glyph name="assistente" live={aberto} className="h-[1.05rem] w-[1.05rem]" />
       </Button>
       {aberto ? createPortal(<AssistentePainel onClose={() => setAberto(false)} />, document.body) : null}
     </>
