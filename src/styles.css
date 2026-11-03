@@ -3090,3 +3090,35 @@ html.motion-on .pav-share-bar i { animation: meter-in 1s var(--ease-enter) both;
 .money-delta.is-up { background: var(--mod-soft); color: var(--mod-text); }
 .money-delta.is-down { background: color-mix(in srgb, var(--color-primary) 12%, transparent); color: var(--color-primary); }
 @media (max-width: 639px) { .money-facts { margin-left: 0; } }
+
+/* ── Safra signature: the product code is a stamped crate label ───────── */
+[data-part="codigo"] { display: inline-block !important; width: fit-content; max-width: 100%; padding: .0625rem .375rem; border-radius: .3rem; border: 1px dashed color-mix(in srgb, #b37b3d 55%, transparent); background: color-mix(in srgb, #b37b3d 9%, var(--color-card)); color: #6e4a1f !important; font-family: var(--font-mono); font-size: .6875rem !important; letter-spacing: .08em !important; line-height: 1.35; }
+html.dark [data-part="codigo"] { color: #e3b679 !important; background: color-mix(in srgb, #b37b3d 16%, var(--color-card)); }
+
+/* Requisições: the serial number is a stamp */
+.serial-stamp { display: inline-block; padding: .125rem .5rem; border-radius: .35rem; border: 1.5px solid color-mix(in srgb, var(--mod) 70%, transparent); color: var(--mod-text); font-family: var(--font-mono); font-size: .75rem; font-weight: 600; letter-spacing: .06em; transform: rotate(-2deg); box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--mod) 8%, transparent); }
+
+/* Contagem: progress of the day's count */
+.count-card { border-color: var(--mod-line) !important; background: linear-gradient(100deg, var(--mod-wash), var(--color-card) 70%) !important; }
+.count-progress { flex: 1; height: .625rem; appearance: none; -webkit-appearance: none; border: 0; border-radius: 999px; overflow: hidden; background: color-mix(in srgb, var(--color-muted-foreground) 15%, transparent); }
+.count-progress::-webkit-progress-bar { background: transparent; }
+.count-progress::-webkit-progress-value { border-radius: 999px; background: linear-gradient(90deg, var(--mod), color-mix(in srgb, var(--mod) 55%, white)); transition: width 600ms var(--ease-standard); }
+.count-progress::-moz-progress-bar { border-radius: 999px; background: linear-gradient(90deg, var(--mod), color-mix(in srgb, var(--mod) 55%, white)); }
+
+/* Relatórios: PDF actions carry a document glyph */
+.report-pdf { display: flex; align-items: center; gap: .75rem; }
+.report-pdf-glyph { width: 1.6rem; height: 1.6rem; flex: none; }
+.report-pdf:not(.is-primary) .report-pdf-glyph { color: var(--mod-text); }
+
+/* Name marks: initials in a stable hue per client/person */
+.name-mark { display: inline-grid; place-items: center; flex: none; font-family: var(--font-display); font-weight: 650; letter-spacing: -.01em; color: color-mix(in srgb, var(--hue) 72%, black); background: radial-gradient(120% 120% at 25% 15%, color-mix(in srgb, var(--hue) 28%, var(--color-card)), color-mix(in srgb, var(--hue) 10%, var(--color-card)) 78%); border: 1px solid color-mix(in srgb, var(--hue) 30%, var(--color-border)); box-shadow: inset 0 1px 0 rgb(255 255 255 / .5); }
+.name-mark.is-square { border-radius: .8rem; }
+.name-mark.is-round { border-radius: 999px; }
+.name-mark.is-sm { width: 2rem; height: 2rem; font-size: .75rem; }
+.name-mark.is-md { width: 2.75rem; height: 2.75rem; font-size: .875rem; }
+.name-mark.is-lg { width: 4rem; height: 4rem; font-size: 1.25rem; border-radius: 1.1rem; }
+html.dark .name-mark { color: color-mix(in srgb, var(--hue) 55%, white); box-shadow: none; }
+
+/* Configurações: group titles carry a glyph */
+.settings-title { display: flex; align-items: center; gap: .5rem; margin: 0 0 .5rem; padding: 0 .25rem; font-family: var(--font-display); font-size: .9375rem; font-weight: 600; letter-spacing: -.01em; }
+.settings-glyph { width: 1.1rem; height: 1.1rem; color: var(--mod-text); }

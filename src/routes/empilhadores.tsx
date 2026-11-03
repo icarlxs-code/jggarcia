@@ -10,6 +10,7 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { PageHeader } from "@/components/page-header";
+import { NameMark } from "@/components/brand/name-mark";
 import { PageStage } from "@/components/motion/page-stage";
 import { EmptyState } from "@/components/empty-state";
 import { ConfirmDialog } from "@/components/feedback/confirm-dialog";
@@ -126,6 +127,7 @@ function Empilhadores() {
         <ul className="divide-y divide-border overflow-hidden rounded-2xl border border-border bg-card">
           {list.map((e) => (
             <li key={e.id} data-ctx="empilhador" data-id={e.id} data-nome={e.nome} className="flex items-center gap-3 px-4 py-3">
+              <NameMark nome={e.nome} shape="round" size="md" />
               <div className="min-w-0 flex-1">
                 <p className="truncate font-medium">{e.nome}</p>
                 <p className="text-xs text-muted-foreground">

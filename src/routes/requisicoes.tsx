@@ -226,7 +226,7 @@ function Requisicoes() {
               <tbody className="divide-y divide-border">
                 {filtered.map((r) => (
                   <tr key={r.id} className="hover:bg-muted/30">
-                    <td className="whitespace-nowrap px-3 py-2 font-mono text-xs font-semibold">{r.numero}</td>
+                    <td className="whitespace-nowrap px-3 py-2"><span className="serial-stamp">nº {r.numero}</span></td>
                     <td className="whitespace-nowrap px-3 py-2 tabular-nums text-muted-foreground">
                       {formatDateBR(r.data)}
                       <span className="block text-xs">{r.horario}</span>
