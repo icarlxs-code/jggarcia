@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { StockStrip } from "@/components/analytics/module-strips";
 import {
   flexRender,
   getCoreRowModel,
@@ -459,6 +460,7 @@ function Estoque() {
           </> : null}
         </ActionMenu>
       </PageHeader>
+      <StockStrip />
 
       <section className="space-y-3 rounded-2xl border border-border bg-card p-3 shadow-card sm:p-4">
         <div className="flex items-center gap-2">

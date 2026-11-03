@@ -352,7 +352,7 @@ function Relatorios() {
         <section className="space-y-2">
           <div>
             <h2 className="text-sm font-semibold">PDF por lugar</h2>
-            <p className="text-xs text-muted-foreground">Cada cartão abre a impressão daquele pavilhão. Na caixa, escolha Salvar como PDF.</p>
+            <p className="text-xs text-muted-foreground">Cada cartão baixa o PDF daquele pavilhão.</p>
           </div>
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-5">
             {pavilhoes.map((p) => {

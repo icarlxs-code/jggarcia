@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { MovStrip } from "@/components/analytics/module-strips";
 import { Package, Pencil, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { db, getDbGen } from "@/lib/store";
@@ -168,6 +169,7 @@ function Entradas() {
       <PageHeader clip="/lottie/caixa.json" title="Entradas" description="Registre o recebimento e confira os lançamentos por período.">
         <ViewSwitch page="entradas" />
       </PageHeader>
+      <MovStrip kind="entrada" />
       {mercadorias.length > 0 ? <DockStrip entradas={live.listSaidas({ tipo: "entrada", from: hoje, to: hoje })} pavilhoes={pavilhoes} /> : null}
       {mercadorias.length === 0 ? (
         <Card>

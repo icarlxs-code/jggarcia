@@ -52,6 +52,7 @@ function bloom(color: string) {
 export function paintTheme(id: ThemeId, color?: string, fluid = false) {
   const { dark, tokens } = tokensFor(id, color);
   if (typeof document === "undefined") return;
+  document.documentElement.dataset.themeId = id;
   const instant = !fluid || prefersReducedMotion();
   if (instant) {
     tween?.kill();

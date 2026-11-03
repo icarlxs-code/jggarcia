@@ -1,4 +1,6 @@
 export type ThemeId =
+  | "nova"
+  | "nova-noite"
   | "verde-branco"
   | "branco-verde"
   | "branco-total"
@@ -102,6 +104,68 @@ function paint(partial: Partial<ThemeTokens> & Pick<ThemeTokens, "background" | 
 }
 
 export const THEME_PRESETS: ThemePreset[] = [
+  {
+    id: "nova",
+    label: "Nova Geração",
+    hint: "Branco gelo, verde da marca nas ações",
+    dark: false,
+    tokens: paint({
+      background: "#f5f7f3",
+      foreground: "#13200f",
+      card: "#ffffff",
+      muted: "#f0f4ec",
+      mutedForeground: "#66735f",
+      border: "#e3e9de",
+      input: "#dde5d7",
+      ring: "#2f8f1c",
+      primary: "#2f8f1c",
+      primaryForeground: "#ffffff",
+      secondary: "#ebf5e5",
+      secondaryForeground: "#1f6512",
+      accent: "#2f8f1c",
+      accentForeground: "#ffffff",
+      gold: "#f08c1a",
+      goldInk: "#a8560a",
+      mint: "#eaf5e3",
+      forest: "#0b2410",
+      sidebar: "#ffffff",
+      sidebarForeground: "#18241a",
+      sidebarAccent: "#edf6e7",
+      sidebarBorder: "#e7ece3",
+    }),
+  },
+  {
+    id: "nova-noite",
+    label: "Nova Geração · Noite",
+    hint: "Verde-noite com brilho de folha",
+    dark: true,
+    tokens: paint({
+      background: "#04140a",
+      foreground: "#e8f5e4",
+      card: "#0a2112",
+      muted: "#0f2c18",
+      mutedForeground: "#8fb095",
+      border: "#183d22",
+      input: "#1f4a2a",
+      ring: "#5cc433",
+      primary: "#5cc433",
+      primaryForeground: "#04140a",
+      secondary: "#103019",
+      secondaryForeground: "#d3f2c7",
+      accent: "#5cc433",
+      accentForeground: "#04140a",
+      destructive: "#ff6b6b",
+      destructiveForeground: "#2a0606",
+      gold: "#ffb547",
+      goldInk: "#ffd08a",
+      mint: "#10331a",
+      forest: "#020a05",
+      sidebar: "#051a0c",
+      sidebarForeground: "#def3d8",
+      sidebarAccent: "#12361c",
+      sidebarBorder: "#143a1f",
+    }),
+  },
   {
     id: "verde-branco",
     label: "Verde e branco",
@@ -461,11 +525,12 @@ export function applyTokens(tokens: ThemeTokens, dark: boolean) {
 export function applyThemeChoice(id: ThemeId, color?: string) {
   const { dark, tokens } = tokensFor(id, color);
   applyTokens(tokens, dark);
+  if (typeof document !== "undefined") document.documentElement.dataset.themeId = id;
   return dark ? "dark" : "light";
 }
 
 export function applyTheme(mode: ThemeMode) {
-  applyThemeChoice(mode === "dark" ? "noite" : "verde-branco");
+  applyThemeChoice(mode === "dark" ? "nova-noite" : "nova");
 }
 
 export function readTheme(): ThemeMode {
