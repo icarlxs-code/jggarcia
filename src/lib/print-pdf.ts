@@ -1,3 +1,4 @@
+import { notify } from "./notify";
 function documentHtml(title: string, body: string) {
   const origin = typeof window === "undefined" ? "" : window.location.origin;
   return `<!doctype html>
@@ -112,7 +113,7 @@ function waitThenPrint(doc: Document, win: Window, cleanup?: () => void) {
   window.setTimeout(run, 1800);
 }
 
-export function printHtmlDocument(html: string) {
+function printWindow(html: string) {
   const win = window.open("", "_blank");
   if (win) {
     win.document.open();
@@ -135,6 +136,102 @@ export function printHtmlDocument(html: string) {
   doc.write(html);
   doc.close();
   waitThenPrint(doc, frameWin, () => iframe.remove());
+}
+
+/** A4 content width at 96 dpi with 12 mm side margins. */
+const PAGE_W_PX = 703;
+
+function fileNameFrom(html: string) {
+  const raw = html.match(/<title>([^<]*)<\/title>/i)?.[1] ?? "documento";
+  const t = raw.replace(/&amp;/g, "&").replace(/&quot;/g, '"').replace(/&lt;|&gt;/g, "");
+  const clean = t.normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^\w\s.-]+/g, " ").trim().replace(/\s+/g, "-").slice(0, 90);
+  return `${clean || "documento"}.pdf`;
+}
+
+async function settle(doc: Document) {
+  const imgs = [...doc.images];
+  await Promise.race([
+    Promise.all(imgs.map((img) => (img.complete ? null : new Promise((r) => { img.addEventListener("load", r, { once: true }); img.addEventListener("error", r, { once: true }); })))),
+    new Promise((r) => setTimeout(r, 4000)),
+  ]);
+  try {
+    await Promise.race([doc.fonts.ready, new Promise((r) => setTimeout(r, 2500))]);
+  } catch {
+    /* fonts API missing: draw with the fallback font */
+  }
+}
+
+/** Renders the document offscreen and downloads a real PDF file (works on phones and with pop-ups blocked). */
+async function downloadPdf(html: string) {
+  const [{ default: html2canvas }, { jsPDF }] = await Promise.all([import("html2canvas"), import("jspdf")]);
+  const iframe = document.createElement("iframe");
+  iframe.setAttribute("aria-hidden", "true");
+  iframe.style.cssText = `position:fixed;left:-10000px;top:0;width:${PAGE_W_PX}px;height:1123px;border:0;visibility:hidden`;
+  document.body.appendChild(iframe);
+  try {
+    const doc = iframe.contentDocument!;
+    doc.open();
+    doc.write(html.replace("</head>", "<style>@page{margin:0}html,body{width:" + PAGE_W_PX + "px}</style></head>"));
+    doc.close();
+    await settle(doc);
+    const body = doc.body;
+    iframe.style.height = `${body.scrollHeight + 20}px`;
+    // Places where a page may end without cutting a row or a block in half.
+    const top = body.getBoundingClientRect().top;
+    const breaks = [...body.querySelectorAll("tr, h2, h3, .client, .place, .kpis, .meta, footer, p, article, section, li")]
+      .map((el) => el.getBoundingClientRect().top - top)
+      .filter((y) => y > 0)
+      .sort((a, b) => a - b);
+    const scale = 2;
+    const canvas = await html2canvas(body, { scale, useCORS: true, backgroundColor: "#ffffff", windowWidth: PAGE_W_PX, logging: false });
+    const pdf = new jsPDF({ unit: "mm", format: "a4", compress: true });
+    const margin = 12;
+    const usableW = 210 - margin * 2;
+    const usableH = 297 - margin * 2;
+    const pxPerMm = canvas.width / scale / usableW;
+    const pageH = usableH * pxPerMm;
+    let y = 0;
+    const total = canvas.height / scale;
+    let first = true;
+    while (y < total - 1) {
+      let end = Math.min(total, y + pageH);
+      if (end < total) {
+        const cut = breaks.filter((b) => b > y + pageH * 0.5 && b <= y + pageH).pop();
+        if (cut) end = cut;
+      }
+      const slice = document.createElement("canvas");
+      slice.width = canvas.width;
+      slice.height = Math.ceil((end - y) * scale);
+      const ctx = slice.getContext("2d")!;
+      ctx.fillStyle = "#fff";
+      ctx.fillRect(0, 0, slice.width, slice.height);
+      ctx.drawImage(canvas, 0, Math.floor(y * scale), canvas.width, slice.height, 0, 0, canvas.width, slice.height);
+      if (!first) pdf.addPage();
+      first = false;
+      pdf.addImage(slice.toDataURL("image/jpeg", 0.92), "JPEG", margin, margin, usableW, (end - y) / pxPerMm);
+      y = end;
+    }
+    pdf.save(fileNameFrom(html));
+  } finally {
+    iframe.remove();
+  }
+}
+
+let busy = false;
+
+export function printHtmlDocument(html: string) {
+  if (busy) return;
+  busy = true;
+  notify.info("Gerando PDF…");
+  downloadPdf(html)
+    .then(() => notify.success("PDF baixado. Confira na pasta Downloads."))
+    .catch(() => {
+      notify.info("Abrindo a impressão: escolha Salvar como PDF.");
+      printWindow(html);
+    })
+    .finally(() => {
+      busy = false;
+    });
 }
 
 export function printHtml(title: string, body: string) {

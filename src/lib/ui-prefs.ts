@@ -119,7 +119,7 @@ export function defaultUiPrefs(): UserUiPrefs {
     painel: {},
     sistemaLite: false,
     animacoes: "sistema",
-    temaId: "verde-branco",
+    temaId: "nova",
     temaCor: "#1b5c3e",
   };
 }
@@ -131,7 +131,7 @@ function normalize(row?: Partial<UserUiPrefs> | null): UserUiPrefs {
   let baixoPct = clamp(Number(row.baixoPct), 25, 100, base.baixoPct);
   if (baixoPct <= criticoPct) baixoPct = Math.min(100, criticoPct + 10);
   const periodo = row.periodoPadrao === "7" || row.periodoPadrao === "30" ? row.periodoPadrao : "hoje";
-  const temaId: ThemeId = isThemeId(String(row.temaId ?? "")) ? (row.temaId as ThemeId) : row.tema === "dark" ? "noite" : "verde-branco";
+  const temaId: ThemeId = isThemeId(String(row.temaId ?? "")) ? (row.temaId as ThemeId) : row.tema === "dark" ? "nova-noite" : "nova";
   const temaCor = normalizeHex(String(row.temaCor ?? ""), "#1b5c3e");
   const tema: ThemeMode = tokensFor(temaId, temaCor).dark ? "dark" : "light";
   const chartViewRev = row.chartViewRev === 2 ? 2 : 1;
@@ -365,8 +365,8 @@ export function setActiveUserId(id: string | null) {
   activeId = id;
   if (!id) {
     applyLiteMode(false);
-    applyThemeChoice("verde-branco");
-    writeUiPrefs(null, { temaId: "verde-branco" });
+    applyThemeChoice("nova");
+    writeUiPrefs(null, { temaId: "nova" });
     if (typeof document !== "undefined") {
       document.documentElement.classList.remove("dark");
       document.documentElement.style.colorScheme = "light";
@@ -419,7 +419,7 @@ export function resetUiPrefs(userId: string | null | undefined) {
   if (id === (activeId || "_anon")) {
     motionMode = "sistema";
     applyLiteMode(false);
-    paintTheme("verde-branco", undefined, true);
+    paintTheme("nova", undefined, true);
   }
   emit();
   return defaultUiPrefs();
@@ -428,14 +428,15 @@ export function resetUiPrefs(userId: string | null | undefined) {
 export function toggleUserTheme(): ThemeMode {
   const prefs = activePrefs();
   const dark = tokensFor(prefs.temaId, prefs.temaCor).dark;
-  const nextId: ThemeId = dark ? "verde-branco" : "noite";
+  const nova = prefs.temaId.startsWith("nova");
+  const nextId: ThemeId = dark ? (nova ? "nova" : "verde-branco") : nova ? "nova-noite" : "noite";
   writeUiPrefs(activeId, { temaId: nextId });
   applyThemeChoice(nextId);
   return dark ? "light" : "dark";
 }
 
 export function setUserTheme(userId: string | null | undefined, mode: ThemeMode) {
-  return writeUiPrefs(userId, { temaId: mode === "dark" ? "noite" : "verde-branco" });
+  return writeUiPrefs(userId, { temaId: mode === "dark" ? "nova-noite" : "nova" });
 }
 
 export function setUserPalette(userId: string | null | undefined, temaId: ThemeId, temaCor?: string) {

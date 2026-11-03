@@ -327,7 +327,6 @@ export function exportReportPdf(opts: ReportOpts) {
     ${sections}
   `;
   printHtml(title, body);
-  notify.success("Na impressão, escolha Salvar como PDF.");
 }
 
 function clientBlocks(outs: ReportRow[], destinos: Destino[]) {
@@ -465,7 +464,6 @@ export function exportForkliftPdf(opts: { from: string; to: string; operador?: s
     ${stats.verdicts.length ? table(["Data", "Empilhador", "Rota", "Tempo", "Leitura"], tripRows) : ""}
   `;
   printHtml(title, body);
-  notify.success("Na impressão, escolha Salvar como PDF.");
 }
 
 export function productTimeline(mercadoriaId: string) {
@@ -653,7 +651,6 @@ export function exportDiaCompletoPdf(date: string) {
     ${sections}
   `;
   printHtml(title, body);
-  notify.success("Na impressão, escolha Salvar como PDF.");
 }
 
 export function exportEstoqueDiaPdf(date?: string) {
@@ -683,7 +680,6 @@ export function exportEstoqueDiaPdf(date?: string) {
     ${stock.length ? `<h2>Por pavilhão e galpão</h2>${detalhe.lugares}` : ""}
   `;
   printHtml(title, body);
-  notify.success("Na impressão, escolha Salvar como PDF.");
 }
 
 

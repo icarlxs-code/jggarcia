@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { FlowStrip } from "@/components/analytics/module-strips";
 import { ArrowLeftRight, Pencil, Search } from "lucide-react";
 import { useDb } from "@/lib/use-db";
 import { db } from "@/lib/store";
@@ -153,6 +154,7 @@ function Movimentacoes() {
       >
         <ViewSwitch page="movimentacoes" />
       </PageHeader>
+      <FlowStrip />
       <div className="relative max-w-xl">
         <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
         <Input

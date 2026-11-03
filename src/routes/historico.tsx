@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { MovStrip } from "@/components/analytics/module-strips";
 import { Plus } from "lucide-react";
 import { db } from "@/lib/store";
 import { calcTransportTime, completeTime, isValidTime } from "@/lib/format";
@@ -104,6 +105,7 @@ function Historico() {
           </Link>
         </Button>
       </PageHeader>
+      <MovStrip kind="saida" />
       <SaidasPainel
         saidas={saidas}
         pavilhoes={pavilhoes}
