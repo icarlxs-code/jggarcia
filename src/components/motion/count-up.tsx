@@ -1,7 +1,9 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
+import NumberFlow from "@number-flow/react";
 import { usePrefersReducedMotion } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 
+/** A number whose digits roll into place, on arrival and on every change. */
 export function CountUp({
   value,
   suffix = "",
@@ -14,41 +16,28 @@ export function CountUp({
   className?: string;
 }) {
   const reduced = usePrefersReducedMotion();
-  const [shown, setShown] = useState(value);
-  const displayed = useRef(value);
-
+  // Start at zero once so the figure rolls up when the card arrives.
+  const [shown, setShown] = useState(() => (reduced ? value : 0));
   useEffect(() => {
-    if (reduced) {
-      setShown(value);
-      displayed.current = value;
-      return;
-    }
-    const start = displayed.current;
-    const delta = value - start;
-    if (delta === 0) {
-      setShown(value);
-      return;
-    }
-    const t0 = performance.now();
-    const dur = 480;
-    let raf = 0;
-    const tick = (now: number) => {
-      const p = Math.min(1, (now - t0) / dur);
-      const eased = 1 - (1 - p) ** 4;
-      displayed.current = start + delta * eased;
-      setShown(displayed.current);
-      if (p < 1) raf = requestAnimationFrame(tick);
-    };
-    raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf);
-  }, [value, reduced]);
+    const id = requestAnimationFrame(() => setShown(value));
+    return () => cancelAnimationFrame(id);
+  }, [value]);
 
-  const format = (n: number) => n.toLocaleString("pt-BR", { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
-  const label = `${format(value)}${suffix ? ` ${suffix.trim()}` : ""}`;
+  const format = { minimumFractionDigits: decimals, maximumFractionDigits: decimals };
+  const label = `${value.toLocaleString("pt-BR", format)}${suffix ? ` ${suffix.trim()}` : ""}`;
   return (
-    <span className={cn("inline-block tabular-nums", className)} aria-label={label}>
-      <span className="sr-only">{label}</span>
-      <span aria-hidden="true">{format(reduced ? value : shown)}</span>
+    <span className={cn("inline-flex items-baseline tabular-nums", className)} aria-label={label}>
+      <NumberFlow
+        value={reduced ? value : shown}
+        locales="pt-BR"
+        format={format}
+        animated={!reduced}
+        respectMotionPreference={false}
+        willChange
+        transformTiming={{ duration: 900, easing: "cubic-bezier(0.16, 1, 0.3, 1)" }}
+        spinTiming={{ duration: 900, easing: "cubic-bezier(0.16, 1, 0.3, 1)" }}
+        aria-hidden="true"
+      />
       {suffix ? <span aria-hidden="true" className="ml-1 text-[0.5em] font-medium text-muted-foreground">{suffix.trim()}</span> : null}
     </span>
   );

@@ -2,8 +2,11 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Link, Outlet, useNavigate, useRouterState } from "@tanstack/react-router";
 import { Bell, LogOut, Menu, MoreHorizontal, PanelLeft, Search } from "lucide-react";
 import gsap from "gsap";
+import { motion } from "motion/react";
+import { usePrefersReducedMotion } from "@/lib/motion";
 import { useSession } from "@/lib/session";
-import { hydrateFromCloud, loteStatus, runAutoZeros } from "@/lib/store";
+import { hydrateFromCloud, isAwaitingFirstSync, loteStatus, runAutoZeros } from "@/lib/store";
+import { Skeleton } from "@/components/ui/skeleton";
 import { syncTeamFromServer } from "@/lib/team-sync";
 import { attentionAlerts, loadMutedAlerts, muteAlert } from "@/lib/intelligence";
 import { useDb } from "@/lib/use-db";
@@ -28,6 +31,7 @@ import { ViewportToggle } from "@/components/viewport-toggle";
 import { CeremonyOverlay } from "@/components/motion/ceremony-overlay";
 import { DataActivity } from "@/components/motion/data-activity";
 import { TiltLayer } from "@/components/motion/tilt-layer";
+import { SmoothScroll } from "@/components/motion/smooth-scroll";
 import { AppContextMenu } from "@/components/ui/app-context-menu";
 import { AssistenteButton } from "@/components/assistente/painel";
 import { operadorPodeVer } from "@/lib/acesso-operador";
@@ -106,6 +110,7 @@ function Brand({ collapsed, home = "/" }: { collapsed?: boolean; home?: "/" | "/
 function NavList({ onNavigate, collapsed }: { onNavigate?: () => void; collapsed?: boolean }) {
   const { isAdmin } = useSession();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const reduced = usePrefersReducedMotion();
   return (
     <nav aria-label="Menu principal" className={cn("relative flex flex-1 flex-col gap-5 overflow-y-auto pb-4", collapsed ? "px-2" : "px-3")}>
       {NAV_GROUPS.map((group) => {
@@ -136,6 +141,14 @@ function NavList({ onNavigate, collapsed }: { onNavigate?: () => void; collapsed
                       active ? "text-sidebar-foreground" : "text-sidebar-foreground/70 hover:text-sidebar-foreground",
                     )}
                   >
+                    {active ? (
+                      <motion.span
+                        layoutId={collapsed ? "nav-pill-mini" : "nav-pill"}
+                        className="nav-pill"
+                        aria-hidden="true"
+                        transition={reduced ? { duration: 0 } : { type: "spring", stiffness: 480, damping: 38, mass: 0.9 }}
+                      />
+                    ) : null}
                     <span className="nav-mark">
                       <AnimatedIcon name={item.icon} active={active} />
                     </span>
@@ -158,6 +171,29 @@ function NavList({ onNavigate, collapsed }: { onNavigate?: () => void; collapsed
   );
 }
 
+function BootSkeleton() {
+  return (
+    <div className="boot-skeleton" role="status" aria-label="Carregando os dados">
+      <div className="flex items-center gap-4">
+        <Skeleton className="h-14 w-14 rounded-2xl" />
+        <div className="space-y-2">
+          <Skeleton className="h-7 w-56" />
+          <Skeleton className="h-4 w-80 max-w-[60vw]" />
+        </div>
+      </div>
+      <div className="grid grid-cols-2 gap-3 xl:grid-cols-5">
+        {Array.from({ length: 5 }, (_, i) => (
+          <Skeleton key={i} className="h-36 rounded-2xl" />
+        ))}
+      </div>
+      <div className="grid gap-4 xl:grid-cols-3">
+        <Skeleton className="h-96 rounded-2xl xl:col-span-2" />
+        <Skeleton className="h-96 rounded-2xl" />
+      </div>
+    </div>
+  );
+}
+
 export function AppShell() {
   const { perfil, isAdmin, signOut } = useSession();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
@@ -166,6 +202,15 @@ export function AppShell() {
   const [cmdOpen, setCmdOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
   const tabNavRef = useRef<HTMLElement>(null);
+  const mainRef = useRef<HTMLElement>(null);
+  useDb(); // re-render when the real data arrives
+  // Never flash stale numbers: the first screen waits for the first sync (at most 4 s).
+  const [esperaVencida, setEsperaVencida] = useState(false);
+  useEffect(() => {
+    const t = window.setTimeout(() => setEsperaVencida(true), 4000);
+    return () => window.clearTimeout(t);
+  }, []);
+  const mainInnerRef = useRef<HTMLDivElement>(null);
   const tabBlobRef = useRef<HTMLSpanElement>(null);
   const navigate = useNavigate();
   const liberado = isAdmin || operadorPodeVer(pathname);
@@ -407,8 +452,9 @@ export function AppShell() {
           </header>
 
           <TiltLayer />
-          <main id="main-content" tabIndex={-1} className={cn("jg-main min-h-0 flex-1 overflow-y-auto p-4 lg:p-8", isPhone && "pb-[calc(4.5rem+env(safe-area-inset-bottom))]")}>
-            {liberado ? <Outlet /> : null}
+          <SmoothScroll wrapper={mainRef} content={mainInnerRef} />
+          <main ref={mainRef} id="main-content" tabIndex={-1} className={cn("jg-main min-h-0 flex-1 overflow-y-auto p-4 lg:p-8", isPhone && "pb-[calc(4.5rem+env(safe-area-inset-bottom))]")}>
+            <div ref={mainInnerRef} className="jg-main-inner">{liberado ? (isAwaitingFirstSync() && !esperaVencida ? <BootSkeleton /> : <Outlet />) : null}</div>
           </main>
         </div>
         {isPhone ? (

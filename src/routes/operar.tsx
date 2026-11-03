@@ -199,17 +199,18 @@ function OperarPage() {
   if (!token || !session) {
     return (
       <main className="mx-auto flex min-h-dvh max-w-md flex-col justify-center gap-6 bg-background px-5 py-10 text-foreground">
-        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-primary">JG Garcia</p>
-        <h1 className="text-3xl font-semibold tracking-tight">Vincular celular</h1>
+        <h1 className="page-title">Vincular celular</h1>
         <p className="text-sm text-muted-foreground">Peça o código na administração. Este aparelho fica só com a sua conta.</p>
         <input
           value={code}
           onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
           inputMode="numeric"
-          placeholder="Código de 6 dígitos"
-          className="h-16 rounded-2xl border border-border bg-card text-center text-3xl font-semibold tracking-[0.3em]"
+          placeholder="000000"
+          aria-label="Código de 6 dígitos"
+          maxLength={6}
+          className="field-glow h-16 rounded-2xl border border-border bg-card text-center font-mono text-3xl font-semibold tracking-[0.4em] placeholder:text-muted-foreground/40"
         />
-        <button type="button" onClick={() => void vincularCelular()} className="h-14 rounded-2xl bg-primary text-lg font-semibold text-primary-foreground">
+        <button type="button" onClick={() => void vincularCelular()} className="jg-btn bg-primary h-14 rounded-2xl text-lg font-semibold text-primary-foreground">
           Vincular este celular
         </button>
       </main>

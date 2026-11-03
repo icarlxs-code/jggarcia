@@ -36,6 +36,8 @@ import { tipoMovimentacaoOf } from "@/lib/movement";
 import { MovementDetail } from "@/components/inventory/movement-detail";
 import type { Saida } from "@/lib/types";
 
+import { useAnimatedList } from "@/lib/use-animated-list";
+
 export const Route = createFileRoute("/")({ component: Dashboard });
 
 function unitShort(unidade: string) {
@@ -64,6 +66,8 @@ function mixByUnit(rows: { unidade?: string; quantidade?: number; estoque?: numb
 }
 
 function Dashboard() {
+  const baixosRef = useAnimatedList();
+  const listaRef = useAnimatedList();
   const db = useDb();
   const { isAdmin } = useSession();
   const lite = usePrefersReducedMotion();
@@ -254,7 +258,7 @@ function Dashboard() {
           {movs.length === 0 ? (
             <p className="py-8 text-center text-sm text-muted-foreground">Nenhuma entrada ou saída registrada.</p>
           ) : (
-            <ul className="divide-y divide-border">
+            <ul ref={listaRef} className="divide-y divide-border">
               {movs.slice(0, 10).map((s) => {
                 const tipo = tipoMovimentacaoOf(s);
                 return (
@@ -299,7 +303,7 @@ function Dashboard() {
           {stats.baixos.length === 0 ? (
             <p className="py-8 text-center text-sm text-muted-foreground">Nenhum alerta de estoque.</p>
           ) : (
-            <ul className="space-y-3">
+            <ul ref={baixosRef} className="space-y-3">
               {stats.baixos.map(({ p, alert }) => (
                 <li key={p.id} className="flex items-center gap-3">
                   <ProductLabel nome={p.nome} codigo={p.codigo} extra={`${formatNumber(p.estoque)} ${unitShort(p.unidade)}`} className="flex-1" />

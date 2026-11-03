@@ -27,6 +27,8 @@ import { ViewSwitch, useChartView } from "@/components/analytics/view-switch";
 import { ScreenCharts } from "@/components/analytics/screen-charts";
 import { useRowUpdates } from "@/lib/use-row-updates";
 
+import { useAnimatedList } from "@/lib/use-animated-list";
+
 export const Route = createFileRoute("/movimentacoes")({
   validateSearch: (s: Record<string, unknown>): { q?: string; periodo?: "hoje" | "ontem" | "7d" | "tudo" | "periodo"; tipo?: "tudo" | "entrada" | "saida" | "transferencia" | "contagem" } => {
     const periodo = s.periodo === "hoje" || s.periodo === "ontem" || s.periodo === "7d" || s.periodo === "tudo" || s.periodo === "periodo" ? s.periodo : undefined;
@@ -44,6 +46,7 @@ type KindFilter = "tudo" | "entrada" | "saida" | "transferencia" | "contagem";
 type Period = "hoje" | "ontem" | "7d" | "tudo" | "periodo";
 
 function Movimentacoes() {
+  const listaRef = useAnimatedList();
   const live = useDb();
   const { q: qParam, periodo, tipo } = Route.useSearch();
   const [q, setQ] = useState(qParam || "");
@@ -238,7 +241,7 @@ function Movimentacoes() {
           <p className="text-xs text-muted-foreground">
             {filtered.length} {filtered.length === 1 ? "movimentação" : "movimentações"} · mais recente primeiro
           </p>
-          <ul className="grid grid-cols-1 gap-3 xl:grid-cols-2">
+          <ul ref={listaRef} className="grid grid-cols-1 gap-3 xl:grid-cols-2">
             {filtered.map((item) => {
               const accent =
                 item.tipo === "entrada"
