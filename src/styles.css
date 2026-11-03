@@ -172,7 +172,6 @@ html.motion-on .filter-controls { animation: row-arrive 200ms var(--ease-enter);
 .page-hero { padding-bottom: 1.25rem; }
 .page-hero h1, .page-title { font-family: var(--font-display); font-size: clamp(1.625rem, 2.4vw, 2.125rem); font-weight: 650; line-height: 1.1; letter-spacing: -.03em; font-variation-settings: "opsz" 48; }
 .page-mark { display: grid; place-items: center; width: 3.5rem; height: 3.5rem; flex: none; border-radius: 1rem; background: linear-gradient(160deg, var(--color-card), var(--color-mint)); border: 1px solid var(--color-border); box-shadow: var(--shadow-card); overflow: hidden; }
-.page-mark .page-ico { width: 1.75rem; height: 1.75rem; }
 
 .page-desc { font-size: .9375rem; line-height: 1.55; color: var(--color-muted-foreground); }
 
@@ -623,163 +622,6 @@ html.is-phone .jg-tabbar {
   opacity:0;
   transform-origin:50%;
   will-change:transform, width}
-.nav-ico{
-  transform-origin:bottom;
-  flex-shrink:0;
-  width:1rem;
-  height:1rem;
-  display:inline-flex}
-.nav-ico svg,.page-ico svg{
-  width:100%;
-  height:100%;
-  overflow:visible}
-.page-ico{
-  width:1.5rem;
-  height:1.5rem;
-  color:var(--color-primary);
-  display:inline-flex}
-.nav-link:hover .nav-ico-home:not(.is-active){
-  animation:ico-pop .42s var(--ease-spring)}
-.nav-ico-home.is-active,.page-ico-home{
-  animation:ico-home 2.2s var(--ease-standard) infinite}
-.nav-link:hover .nav-ico-in:not(.is-active){
-  animation:ico-in .42s var(--ease-spring)}
-.nav-ico-in.is-active,.page-ico-in{
-  animation:ico-in 1.6s var(--ease-standard) infinite}
-.nav-link:hover .nav-ico-out:not(.is-active){
-  animation:ico-out .42s var(--ease-spring)}
-.nav-ico-out.is-active,.page-ico-out{
-  animation:ico-out 1.6s var(--ease-standard) infinite}
-.nav-link:hover .nav-ico-stock:not(.is-active){
-  animation:ico-pop .42s var(--ease-spring)}
-.nav-ico-stock.is-active,.page-ico-stock{
-  animation:ico-stock 2s var(--ease-standard) infinite}
-.nav-link:hover .nav-ico-lot:not(.is-active){
-  animation:ico-flip .5s var(--ease-standard)}
-.nav-ico-lot.is-active,.page-ico-lot{
-  animation:ico-flip 2.4s var(--ease-standard) infinite}
-.nav-link:hover .nav-ico-count:not(.is-active){
-  animation:ico-pop .42s var(--ease-spring)}
-.nav-ico-count.is-active,.page-ico-count{
-  animation:ico-pack 2s var(--ease-spring) infinite}
-.nav-link:hover .nav-ico-package:not(.is-active){
-  animation:ico-pack .5s var(--ease-spring)}
-.nav-ico-package.is-active,.page-ico-package{
-  animation:ico-pack 2s var(--ease-spring) infinite}
-.nav-link:hover .nav-ico-pin:not(.is-active){
-  animation:ico-pin .5s var(--ease-spring)}
-.nav-ico-pin.is-active,.page-ico-pin{
-  animation:ico-pin 1.8s var(--ease-spring) infinite}
-.nav-link:hover .nav-ico-truck:not(.is-active){
-  animation:ico-truck .6s var(--ease-standard)}
-.nav-ico-truck.is-active,.page-ico-truck{
-  animation:ico-truck 2s var(--ease-standard) infinite}
-.nav-link:hover .nav-ico-store:not(.is-active){
-  animation:ico-store .5s var(--ease-spring)}
-.nav-ico-store.is-active,.page-ico-store{
-  animation:ico-store 2.2s var(--ease-spring) infinite}
-.nav-link:hover .nav-ico-log:not(.is-active){
-  animation:ico-log .5s var(--ease-standard)}
-.nav-ico-log.is-active,.page-ico-log{
-  animation:ico-log 2.4s var(--ease-standard) infinite}
-.nav-link:hover .nav-ico-chart:not(.is-active){
-  animation:ico-chart .5s var(--ease-standard)}
-.nav-ico-chart.is-active,.page-ico-chart{
-  animation:ico-chart 1.8s var(--ease-standard) infinite}
-.nav-link:hover .nav-ico-users:not(.is-active){
-  animation:ico-pop .42s var(--ease-spring)}
-.nav-ico-users.is-active,.page-ico-users{
-  animation:ico-pop 2s var(--ease-spring) infinite}
-.nav-link:hover .nav-ico-gear:not(.is-active){
-  animation:ico-spin .6s var(--ease-standard)}
-.nav-ico-gear.is-active,.page-ico-gear{
-  animation:4s linear infinite ico-spin}
-@keyframes ico-pop{
-  0%,to{
-    transform:scale(1)}
-  40%{
-    transform:scale(1.18)}
-  }
-@keyframes ico-home{
-  0%,to{
-    transform:translateY(0)}
-  50%{
-    transform:translateY(-1.5px)}
-  }
-@keyframes ico-in{
-  0%,to{
-    transform:translateY(0)}
-  50%{
-    transform:translateY(3px)}
-  }
-@keyframes ico-out{
-  0%,to{
-    transform:translateY(0)}
-  50%{
-    transform:translateY(-3px)}
-  }
-@keyframes ico-stock{
-  0%,to{
-    transform:scaleY(1)}
-  50%{
-    transform:scaleY(.88)}
-  }
-@keyframes ico-flip{
-  0%,to{
-    transform:rotate(0)}
-  40%{
-    transform:rotate(-12deg)}
-  70%{
-    transform:rotate(8deg)}
-  }
-@keyframes ico-pack{
-  0%,to{
-    transform:translateY(0)scale(1)}
-  35%{
-    transform:translateY(-3px)scale(1.06)}
-  }
-@keyframes ico-pin{
-  0%,to{
-    transform:translateY(0)}
-  30%{
-    transform:translateY(-4px)}
-  50%{
-    transform:translateY(0)}
-  65%{
-    transform:translateY(-2px)}
-  }
-@keyframes ico-truck{
-  0%,to{
-    transform:translate(0)}
-  40%{
-    transform:translate(3px)}
-  60%{
-    transform:translate(-1px)}
-  }
-@keyframes ico-store{
-  0%,to{
-    transform:perspective(40px)rotateX(0)}
-  50%{
-    transform:perspective(40px)rotateX(12deg)translateY(-1px)}
-  }
-@keyframes ico-log{
-  0%,to{
-    transform:rotate(0)}
-  40%{
-    transform:rotate(-8deg)}
-  }
-@keyframes ico-chart{
-  0%,to{
-    transform-origin:bottom;
-    transform:scaleY(1)}
-  50%{
-    transform-origin:bottom;
-    transform:scaleY(1.18)}
-  }
-@keyframes ico-spin{
-  to{
-    transform:rotate(360deg)}
-  }
 .form-shake{
   animation:form-shake .42s var(--ease-standard)}
 @keyframes form-shake{
@@ -1170,10 +1012,6 @@ html:not(.is-lite) .pop-in{
   overflow:visible}
 .jg-tab.is-active{
   color:var(--color-primary)}
-.jg-tab .nav-ico{
-  transition:transform .32s cubic-bezier(.34,1.4,.64,1)}
-.jg-tab.is-active .nav-ico{
-  transform:scale(1.12)}
 html.is-phone .login-shell{
   display:flex!important;
   flex-direction:column!important;
@@ -2003,9 +1841,6 @@ html.is-lite .theme-swatch:hover {
 }
 html.is-lite .product-stage,
 html.is-lite .product-stage-spin,
-html.is-lite .nav-ico,
-html.is-lite .page-ico,
-html.is-lite .nav-link:hover .nav-ico,
 html.is-lite [class*="animate-"] {
   animation: none !important;
   transition: none !important;

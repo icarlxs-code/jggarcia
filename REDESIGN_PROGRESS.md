@@ -86,4 +86,59 @@ O produto é a operação de hortifrúti no Ceasa: caixas, pavilhões, caminhõe
 - **Tipografia**: Bricolage Grotesque (títulos e números grandes), Geist (interface), Geist Mono (códigos e quantidades em etiqueta).
 - **Movimento**: físico e curto; molas nas interações, desaceleração exponencial nas entradas, cada ícone com movimento que conta o que ele faz.
 
-(seções seguintes preenchidas conforme as fases avançam)
+## Fases 3–4 — Laboratório e sistema global (concluídas)
+
+Commits `45a7c30`, `c383122`.
+
+| Peça | Onde | O que faz |
+|---|---|---|
+| Registro de módulos | `src/lib/modules.ts` | 22 módulos: nome, luz, tinta, papel; `moduleForPath`, `useCurrentModule`, `moduleStyle` |
+| Glifos | `src/components/brand/glyph.tsx` + CSS "SAFRA" em `styles.css` | Um glifo por módulo + busca, sino, assistente, sync; status (sucesso, erro, alerta, info, carregando). Hover = gesto completo; `live` = loop calmo; `state` = selo |
+| Luz do módulo | `app-shell.tsx` (efeito em `pathname`) | `--mod`/`--mod-ink` no `<html>`, transição de 700 ms via `@property` |
+| Cabeçalho de página | `page-header.tsx` | Selo com o glifo do módulo, linha inferior na cor do módulo |
+| Estado vazio | `empty-state.tsx` | Palco com o glifo do módulo e órbita |
+| Toasts | `ui/sonner.tsx` | Ícones de status que se desenham |
+| Navegação | `app-shell.tsx` | Grupos recolhíveis (salvos), contador, item ativo pelo módulo, glifos coloridos, pill que desliza, textura de papel |
+| Botões | `ui/button.tsx`, `motion/magnet-layer.tsx`, `ui/split-button.tsx` | `loading`, efeito magnético, botão dividido |
+| Busca global | `search/command-palette.tsx` | Páginas e ações com glifo do módulo |
+| Laboratório | `/design` (`routes/design.tsx`) | Referência viva: glifos, luzes, estados |
+
+## Fase 5 — Redesign por módulo
+
+| Módulo | Status | Componente/identidade |
+|---|---|---|
+| Visão geral | Feito | Selos de módulo nos números; armazém 3D; radar; saúde |
+| Hoje | Feito | Sol nascendo no cabeçalho; glifo da área em cada número |
+| Estoque | Feito | `StockMeter` (barra = 2× mínimo, marca no mínimo); botão dividido |
+| Movimentações | Feito | Trilho e glifo por tipo (entrada/saída/transferência/contagem) |
+| Nova saída | Feito | `RoutePreview` ao vivo (origem → destino, carga, caminhão) |
+| Entradas | Feito | `DockStrip` (chegadas do dia, última, volume por unidade) |
+| Pavilhões | Feito | Barra de participação no volume da empresa |
+| Pagamento / Despesa de frete | Feito | `MoneyStrip` (total do mês, comprovantes, mês anterior) |
+| Log de alterações | Feito | Glifo da área alterada por registro |
+| Contagem | Feito | Barra de progresso própria com porcentagem, cartão na luz do módulo |
+| Produtos (e todo o sistema) | Feito | Código de produto como etiqueta carimbada de caixa (assinatura) |
+| Clientes, Fornecedores | Feito | `NameMark` com cor estável por nome (logos existentes têm prioridade) |
+| Empilhadores, Equipe | Feito | `NameMark` redondo por pessoa |
+| Lotes | Feito | Regras FEFO/janela/bloqueio com glifos |
+| Relatórios | Feito | PDFs com glifo de documento |
+| Requisições | Feito | Número de série em carimbo |
+| Configurações | Feito | Cada grupo com o glifo do que afeta |
+| Gráficos e análises | Feito (global) | Luz e glifo do módulo, estados vazios do módulo |
+
+## Fases 6–7 — Refinamento e validação (concluídas)
+- Celular (390×844): cabeçalho, cartão de rota compacto, abas inferiores com glifos.
+- Modo escuro: selos e glifos com tinta clara derivada da luz do módulo.
+- Limpeza: componente `AnimatedIcon` e 162 linhas de CSS dos ícones antigos removidos (tipo `IconMotion` mantido por compatibilidade de props).
+- `tsc` sem erros · 55 testes · build de produção ok.
+- Console sem erros percorrendo as 20 telas do menu numa aba limpa.
+- Integridade: 132 produtos, 0 diferenças entre total e soma por pavilhão.
+
+## Notas de validação
+- O navegador de teste do app pinta a 1 quadro/s quando a janela está coberta (medido: quadros de ~1.000 ms; tarefas longas do app só 59–76 ms). Para inspecionar, adiantar animações finitas antes da foto.
+- Erros "useSession precisa estar dentro do SessionProvider" no console aparecem só após recarga a quente de `store.ts`/`session.tsx`; somem em aba nova.
+
+## Próximas etapas sugeridas
+1. Ícones de tabela/linha restantes ainda em Lucide (editar, excluir, filtros) podem ganhar versões animadas no mesmo traço.
+2. Gráficos (recharts) podem adotar a luz do módulo nas séries.
+3. Magic MCP (21st.dev) segue pendente da API key do usuário.
