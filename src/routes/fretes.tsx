@@ -18,6 +18,7 @@ import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { PageHeader } from "@/components/page-header";
+import { MoneyStrip } from "@/components/finance/money-strip";
 import { PageStage } from "@/components/motion/page-stage";
 import { SpotlightCard } from "@/components/motion/spotlight-card";
 import { ActionButton } from "@/components/motion/action-button";
@@ -232,6 +233,7 @@ export function FretePage({ kind = "pagamento" }: { kind?: "pagamento" | "despes
           <Plus /> Novo cadastro
         </Button>
       </PageHeader>
+      <MoneyStrip fretes={list} kind={kind} />
 
       <section className="rounded-xl border border-border bg-card shadow-card">
         <button

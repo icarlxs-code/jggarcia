@@ -21,6 +21,7 @@ import { PageStage } from "@/components/motion/page-stage";
 import { StockSplit } from "@/components/inventory/stock-split";
 import { ProductPicker } from "@/components/inventory/product-picker";
 import { PavPicker } from "@/components/inventory/pav-mark";
+import { RoutePreview } from "@/components/inventory/route-preview";
 import { notify } from "@/lib/notify";
 import { playCeremony, ceremonyDock, initialsOf } from "@/lib/ceremony";
 import { readUiPrefs } from "@/lib/ui-prefs";
@@ -287,6 +288,14 @@ function NovaSaida() {
         clip="/lottie/caminhao.json"
         title="Nova saída"
         description="Busque o produto, diga de onde sai e a que horas. Pode ir para um cliente ou para outro pavilhão."
+      />
+      <RoutePreview
+        origem={origemOk ? pavTitle(pavilhoes.find((p) => p.id === origemId) ?? { codigo: "" }) : null}
+        destino={destKind === "pav" ? (destPav ? pavTitle(destPav) : null) : destKind === "cliente" ? (destinos.find((d) => d.id === destinoId)?.nome ?? null) : "Sem destino"}
+        destinoTipo={destKind}
+        produto={mercadoria?.nome ?? null}
+        quantidade={qtdLive}
+        unidade={mercadoria?.unidade}
       />
       <Card>
         <CardHeader>

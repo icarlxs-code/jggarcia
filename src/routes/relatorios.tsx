@@ -21,6 +21,7 @@ import { notify } from "@/lib/notify";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { PageHeader } from "@/components/page-header";
+import { Glyph } from "@/components/brand/glyph";
 import { PageStage } from "@/components/motion/page-stage";
 import { ActionButton } from "@/components/motion/action-button";
 import { CountUp } from "@/components/motion/count-up";
@@ -173,18 +174,24 @@ function Relatorios() {
                 setPav("todos");
                 pdf("todos");
               }}
-              className="min-w-[11rem] flex-1 rounded-xl border border-primary bg-primary px-3 py-2 text-left text-primary-foreground"
+              className="report-pdf is-primary glyph-host min-w-[11rem] flex-1 rounded-xl border border-primary bg-primary px-3 py-2 text-left text-primary-foreground"
             >
-              <span className="block text-sm font-semibold leading-tight">PDF de todos</span>
-              <span className="text-xs opacity-80">{kinds.find((k) => k.id === kind)?.label} · todos os lugares</span>
+              <Glyph name="relatorios" className="report-pdf-glyph" />
+              <span className="min-w-0">
+                <span className="block text-sm font-semibold leading-tight">PDF de todos</span>
+                <span className="text-xs opacity-80">{kinds.find((k) => k.id === kind)?.label} · todos os lugares</span>
+              </span>
             </button>
             <button
               type="button"
               onClick={() => exportDiaCompletoPdf(from === to ? from : to)}
-              className="min-w-[11rem] flex-1 rounded-xl border border-border bg-card px-3 py-2 text-left hover:bg-muted"
+              className="report-pdf glyph-host min-w-[11rem] flex-1 rounded-xl border border-border bg-card px-3 py-2 text-left hover:bg-muted"
             >
-              <span className="block text-sm font-semibold leading-tight">PDF do dia</span>
-              <span className="text-xs text-muted-foreground">{from === to ? formatDateBR(from) : formatDateBR(to)}</span>
+              <Glyph name="hoje" className="report-pdf-glyph" />
+              <span className="min-w-0">
+                <span className="block text-sm font-semibold leading-tight">PDF do dia</span>
+                <span className="text-xs text-muted-foreground">{from === to ? formatDateBR(from) : formatDateBR(to)}</span>
+              </span>
             </button>
             <div className="grid min-w-[18rem] flex-[1.4] grid-cols-4 gap-1.5">
               <Kpi label="Lançamentos" value={rows.length} />

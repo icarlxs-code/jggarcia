@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Link, Outlet, useNavigate, useRouterState } from "@tanstack/react-router";
-import { Bell, LogOut, Menu, MoreHorizontal, PanelLeft, Search } from "lucide-react";
+import { ChevronDown, LogOut, Menu, MoreHorizontal, PanelLeft } from "lucide-react";
 import gsap from "gsap";
 import { motion } from "motion/react";
 import { usePrefersReducedMotion } from "@/lib/motion";
@@ -11,7 +11,9 @@ import { syncTeamFromServer } from "@/lib/team-sync";
 import { attentionAlerts, loadMutedAlerts, muteAlert } from "@/lib/intelligence";
 import { useDb } from "@/lib/use-db";
 import { useViewport } from "@/lib/use-viewport";
-import { AnimatedIcon, type IconMotion } from "@/components/motion/animated-icon";
+import type { IconMotion } from "@/components/motion/animated-icon";
+import { Glyph } from "@/components/brand/glyph";
+import { MODULES, moduleForPath, moduleStyle } from "@/lib/modules";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
@@ -32,6 +34,7 @@ import { CeremonyOverlay } from "@/components/motion/ceremony-overlay";
 import { DataActivity } from "@/components/motion/data-activity";
 import { TiltLayer } from "@/components/motion/tilt-layer";
 import { SmoothScroll } from "@/components/motion/smooth-scroll";
+import { MagnetLayer } from "@/components/motion/magnet-layer";
 import { AppContextMenu } from "@/components/ui/app-context-menu";
 import { AssistenteButton } from "@/components/assistente/painel";
 import { operadorPodeVer } from "@/lib/acesso-operador";
@@ -82,7 +85,7 @@ const NAV_GROUPS: NavGroup[] = [
       { to: "/analises", label: "Gráficos e análises", icon: "chart", adminOnly: true },
       { to: "/fretes", label: "Pagamento de fretes", icon: "truck" },
       { to: "/despesas-frete", label: "Despesa de frete", icon: "truck" },
-      { to: "/requisicoes", label: "Requisição de Fornecedor", icon: "log" },
+      { to: "/requisicoes", label: "Requisições", icon: "log" },
       { to: "/usuarios", label: "Equipe", icon: "users", adminOnly: true },
       { to: "/configuracoes", label: "Configurações", icon: "gear" },
     ],
@@ -107,36 +110,79 @@ function Brand({ collapsed, home = "/" }: { collapsed?: boolean; home?: "/" | "/
   );
 }
 
+const GRUPOS_FECHADOS = "jg-nav-fechados";
+
+/** Groups the person closed; the group holding the current page always stays open. */
+function useGruposFechados() {
+  const [fechados, setFechados] = useState<string[]>([]);
+  useEffect(() => {
+    try {
+      const raw = JSON.parse(localStorage.getItem(GRUPOS_FECHADOS) || "[]");
+      if (Array.isArray(raw)) setFechados(raw.filter((x): x is string => typeof x === "string"));
+    } catch {
+      /* sem preferência salva */
+    }
+  }, []);
+  const alternar = (label: string) =>
+    setFechados((prev) => {
+      const next = prev.includes(label) ? prev.filter((x) => x !== label) : [...prev, label];
+      try {
+        localStorage.setItem(GRUPOS_FECHADOS, JSON.stringify(next));
+      } catch {
+        /* segue só nesta sessão */
+      }
+      return next;
+    });
+  return [fechados, alternar] as const;
+}
+
 function NavList({ onNavigate, collapsed }: { onNavigate?: () => void; collapsed?: boolean }) {
   const { isAdmin } = useSession();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const reduced = usePrefersReducedMotion();
+  const [fechados, alternar] = useGruposFechados();
+  const atual = moduleForPath(pathname);
   return (
-    <nav aria-label="Menu principal" className={cn("relative flex flex-1 flex-col gap-5 overflow-y-auto pb-4", collapsed ? "px-2" : "px-3")}>
+    <nav aria-label="Menu principal" className={cn("relative flex flex-1 flex-col gap-3 overflow-y-auto pb-4", collapsed ? "px-2" : "px-3")}>
       {NAV_GROUPS.map((group) => {
         const items = group.items.filter((i) => (!i.adminOnly || isAdmin) && (isAdmin || operadorPodeVer(i.to)));
         if (items.length === 0) return null;
+        const temAtivo = items.some((i) => moduleForPath(i.to) === atual);
+        const aberto = collapsed || temAtivo || !fechados.includes(group.label);
         return (
           <div key={group.label}>
             {collapsed ? null : (
-              <p className="nav-group">
+              <button
+                type="button"
+                className="nav-group"
+                aria-expanded={aberto}
+                disabled={temAtivo}
+                title={temAtivo ? "A página atual fica neste grupo" : undefined}
+                onClick={() => alternar(group.label)}
+              >
                 <span>{group.label}</span>
-              </p>
+                <span className="nav-count">{items.length}</span>
+                <ChevronDown className="nav-chevron" aria-hidden="true" />
+              </button>
             )}
+            <div className="nav-items" data-open={aberto ? "true" : "false"} inert={!aberto}>
             <div className="flex flex-col gap-0.5">
               {items.map((item) => {
-                const active = pathname === item.to || (item.to !== "/" && pathname.startsWith(item.to));
+                // A page is "in" the item when it belongs to the same module (Nova saída lights Saídas).
+                const active = moduleForPath(item.to) === atual;
                 const link = (
                   <Link
                     key={item.to}
                     to={item.to}
                     preload="intent"
                     viewTransition
+                    data-module={moduleForPath(item.to)}
+                    style={moduleStyle(moduleForPath(item.to))}
                     data-active={active ? "true" : "false"}
                     aria-current={active ? "page" : undefined}
                     onClick={onNavigate}
                     className={cn(
-                      "nav-link relative z-[1] flex min-h-11 items-center rounded-lg text-sm font-medium transition-[color,background-color] duration-200",
+                      "nav-link glyph-host relative z-[1] flex min-h-11 items-center rounded-lg text-sm font-medium transition-[color,background-color] duration-200",
                       collapsed ? "justify-center px-0" : "gap-2.5 px-3",
                       active ? "text-sidebar-foreground" : "text-sidebar-foreground/70 hover:text-sidebar-foreground",
                     )}
@@ -150,7 +196,7 @@ function NavList({ onNavigate, collapsed }: { onNavigate?: () => void; collapsed
                       />
                     ) : null}
                     <span className="nav-mark">
-                      <AnimatedIcon name={item.icon} active={active} />
+                      <Glyph name={moduleForPath(item.to)} live={active} className="nav-glyph" />
                     </span>
                     {collapsed ? <span className="sr-only">{item.label}</span> : <span className="truncate">{item.label}</span>}
                   </Link>
@@ -163,6 +209,7 @@ function NavList({ onNavigate, collapsed }: { onNavigate?: () => void; collapsed
                   </Tooltip>
                 );
               })}
+            </div>
             </div>
           </div>
         );
@@ -204,6 +251,14 @@ export function AppShell() {
   const tabNavRef = useRef<HTMLElement>(null);
   const mainRef = useRef<HTMLElement>(null);
   useDb(); // re-render when the real data arrives
+  // The whole workspace takes on the current module's light.
+  useEffect(() => {
+    const m = MODULES[moduleForPath(pathname)];
+    const root = document.documentElement;
+    root.dataset.module = m.id;
+    root.style.setProperty("--mod", m.luz);
+    root.style.setProperty("--mod-ink", m.tinta);
+  }, [pathname]);
   // Never flash stale numbers: the first screen waits for the first sync (at most 4 s).
   const [esperaVencida, setEsperaVencida] = useState(false);
   useEffect(() => {
@@ -394,12 +449,12 @@ export function AppShell() {
               type="button"
               onClick={() => setCmdOpen(true)}
               className={cn(
-                "flex h-10 min-w-0 items-center gap-2 rounded-lg border border-border bg-muted/70 text-left text-sm text-muted-foreground transition-colors hover:bg-muted",
+                "search-trigger glyph-host flex h-10 min-w-0 items-center gap-2 rounded-lg border border-border bg-muted/70 text-left text-sm text-muted-foreground transition-colors hover:bg-muted",
                 isPhone ? "w-10 shrink-0 justify-center px-0" : "ml-auto max-w-xs flex-1 px-3 sm:flex-none sm:w-64",
               )}
               aria-label="Buscar"
             >
-              <Search className="h-4 w-4 shrink-0" />
+              <Glyph name="busca" className="h-4 w-4 shrink-0" />
               {isPhone ? null : (
                 <>
                   <span className="truncate">Buscar…</span>
@@ -452,6 +507,7 @@ export function AppShell() {
           </header>
 
           <TiltLayer />
+          <MagnetLayer />
           <SmoothScroll wrapper={mainRef} content={mainInnerRef} />
           <main ref={mainRef} id="main-content" tabIndex={-1} className={cn("jg-main min-h-0 flex-1 overflow-y-auto p-4 lg:p-8", isPhone && "pb-[calc(4.5rem+env(safe-area-inset-bottom))]")}>
             <div ref={mainInnerRef} className="jg-main-inner">{liberado ? (isAwaitingFirstSync() && !esperaVencida ? <BootSkeleton /> : <Outlet />) : null}</div>
@@ -462,7 +518,7 @@ export function AppShell() {
             <nav ref={tabNavRef} className="jg-tabbar" aria-label="Navegação da operação">
               <span ref={tabBlobRef} className="jg-tab-blob" aria-hidden />
               {abas.map((item) => {
-                const active = pathname === item.to || (item.to !== "/" && pathname.startsWith(item.to));
+                const active = moduleForPath(item.to) === moduleForPath(pathname);
                 return (
                   <Link
                     key={item.to}
@@ -471,9 +527,11 @@ export function AppShell() {
                     viewTransition
                     data-entrada-dock={item.to === "/entradas" ? "true" : undefined}
                     aria-current={active ? "page" : undefined}
-                    className={cn("jg-tab", active && "is-active")}
+                    data-module={moduleForPath(item.to)}
+                    style={moduleStyle(moduleForPath(item.to))}
+                    className={cn("jg-tab glyph-host", active && "is-active")}
                   >
-                    <AnimatedIcon name={item.icon} active={active} />
+                    <Glyph name={moduleForPath(item.to)} live={active} className="tab-glyph" />
                     <span>{item.label}</span>
                   </Link>
                 );
@@ -504,9 +562,11 @@ export function AppShell() {
                             key={item.to}
                             to={item.to}
                             onClick={() => setSheetOpen(false)}
-                            className="flex min-h-12 items-center gap-3 rounded-xl px-3 text-sm font-medium hover:bg-muted"
+                            data-module={moduleForPath(item.to)}
+                            style={moduleStyle(moduleForPath(item.to))}
+                            className="sheet-link glyph-host flex min-h-12 items-center gap-3 rounded-xl px-3 text-sm font-medium hover:bg-muted"
                           >
-                            <AnimatedIcon name={item.icon} active={pathname === item.to} />
+                            <Glyph name={moduleForPath(item.to)} live={pathname === item.to} className="sheet-glyph" />
                             {item.label}
                           </Link>
                         ))}
@@ -554,10 +614,10 @@ function AlertsMenu() {
         <TooltipTrigger asChild>
           <DropdownMenuTrigger asChild>
             <button
-              className="relative flex h-10 w-10 items-center justify-center rounded-lg border border-border bg-card transition-colors hover:bg-muted"
+              className="glyph-host relative flex h-10 w-10 items-center justify-center rounded-lg border border-border bg-card transition-colors hover:bg-muted"
               aria-label="Alertas"
             >
-              <Bell className="h-4 w-4" />
+              <Glyph name="sino" live={alerts.length > 0} className="h-[1.05rem] w-[1.05rem]" />
               {alerts.length > 0 ? (
                 <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-destructive px-1 text-xs font-semibold text-destructive-foreground">
                   {alerts.length > 9 ? "9+" : alerts.length}

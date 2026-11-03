@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { PageHeader } from "@/components/page-header";
+import { NameMark } from "@/components/brand/name-mark";
 import { EmptyState } from "@/components/empty-state";
 import { PageStage } from "@/components/motion/page-stage";
 import { playCeremony, ceremonyDock } from "@/lib/ceremony";
@@ -72,7 +73,12 @@ function Fornecedores() {
               <TableBody>
                 {list.map((f) => (
                   <TableRow key={f.id} data-ctx="fornecedor" data-id={f.id} data-nome={f.nome} data-extra={f.contato}>
-                    <TableCell className="font-medium">{f.nome}</TableCell>
+                    <TableCell className="font-medium">
+                      <span className="flex items-center gap-3">
+                        <NameMark nome={f.nome} size="sm" />
+                        {f.nome}
+                      </span>
+                    </TableCell>
                     <TableCell>{f.contato}</TableCell>
                     <TableCell className="text-right">
                       <Button

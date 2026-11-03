@@ -25,6 +25,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { PageHeader } from "@/components/page-header";
+import { Glyph, type GlyphName } from "@/components/brand/glyph";
 import { PageStage } from "@/components/motion/page-stage";
 import { cn } from "@/lib/utils";
 
@@ -424,10 +425,23 @@ function NumField({ label, value, onCommit }: { label: string; value: number; on
   );
 }
 
+/** Each group of preferences shows what it touches. */
+const GRUPO_GLIFO: Record<string, GlyphName> = {
+  Desempenho: "sync",
+  "Aparência": "assistente",
+  "Operação": "estoque",
+  Avisos: "sino",
+  "Painel do dia": "hoje",
+  Dados: "log",
+};
+
 function SettingsGroup({ title, children }: { title: string; children: ReactNode }) {
   return (
-    <section>
-      <h2 className="mb-2 px-1 text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">{title}</h2>
+    <section className="glyph-host">
+      <h2 className="settings-title">
+        <Glyph name={GRUPO_GLIFO[title] ?? "config"} className="settings-glyph" />
+        {title}
+      </h2>
       <div className="divide-y divide-border overflow-hidden rounded-xl border border-border bg-card">{children}</div>
     </section>
   );

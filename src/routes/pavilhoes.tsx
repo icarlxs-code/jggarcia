@@ -16,6 +16,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { PageHeader } from "@/components/page-header";
+import { CountUp } from "@/components/motion/count-up";
 import { PageStage } from "@/components/motion/page-stage";
 import { playCeremony, ceremonyDock } from "@/lib/ceremony";
 import { PavMark } from "@/components/inventory/pav-mark";
@@ -142,12 +143,15 @@ function Pavilhoes() {
         </Button>
       </PageHeader>
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-        {list.map((p) => {
+        {list.map((p, _i, todos) => {
           const comSaldo = produtos.filter((m) => live.stockAt(m.id, p.id) > 0);
           const totalItens = comSaldo.reduce((a, m) => a + live.stockAt(m.id, p.id), 0);
+          // Share of the company's volume held in this place (same units summed as on the card).
+          const volumeEmpresa = todos.reduce((acc, pv) => acc + produtos.reduce((a, m) => a + Math.max(0, live.stockAt(m.id, pv.id)), 0), 0);
+          const parte = volumeEmpresa > 0 ? totalItens / volumeEmpresa : 0;
           const title = pavTitle(p);
           return (
-            <Card key={p.id} data-ctx="pavilhao" data-id={p.id} data-nome={title} className={cn(!p.ativo && "opacity-70")}>
+            <Card key={p.id} data-ctx="pavilhao" data-id={p.id} data-nome={title} className={cn("pav-card glyph-host", !p.ativo && "opacity-70")}>
               <CardHeader className="flex-row items-start justify-between gap-2 space-y-0">
                 <div className="min-w-0">
                   <CardTitle className="text-base leading-tight">{title}</CardTitle>
@@ -157,10 +161,18 @@ function Pavilhoes() {
               </CardHeader>
               <CardContent className="space-y-3">
                 <div>
-                  <p className="text-2xl font-semibold tabular-nums leading-none">{formatNumber(comSaldo.length)}</p>
+                  <p className="kpi-figure text-3xl leading-none">
+                    <CountUp value={comSaldo.length} />
+                  </p>
                   <p className="mt-1 text-xs text-muted-foreground">
                     produtos com saldo · {formatNumber(totalItens)} volumes
                   </p>
+                </div>
+                <div className="pav-share" title="Parte do volume total da empresa que está neste lugar">
+                  <span className="pav-share-bar" aria-hidden="true">
+                    <i style={{ width: `${(parte * 100).toFixed(1)}%` }} />
+                  </span>
+                  <span className="text-xs text-muted-foreground tabular-nums">{Math.round(parte * 100)}% do volume da empresa</span>
                 </div>
                 <div className="space-y-2">
                   <Badge variant={p.ativo ? "success" : "muted"}>{p.ativo ? "Operação ativa" : "Inativo"}</Badge>

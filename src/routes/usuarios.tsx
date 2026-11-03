@@ -18,6 +18,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { PageHeader } from "@/components/page-header";
+import { NameMark } from "@/components/brand/name-mark";
 import { PageStage } from "@/components/motion/page-stage";
 import { playCeremony, ceremonyDock, initialsOf } from "@/lib/ceremony";
 import { rowEl, tossAway } from "@/lib/toss";
@@ -92,7 +93,12 @@ function Usuarios() {
             <TableBody>
               {list.map((u) => (
                 <TableRow key={u.id} data-toss-id={u.id}>
-                  <TableCell className="font-medium">{u.nome}</TableCell>
+                  <TableCell className="font-medium">
+                    <span className="flex items-center gap-3">
+                      <NameMark nome={u.nome} shape="round" size="sm" />
+                      {u.nome}
+                    </span>
+                  </TableCell>
                   <TableCell>{u.email}</TableCell>
                   <TableCell>
                     <Badge variant={u.nivel_acesso === "admin" ? "gold" : "secondary"}>

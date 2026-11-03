@@ -25,6 +25,8 @@ import { useSession } from "@/lib/session";
 import { ProductIcon } from "@/components/inventory/product-icon";
 import { AtalhoDialog } from "@/components/search/atalho-dialog";
 import { cn } from "@/lib/utils";
+import { Glyph } from "@/components/brand/glyph";
+import { moduleForPath, moduleStyle } from "@/lib/modules";
 
 const ICONS: Record<SearchHit["kind"], typeof Package> = {
   pagina: FileText,
@@ -227,12 +229,16 @@ export function CommandPalette({ open, onOpenChange }: { open: boolean; onOpenCh
                     value={`${hit.kind}-${hit.id}-${hit.title}`}
                     onSelect={() => run(hit)}
                     className={cn(
-                      "flex cursor-pointer items-center gap-3 rounded-lg px-3 py-2.5 text-sm",
+                      "cmd-item glyph-host flex cursor-pointer items-center gap-3 rounded-lg px-3 py-2.5 text-sm",
                       "data-[selected=true]:bg-muted",
                     )}
                   >
                     {hit.kind === "produto" || hit.kind === "alerta" ? (
                       <ProductIcon nome={hit.title} size="sm" />
+                    ) : (hit.kind === "pagina" || hit.kind === "acao") && hit.to && !hit.run ? (
+                      <span className="cmd-glyph" data-module={moduleForPath(hit.to)} style={moduleStyle(moduleForPath(hit.to))}>
+                        <Glyph name={moduleForPath(hit.to)} />
+                      </span>
                     ) : (
                       <Icon className="h-4 w-4 shrink-0 text-muted-foreground" />
                     )}

@@ -280,9 +280,12 @@ function ContagemPage() {
         <CountCalc />
       </PageHeader>
 
-      <section className="rounded-xl border border-border bg-card p-4" aria-label="Progresso da contagem">
+      <section className="count-card rounded-xl border border-border bg-card p-4" aria-label="Progresso da contagem">
         <p className="text-sm font-medium">{contadosHoje.size} de {alvos.size} produtos / locais conferidos hoje {verTodos ? "na empresa" : `em ${pav?.nome || "seu local"}`}</p>
-        <progress className="mt-3 h-2 w-full accent-primary" max={Math.max(1, alvos.size)} value={contadosHoje.size} aria-label="Produtos e locais conferidos hoje" />
+        <div className="mt-3 flex items-center gap-3">
+          <progress className="count-progress" max={Math.max(1, alvos.size)} value={contadosHoje.size} aria-label="Produtos e locais conferidos hoje" />
+          <span className="kpi-figure text-lg leading-none tabular-nums">{alvos.size ? Math.round((contadosHoje.size / alvos.size) * 100) : 0}%</span>
+        </div>
         <p className="mt-1 text-xs text-muted-foreground">A lista prioriza os produtos que ainda precisam ser contados.</p>
         {saved ? <p role="status" className="mt-2 text-sm font-medium text-primary">Contagem salva · {saved}</p> : null}
       </section>
