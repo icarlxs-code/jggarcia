@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import { Sparkles, X } from "lucide-react";
 import { perguntarAssistente } from "@/lib/assistente.functions";
 import { retratoOperacao } from "@/lib/assistente-brief";
+import { respostaLocal } from "@/lib/assistente-local";
 import { useSession } from "@/lib/session";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -42,7 +43,7 @@ function AssistentePainel({ onClose }: { onClose: () => void }) {
       const res = await perguntarAssistente({ data: { pergunta, retrato, historico } });
       setMsgs((lista) => [
         ...lista,
-        { id: seq++, papel: "assistant", texto: res.ok ? res.texto : res.erro },
+        { id: seq++, papel: "assistant", texto: res.ok ? res.texto : "semProvedor" in res ? respostaLocal(pergunta) : res.erro },
       ]);
     } catch {
       setMsgs((lista) => [...lista, { id: seq++, papel: "assistant", texto: "Não consegui responder agora." }]);

@@ -299,7 +299,7 @@ function ContagemPage() {
 
       <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(22rem,32rem)]">
         <div className="space-y-4">
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-5">
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
             <button
               type="button"
               onClick={() => {
@@ -309,7 +309,7 @@ function ContagemPage() {
                 setAberto(true);
               }}
               className={cn(
-                "min-h-16 rounded-xl border px-3 py-2.5 text-left transition-colors",
+                "min-h-16 rounded-xl border px-3 py-2.5 text-left transition-colors col-span-2 sm:col-span-1 sm:row-span-2 sm:flex sm:flex-col sm:justify-end",
                 verTodos ? "border-primary bg-primary text-primary-foreground" : "border-border bg-card hover:bg-muted",
               )}
             >

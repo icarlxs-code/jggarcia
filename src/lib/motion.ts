@@ -20,7 +20,11 @@ export const MOTION = {
 
 export function prefersReducedMotion() {
   if (typeof window === "undefined") return false;
-  if (document.documentElement.classList.contains("is-lite")) return true;
+  const root = document.documentElement;
+  if (root.classList.contains("is-lite")) return true;
+  // The account's own choice (html.motion-on/off) wins over the OS setting.
+  if (root.classList.contains("motion-on")) return false;
+  if (root.classList.contains("motion-off")) return true;
   return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 }
 

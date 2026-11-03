@@ -10,7 +10,6 @@ import {
   PackagePlus,
   Warehouse,
 } from "lucide-react";
-import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip as ChartTooltip, XAxis, YAxis } from "recharts";
 import { loteStatus, stockAlert } from "@/lib/store";
 import { useDb } from "@/lib/use-db";
 import { formatNumber, formatTime, isoDaysAgo, pad2, todayISO } from "@/lib/format";
@@ -24,6 +23,8 @@ import { PageHeader } from "@/components/page-header";
 import { PageStage } from "@/components/motion/page-stage";
 import { ViewSwitch, useChartView } from "@/components/analytics/view-switch";
 import { ScreenCharts } from "@/components/analytics/screen-charts";
+import { FlowChart, OperationRadar, StockHealthGauge } from "@/components/analytics/dash-widgets";
+import { Warehouse3D, type PavilionStack } from "@/components/three/lazy";
 import { usePrefersReducedMotion } from "@/lib/motion";
 import { CountUp } from "@/components/motion/count-up";
 import { LottieClip } from "@/components/motion/lottie-clip";
@@ -78,6 +79,9 @@ function Dashboard() {
     const hoje = todayISO();
     const entradasHoje = movs.filter((m) => m.data === hoje && m.tipo === "entrada");
     const saidasHoje = movs.filter((m) => m.data === hoje && (m.tipo ?? "saida") === "saida");
+    const ontem = isoDaysAgo(1);
+    const entradasOntem = movs.filter((m) => m.data === ontem && m.tipo === "entrada").length;
+    const saidasOntem = movs.filter((m) => m.data === ontem && (m.tipo ?? "saida") === "saida").length;
     const aVencer = lotes.filter((l) => loteStatus(l.validade) !== "ok").length;
     const comEstoque = produtos.filter((p) => p.estoque > 0);
     const semana = Array.from({ length: 7 }, (_, i) => {
@@ -99,6 +103,8 @@ function Dashboard() {
     const zerados = produtos.filter((p) => p.estoque <= 0).length;
     return {
       entradasN: entradasHoje.length,
+      entradasOntem,
+      saidasOntem,
       saidasN: saidasHoje.length,
       aVencer,
       estoqueMix: mixByUnit(comEstoque),
@@ -110,6 +116,22 @@ function Dashboard() {
       zerados,
     };
   }, [produtos, lotes, movs]);
+
+  const pavStacks = useMemo<PavilionStack[]>(() => {
+    const rows = new Map<string, PavilionStack>();
+    for (const pav of pavilhoes) rows.set(pav.id, { id: pav.id, nome: pav.nome, total: 0, produtos: 0, top: [] });
+    for (const p of produtos) {
+      if (!p.status || p.estoque <= 0) continue;
+      for (const pos of db.stockPositions(p.id)) {
+        const row = rows.get(pos.id);
+        if (!row || pos.quantidade <= 0) continue;
+        row.total += pos.quantidade;
+        row.produtos += 1;
+        row.top.push({ nome: p.nome, quantidade: pos.quantidade, cor: p.cor || "#3d9a68" });
+      }
+    }
+    return [...rows.values()].map((r) => ({ ...r, top: r.top.sort((a, b) => b.quantidade - a.quantidade).slice(0, 6) }));
+  }, [db, produtos, pavilhoes]);
 
   return (
     <PageStage className="space-y-6" data-vista={vista}>
@@ -161,13 +183,31 @@ function Dashboard() {
         </div>
       ) : null}
 
-      <div className="grid grid-cols-2 gap-3 xl:grid-cols-5">
+      <div className="dash-reveal grid grid-cols-2 gap-3 xl:grid-cols-5">
         <Kpi ctx="estoque" label="Estoque total" mix={stats.estoqueMix} hint="Somado por caixa, saco, unidade, kg…" icon={Warehouse} />
         <Kpi ctx="skus" label="Produtos ativos" value={produtos.filter((p) => p.status).length} hint="Produtos cadastrados" icon={Boxes} />
-        <Kpi ctx="entradas" label="Entradas hoje" mix={stats.inMix} hint={`${stats.entradasN} lançamentos`} icon={ArrowDownToLine} />
-        <Kpi ctx="saidas" label="Saídas hoje" mix={stats.outMix} hint={`${stats.saidasN} lançamentos`} icon={ArrowUpFromLine} />
+        <Kpi ctx="entradas" label="Entradas hoje" mix={stats.inMix} hint={`${stats.entradasN} lançamentos`} icon={ArrowDownToLine} delta={stats.entradasN - stats.entradasOntem} />
+        <Kpi ctx="saidas" label="Saídas hoje" mix={stats.outMix} hint={`${stats.saidasN} lançamentos`} icon={ArrowUpFromLine} delta={stats.saidasN - stats.saidasOntem} />
         <Kpi ctx="critico" label="Crítico / zerado" value={stats.criticos + stats.zerados} hint={`${stats.aVencer} lotes em risco`} icon={AlertTriangle} warn={stats.criticos + stats.zerados + stats.aVencer > 0} />
       </div>
+
+      {empty ? null : (
+        <div className="dash-reveal grid items-stretch gap-4 xl:grid-cols-3">
+          <Card className="warehouse-card relative overflow-hidden xl:col-span-2" data-ctx="kpi" data-id="armazem" data-nome="Armazém 3D">
+            <div className="warehouse-head">
+              <div>
+                <h2 className="radar-title text-white">Armazém ao vivo</h2>
+                <p className="text-sm text-white/70">Cada pavilhão com as caixas do estoque real. Arraste para girar, passe o mouse para ver.</p>
+              </div>
+              <Link to="/pavilhoes" className="warehouse-link">Pavilhões</Link>
+            </div>
+            <div className="warehouse-canvas">
+              <Warehouse3D pavilions={pavStacks} fallback={<div className="warehouse-fallback" />} />
+            </div>
+          </Card>
+          <OperationRadar produtos={produtos} movs={movs} lotes={lotes} />
+        </div>
+      )}
 
       {vista !== "lista" ? (
         <ScreenCharts
@@ -179,78 +219,31 @@ function Dashboard() {
         />
       ) : null}
 
-      <div className="jg-lista grid items-start gap-4 xl:grid-cols-3">
+      <div className="dash-reveal jg-lista grid items-start gap-4 xl:grid-cols-3">
         <Card data-ctx="kpi" data-id="grafico" data-nome="Movimentação · 7 dias" className="xl:col-span-2">
-          <CardHeader className="flex-row items-center justify-between px-4 py-3">
+          <CardHeader className="flex-row flex-wrap items-center justify-between gap-x-4 gap-y-1 px-4 py-3">
             <CardTitle>Lançamentos · últimos 7 dias</CardTitle>
             <div className="flex gap-3 text-xs text-muted-foreground">
               <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-sm bg-primary" /> Entradas</span>
-              <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-sm bg-gold" /> Saídas</span>
+              <span className="flex items-center gap-1.5"><span className="flow-tip-hatch h-2.5 w-2.5 rounded-sm" /> Saídas</span>
             </div>
           </CardHeader>
           <CardContent className="px-4 pb-3">
-            <div className="h-52">
+            <div className="h-60">
               {movs.length === 0 ? (
                 <p className="flex h-full items-center justify-center text-sm text-muted-foreground">Sem movimentação ainda.</p>
               ) : (
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={stats.semana} barGap={6} barCategoryGap="28%">
-                    <defs>
-                      <linearGradient id="dashIn" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="var(--color-primary)" stopOpacity={1} />
-                        <stop offset="100%" stopColor="var(--color-primary)" stopOpacity={0.55} />
-                      </linearGradient>
-                      <linearGradient id="dashOut" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="var(--color-gold)" stopOpacity={1} />
-                        <stop offset="100%" stopColor="var(--color-gold)" stopOpacity={0.5} />
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--color-border)" />
-                    <XAxis dataKey="name" tick={{ fontSize: 12, fill: "var(--color-muted-foreground)" }} axisLine={false} tickLine={false} />
-                    <YAxis allowDecimals={false} tick={{ fontSize: 12, fill: "var(--color-muted-foreground)" }} width={36} axisLine={false} tickLine={false} />
-                    <ChartTooltip
-                      cursor={{ fill: "var(--color-muted)", fillOpacity: 0.35 }}
-                      contentStyle={{
-                        borderRadius: 12,
-                        border: "1px solid var(--color-border)",
-                        background: "var(--color-card)",
-                        fontSize: 12,
-                      }}
-                    />
-                    <Bar dataKey="entradas" name="Entradas" fill="url(#dashIn)" radius={[8, 8, 2, 2]} maxBarSize={28} isAnimationActive={!lite} animationDuration={480} animationEasing="ease-out" />
-                    <Bar dataKey="saidas" name="Saídas" fill="url(#dashOut)" radius={[8, 8, 2, 2]} maxBarSize={28} isAnimationActive={!lite} animationDuration={480} animationEasing="ease-out" />
-                  </BarChart>
-                </ResponsiveContainer>
+                <FlowChart data={stats.semana} lite={lite} />
               )}
             </div>
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader className="flex-row items-center justify-between">
-            <CardTitle>Estoque baixo</CardTitle>
-            <Link to="/estoque" className="text-xs font-medium text-primary hover:underline">
-              Ver estoque
-            </Link>
-          </CardHeader>
-          <CardContent>
-            {stats.baixos.length === 0 ? (
-              <p className="py-8 text-center text-sm text-muted-foreground">Nenhum alerta de estoque.</p>
-            ) : (
-              <ul className="space-y-3">
-                {stats.baixos.map(({ p, alert }) => (
-                  <li key={p.id} className="flex items-center gap-3">
-                    <ProductLabel nome={p.nome} codigo={p.codigo} extra={`${formatNumber(p.estoque)} ${unitShort(p.unidade)}`} className="flex-1" />
-                    <StockBadge alert={alert} />
-                  </li>
-                ))}
-              </ul>
-            )}
-          </CardContent>
-        </Card>
+        <StockHealthGauge produtos={produtos} />
       </div>
 
-      <Card>
+      <div className="dash-reveal grid items-start gap-4 xl:grid-cols-3">
+      <Card className="xl:col-span-2">
         <CardHeader className="flex-row items-center justify-between">
           <CardTitle>Últimas movimentações</CardTitle>
           <Link to="/movimentacoes" className="text-xs font-medium text-primary hover:underline">
@@ -295,6 +288,29 @@ function Dashboard() {
           )}
         </CardContent>
       </Card>
+      <Card>
+        <CardHeader className="flex-row items-center justify-between">
+          <CardTitle>Estoque baixo</CardTitle>
+          <Link to="/estoque" className="text-xs font-medium text-primary hover:underline">
+            Ver estoque
+          </Link>
+        </CardHeader>
+        <CardContent>
+          {stats.baixos.length === 0 ? (
+            <p className="py-8 text-center text-sm text-muted-foreground">Nenhum alerta de estoque.</p>
+          ) : (
+            <ul className="space-y-3">
+              {stats.baixos.map(({ p, alert }) => (
+                <li key={p.id} className="flex items-center gap-3">
+                  <ProductLabel nome={p.nome} codigo={p.codigo} extra={`${formatNumber(p.estoque)} ${unitShort(p.unidade)}`} className="flex-1" />
+                  <StockBadge alert={alert} />
+                </li>
+              ))}
+            </ul>
+          )}
+        </CardContent>
+      </Card>
+      </div>
       <MovementDetail view={view} onClose={() => setView(null)} />
     </PageStage>
   );
@@ -341,6 +357,7 @@ function Kpi({
   hint,
   icon: Icon,
   warn,
+  delta,
 }: {
   ctx: string;
   label: string;
@@ -350,12 +367,13 @@ function Kpi({
   hint: string;
   icon: typeof Boxes;
   warn?: boolean;
+  delta?: number;
 }) {
   return (
-    <SpotlightCard data-ctx="kpi" data-id={ctx} data-nome={label} className="p-5">
-      <div className="flex items-start justify-between gap-2">
-        <span className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
-          <Icon className={warn ? "h-4 w-4 text-destructive" : "h-4 w-4 text-muted-foreground"} />
+    <SpotlightCard data-ctx="kpi" data-id={ctx} data-nome={label} data-warn={warn ? "true" : undefined} className="kpi-card flex flex-col p-5">
+      <div className="flex min-h-10 items-start justify-between gap-2">
+        <span className="flex items-center gap-1.5 text-[0.8125rem] font-medium text-muted-foreground">
+          {ctx === "critico" ? <Icon className={warn ? "h-4 w-4 text-destructive" : "h-4 w-4"} /> : null}
           {label}
         </span>
         {ctx === "critico" ? null : (
@@ -374,13 +392,35 @@ function Kpi({
         )}
       </div>
       {mix ? (
-        <div className="mt-3 flex flex-wrap items-baseline gap-x-3 gap-y-1 text-3xl font-semibold leading-snug tracking-tight">{mix.length ? mix.map(([unit, amount]) => <CountUp key={unit} value={amount} decimals={Number.isInteger(amount) ? 0 : 3} suffix={unitShort(unit)} />) : "—"}</div>
+        mix.length ? (
+          <>
+            <div className="kpi-figure mt-2 text-4xl leading-none">
+              <CountUp value={mix[0][1]} decimals={Number.isInteger(mix[0][1]) ? 0 : 3} suffix={unitShort(mix[0][0])} />
+            </div>
+            {mix.length > 1 ? (
+              <div className="kpi-sub mt-2 flex flex-wrap gap-x-3 gap-y-0.5 text-sm font-medium text-foreground/80">
+                {mix.slice(1).map(([unit, amount]) => (
+                  <CountUp key={unit} value={amount} decimals={Number.isInteger(amount) ? 0 : 3} suffix={unitShort(unit)} />
+                ))}
+              </div>
+            ) : null}
+          </>
+        ) : (
+          <div className="kpi-figure mt-2 text-4xl leading-none text-muted-foreground/60">—</div>
+        )
       ) : (
-        <div className="mt-3 tabular text-4xl font-semibold tracking-tight">
+        <div className={warn ? "kpi-figure mt-2 text-4xl leading-none text-destructive" : "kpi-figure mt-2 text-4xl leading-none"}>
           <CountUp value={value ?? 0} suffix={suffix} />
         </div>
       )}
-      <div className="mt-1 text-xs text-muted-foreground">{hint}</div>
+      <div className="mt-auto flex flex-wrap items-center gap-x-2 gap-y-1 pt-3 text-xs text-muted-foreground">
+        <span>{hint}</span>
+        {delta !== undefined ? (
+          <span className={delta > 0 ? "kpi-delta is-up" : delta < 0 ? "kpi-delta is-down" : "kpi-delta"}>
+            {delta > 0 ? `↑ ${delta}` : delta < 0 ? `↓ ${Math.abs(delta)}` : "="} vs ontem
+          </span>
+        ) : null}
+      </div>
     </SpotlightCard>
   );
 }
