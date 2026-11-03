@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Link, Outlet, useNavigate, useRouterState } from "@tanstack/react-router";
-import { LogOut, Menu, MoreHorizontal, PanelLeft } from "lucide-react";
+import { ChevronDown, LogOut, Menu, MoreHorizontal, PanelLeft } from "lucide-react";
 import gsap from "gsap";
 import { motion } from "motion/react";
 import { usePrefersReducedMotion } from "@/lib/motion";
@@ -34,6 +34,7 @@ import { CeremonyOverlay } from "@/components/motion/ceremony-overlay";
 import { DataActivity } from "@/components/motion/data-activity";
 import { TiltLayer } from "@/components/motion/tilt-layer";
 import { SmoothScroll } from "@/components/motion/smooth-scroll";
+import { MagnetLayer } from "@/components/motion/magnet-layer";
 import { AppContextMenu } from "@/components/ui/app-context-menu";
 import { AssistenteButton } from "@/components/assistente/painel";
 import { operadorPodeVer } from "@/lib/acesso-operador";
@@ -84,7 +85,7 @@ const NAV_GROUPS: NavGroup[] = [
       { to: "/analises", label: "Gráficos e análises", icon: "chart", adminOnly: true },
       { to: "/fretes", label: "Pagamento de fretes", icon: "truck" },
       { to: "/despesas-frete", label: "Despesa de frete", icon: "truck" },
-      { to: "/requisicoes", label: "Requisição de Fornecedor", icon: "log" },
+      { to: "/requisicoes", label: "Requisições", icon: "log" },
       { to: "/usuarios", label: "Equipe", icon: "users", adminOnly: true },
       { to: "/configuracoes", label: "Configurações", icon: "gear" },
     ],
@@ -109,25 +110,66 @@ function Brand({ collapsed, home = "/" }: { collapsed?: boolean; home?: "/" | "/
   );
 }
 
+const GRUPOS_FECHADOS = "jg-nav-fechados";
+
+/** Groups the person closed; the group holding the current page always stays open. */
+function useGruposFechados() {
+  const [fechados, setFechados] = useState<string[]>([]);
+  useEffect(() => {
+    try {
+      const raw = JSON.parse(localStorage.getItem(GRUPOS_FECHADOS) || "[]");
+      if (Array.isArray(raw)) setFechados(raw.filter((x): x is string => typeof x === "string"));
+    } catch {
+      /* sem preferência salva */
+    }
+  }, []);
+  const alternar = (label: string) =>
+    setFechados((prev) => {
+      const next = prev.includes(label) ? prev.filter((x) => x !== label) : [...prev, label];
+      try {
+        localStorage.setItem(GRUPOS_FECHADOS, JSON.stringify(next));
+      } catch {
+        /* segue só nesta sessão */
+      }
+      return next;
+    });
+  return [fechados, alternar] as const;
+}
+
 function NavList({ onNavigate, collapsed }: { onNavigate?: () => void; collapsed?: boolean }) {
   const { isAdmin } = useSession();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const reduced = usePrefersReducedMotion();
+  const [fechados, alternar] = useGruposFechados();
+  const atual = moduleForPath(pathname);
   return (
-    <nav aria-label="Menu principal" className={cn("relative flex flex-1 flex-col gap-5 overflow-y-auto pb-4", collapsed ? "px-2" : "px-3")}>
+    <nav aria-label="Menu principal" className={cn("relative flex flex-1 flex-col gap-3 overflow-y-auto pb-4", collapsed ? "px-2" : "px-3")}>
       {NAV_GROUPS.map((group) => {
         const items = group.items.filter((i) => (!i.adminOnly || isAdmin) && (isAdmin || operadorPodeVer(i.to)));
         if (items.length === 0) return null;
+        const temAtivo = items.some((i) => moduleForPath(i.to) === atual);
+        const aberto = collapsed || temAtivo || !fechados.includes(group.label);
         return (
           <div key={group.label}>
             {collapsed ? null : (
-              <p className="nav-group">
+              <button
+                type="button"
+                className="nav-group"
+                aria-expanded={aberto}
+                disabled={temAtivo}
+                title={temAtivo ? "A página atual fica neste grupo" : undefined}
+                onClick={() => alternar(group.label)}
+              >
                 <span>{group.label}</span>
-              </p>
+                <span className="nav-count">{items.length}</span>
+                <ChevronDown className="nav-chevron" aria-hidden="true" />
+              </button>
             )}
+            <div className="nav-items" data-open={aberto ? "true" : "false"} inert={!aberto}>
             <div className="flex flex-col gap-0.5">
               {items.map((item) => {
-                const active = pathname === item.to || (item.to !== "/" && pathname.startsWith(item.to));
+                // A page is "in" the item when it belongs to the same module (Nova saída lights Saídas).
+                const active = moduleForPath(item.to) === atual;
                 const link = (
                   <Link
                     key={item.to}
@@ -167,6 +209,7 @@ function NavList({ onNavigate, collapsed }: { onNavigate?: () => void; collapsed
                   </Tooltip>
                 );
               })}
+            </div>
             </div>
           </div>
         );
@@ -464,6 +507,7 @@ export function AppShell() {
           </header>
 
           <TiltLayer />
+          <MagnetLayer />
           <SmoothScroll wrapper={mainRef} content={mainInnerRef} />
           <main ref={mainRef} id="main-content" tabIndex={-1} className={cn("jg-main min-h-0 flex-1 overflow-y-auto p-4 lg:p-8", isPhone && "pb-[calc(4.5rem+env(safe-area-inset-bottom))]")}>
             <div ref={mainInnerRef} className="jg-main-inner">{liberado ? (isAwaitingFirstSync() && !esperaVencida ? <BootSkeleton /> : <Outlet />) : null}</div>
@@ -474,7 +518,7 @@ export function AppShell() {
             <nav ref={tabNavRef} className="jg-tabbar" aria-label="Navegação da operação">
               <span ref={tabBlobRef} className="jg-tab-blob" aria-hidden />
               {abas.map((item) => {
-                const active = pathname === item.to || (item.to !== "/" && pathname.startsWith(item.to));
+                const active = moduleForPath(item.to) === moduleForPath(pathname);
                 return (
                   <Link
                     key={item.to}

@@ -2981,3 +2981,37 @@ html.motion-on .empty-stage { animation: stage-float 5s ease-in-out infinite; }
 .ds-swatch i { width: 1.25rem; height: .5rem; border-radius: 999px; }
 .ds-live { display: grid; place-items: center; width: 3.5rem; height: 3.5rem; border-radius: .9rem; color: var(--mod-text, var(--color-foreground)); background: var(--color-card); border: 1px solid var(--color-border); }
 .ds-live .glyph, .ds-live .status-glyph { width: 1.75rem; height: 1.75rem; }
+
+/* ── Safra: navigation ────────────────────────────────────────────────── */
+.jg-sidebar {
+  background-image:
+    radial-gradient(130% 42% at 0% 0%, color-mix(in srgb, var(--mod) 22%, transparent), transparent 62%),
+    radial-gradient(120% 30% at 100% 100%, color-mix(in srgb, var(--color-gold) 10%, transparent), transparent 70%),
+    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 .055 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+}
+.nav-group { display: flex; width: 100%; align-items: center; gap: .5rem; margin: .25rem 0 .125rem; padding: .375rem .75rem; border-radius: .5rem; font-size: .75rem; font-weight: 600; color: color-mix(in srgb, var(--color-sidebar-foreground) 60%, transparent); transition: color 160ms, background-color 160ms; }
+.nav-group:not(:disabled):hover { color: var(--color-sidebar-foreground); background: color-mix(in srgb, var(--color-sidebar-accent) 55%, transparent); }
+.nav-group:disabled { cursor: default; }
+.nav-count { margin-left: auto; min-width: 1.25rem; border-radius: 999px; padding: 0 .375rem; font-size: .625rem; line-height: 1.1rem; text-align: center; font-variant-numeric: tabular-nums; background: color-mix(in srgb, var(--color-sidebar-foreground) 10%, transparent); }
+.nav-chevron { width: .875rem; height: .875rem; flex: none; transition: transform 320ms var(--ease-spring); }
+.nav-group[aria-expanded="false"] .nav-chevron { transform: rotate(-90deg); }
+.nav-group:disabled .nav-chevron { opacity: .3; }
+.nav-items { display: grid; grid-template-rows: 1fr; opacity: 1; transition: grid-template-rows 380ms var(--ease-standard), opacity 260ms ease-out; }
+.nav-items[data-open="false"] { grid-template-rows: 0fr; opacity: 0; }
+.nav-items > div { min-height: 0; }
+.nav-items[data-open="false"] > div { overflow: hidden; }
+
+/* ── Safra: buttons ───────────────────────────────────────────────────── */
+.jg-btn { translate: var(--mag-x, 0px) var(--mag-y, 0px); }
+html.motion-on .jg-btn { transition: transform 160ms var(--ease-spring), translate 280ms var(--ease-spring), box-shadow 200ms, background-color 150ms, border-color 150ms, color 150ms; }
+.jg-btn.is-loading { cursor: progress; opacity: .85 !important; }
+.btn-spinner { width: 1rem; height: 1rem; }
+.split-button { display: inline-flex; isolation: isolate; }
+.split-button > .jg-btn:first-child { border-top-right-radius: 0; border-bottom-right-radius: 0; }
+.split-button > .split-button-toggle { border-top-left-radius: 0; border-bottom-left-radius: 0; padding-inline: .7rem; box-shadow: inset 1px 0 0 rgb(255 255 255 / .22), 0 8px 18px -10px color-mix(in srgb, var(--color-primary) 80%, transparent); }
+html.motion-on .split-button > .split-button-toggle[data-state="open"] svg { transform: rotate(180deg); }
+.split-button-toggle svg { transition: transform 260ms var(--ease-spring); }
+
+/* Command palette: pages and actions show their module glyph */
+.cmd-glyph { display: grid; place-items: center; width: 2rem; height: 2rem; flex: none; border-radius: .6rem; color: var(--mod-text); background: var(--mod-soft); border: 1px solid var(--mod-line); }
+.cmd-glyph .glyph { width: 1.05rem; height: 1.05rem; }
