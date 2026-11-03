@@ -855,6 +855,14 @@ function load(): LocalDb {
   return memoryDb;
 }
 
+/**
+ * True until the first sync with the server finishes. The local copy can be stale
+ * (or the built-in sample), so the first screen waits for the real numbers.
+ */
+export function isAwaitingFirstSync() {
+  return typeof window !== "undefined" && !cloudReady;
+}
+
 export function whenLocalReady() {
   if (typeof window === "undefined") return Promise.resolve();
   if (!localBoot) startLocalBoot();
@@ -990,6 +998,8 @@ export async function hydrateFromCloud() {
       /* sem regra ou pavilhão inválido */
     }
     if (first && memoryDb) queuePush(memoryDb);
+    // Screens waiting for the first sync re-render now.
+    if (first) emit();
   }
 }
 

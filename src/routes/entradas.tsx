@@ -32,6 +32,8 @@ import { ViewSwitch, useChartView } from "@/components/analytics/view-switch";
 import { ScreenCharts } from "@/components/analytics/screen-charts";
 import { useRowUpdates } from "@/lib/use-row-updates";
 
+import { useAnimatedList } from "@/lib/use-animated-list";
+
 export const Route = createFileRoute("/entradas")({
   validateSearch: (s: Record<string, unknown>): { produto?: string; pav?: string } => ({
     produto: typeof s.produto === "string" ? s.produto : undefined,
@@ -41,6 +43,7 @@ export const Route = createFileRoute("/entradas")({
 });
 
 function Entradas() {
+  const listaRef = useAnimatedList();
   const { produto: produtoParam, pav: pavParam } = Route.useSearch();
   const { perfil } = useSession();
   const live = useDb();
@@ -361,7 +364,7 @@ function Entradas() {
           {registros.length === 0 ? (
             <p className="text-sm text-muted-foreground">Nenhuma entrada neste período.</p>
           ) : (
-            <ul className="divide-y divide-border">
+            <ul ref={listaRef} className="divide-y divide-border">
               {registros.map((s) => (
                 <li
                   key={s.id}

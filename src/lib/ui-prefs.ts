@@ -285,7 +285,13 @@ function installLiteRuntime() {
       const skip = !root.classList.contains("motion-on");
       if (!skip) {
         try {
-          return native(input as never);
+          const vt = native(input as never);
+          // A transition cut short by the next click is normal; don't surface it as an error.
+          const quiet = () => undefined;
+          vt.finished.catch(quiet);
+          vt.ready.catch(quiet);
+          vt.updateCallbackDone.catch(quiet);
+          return vt;
         } catch {
           /* segue sem animação */
         }

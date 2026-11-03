@@ -29,9 +29,12 @@ import { ScreenCharts } from "@/components/analytics/screen-charts";
 import { CountUp } from "@/components/motion/count-up";
 import { useRowUpdates } from "@/lib/use-row-updates";
 
+import { useAnimatedList } from "@/lib/use-animated-list";
+
 export const Route = createFileRoute("/hoje")({ component: Hoje });
 
 function Hoje() {
+  const listaRef = useAnimatedList();
   const live = useDb();
   const { perfil, isAdmin } = useSession();
   const hoje = todayISO();
@@ -218,7 +221,7 @@ function Hoje() {
             </button>
           </p>
         ) : shownMovs.length > 0 ? (
-          <ul className="grid grid-cols-1 gap-3 xl:grid-cols-2">
+          <ul ref={listaRef} className="grid grid-cols-1 gap-3 xl:grid-cols-2">
             {shownMovs.map((s) => {
               const tipo = tipoMovimentacaoOf(s);
               const accent = tipo === "entrada" ? "bg-primary" : tipo === "transferencia" ? "bg-foreground/25" : "bg-gold";

@@ -1,6 +1,7 @@
-import { useMemo, useRef, useState } from "react";
+import { useMemo, useRef, useState, type MutableRefObject } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
-import { ContactShadows, Float, Html, MeshDistortMaterial, OrbitControls, RoundedBox, Sparkles } from "@react-three/drei";
+import { ContactShadows, Float, MeshDistortMaterial, OrbitControls, RoundedBox, Sparkles } from "@react-three/drei";
+import { Bloom, EffectComposer, Vignette } from "@react-three/postprocessing";
 import * as THREE from "three";
 
 /* ── Warehouse: one platform per pavilion, crates stacked by real stock ── */
@@ -84,8 +85,6 @@ function Pavilion({
     }
   });
 
-  const height = 0.16 + Math.ceil(crates / (GRID * GRID)) * (CRATE + GAP);
-
   return (
     <group
       position={[x, 0, z]}
@@ -110,25 +109,27 @@ function Pavilion({
           <meshStandardMaterial vertexColors roughness={0.45} metalness={0.05} />
         </instancedMesh>
       ) : null}
-      <Html position={[0, height + 1.05, 0]} center distanceFactor={13} zIndexRange={[20, 0]} style={{ pointerEvents: "none" }}>
-        <div className={active ? "wh-label is-active" : "wh-label"}>
-          <strong>{data.nome}</strong>
-          <span>{data.total.toLocaleString("pt-BR")} vol · {data.produtos} itens</span>
-          {active && data.top.length ? (
-            <ul>
-              {data.top.slice(0, 3).map((t) => (
-                <li key={t.nome}>
-                  <i style={{ background: t.cor }} />
-                  {t.nome}
-                  <b>{t.quantidade.toLocaleString("pt-BR")}</b>
-                </li>
-              ))}
-            </ul>
-          ) : null}
-        </div>
-      </Html>
     </group>
   );
+}
+
+/** Pins plain DOM labels over the 3D scene: one projection per frame, no extra React roots. */
+function LabelProjector({ anchors, els }: { anchors: THREE.Vector3[]; els: MutableRefObject<(HTMLDivElement | null)[]> }) {
+  const v = useMemo(() => new THREE.Vector3(), []);
+  useFrame(({ camera, size }) => {
+    anchors.forEach((a, i) => {
+      const el = els.current[i];
+      if (!el) return;
+      v.copy(a).project(camera);
+      const x = (v.x * 0.5 + 0.5) * size.width;
+      const y = (-v.y * 0.5 + 0.5) * size.height;
+      const scale = THREE.MathUtils.clamp(15 / camera.position.distanceTo(a), 0.62, 1.15);
+      el.style.transform = `translate3d(${x.toFixed(1)}px, ${y.toFixed(1)}px, 0) translate(-50%, -100%) scale(${scale.toFixed(3)})`;
+      el.style.opacity = v.z < 1 ? "1" : "0";
+      el.style.zIndex = String(Math.round((1 - v.z) * 1000));
+    });
+  });
+  return null;
 }
 
 function FitCamera({ span }: { span: number }) {
@@ -136,7 +137,7 @@ function FitCamera({ span }: { span: number }) {
   useMemo(() => {
     const aspect = size.width / Math.max(1, size.height);
     // Fit the whole row of pavilions: distance grows with span and with a narrow canvas.
-    const dist = Math.max(10, (span * 1.25) / Math.min(1.7, aspect) + 4);
+    const dist = Math.max(11, (span * 1.5) / Math.min(1.7, aspect) + 4.5);
     camera.position.set(dist * 0.55, dist * 0.62, dist * 0.7);
     camera.lookAt(0, 0.2, 0);
   }, [camera, size.width, size.height, span]);
@@ -151,7 +152,15 @@ export function WarehouseScene({ pavilions, lite }: { pavilions: PavilionStack[]
   const cols = Math.max(1, Math.ceil(Math.sqrt(pavilions.length * 1.5)));
   const rows = Math.max(1, Math.ceil(pavilions.length / cols));
   const span = Math.max(cols, rows) * spacing;
+  const spots = pavilions.map((p, i) => {
+    const x = ((i % cols) - (cols - 1) / 2) * spacing;
+    const z = (Math.floor(i / cols) - (rows - 1) / 2) * spacing;
+    const height = 0.16 + Math.ceil(crateCount(p.total, max) / (GRID * GRID)) * (CRATE + GAP);
+    return { x, z, anchor: new THREE.Vector3(x, height + 0.55, z) };
+  });
+  const labelEls = useRef<(HTMLDivElement | null)[]>([]);
   return (
+    <div className="wh-stage">
     <Canvas shadows dpr={[1, 1.75]} camera={{ fov: 34, near: 0.1, far: 100 }} frameloop={lite ? "demand" : "always"} gl={{ antialias: true, alpha: true }}>
       <FitCamera span={span} />
       <fog attach="fog" args={["#0a1f16", 16, 38]} />
@@ -172,8 +181,8 @@ export function WarehouseScene({ pavilions, lite }: { pavilions: PavilionStack[]
           <Pavilion
             key={p.id}
             data={p}
-            x={((i % cols) - (cols - 1) / 2) * spacing}
-            z={(Math.floor(i / cols) - (rows - 1) / 2) * spacing}
+            x={spots[i].x}
+            z={spots[i].z}
             max={max}
             active={hover === p.id}
             onHover={setHover}
@@ -188,8 +197,40 @@ export function WarehouseScene({ pavilions, lite }: { pavilions: PavilionStack[]
       <gridHelper args={[60, 60, "#1f4a37", "#163a2b"]} position={[0, 0.001, 0]} />
       <ContactShadows position={[0, 0.01, 0]} opacity={0.45} scale={span + 10} blur={2.4} far={6} />
       {lite ? null : <Sparkles count={40} scale={[span + 6, 5, 6]} position={[0, 2.5, 0]} size={2.2} speed={0.25} color="#f0c56a" opacity={0.6} />}
+      {lite ? null : (
+        <EffectComposer multisampling={4}>
+          <Bloom intensity={0.55} luminanceThreshold={0.62} luminanceSmoothing={0.25} mipmapBlur />
+          <Vignette offset={0.28} darkness={0.55} />
+        </EffectComposer>
+      )}
       <OrbitControls enableZoom={false} enablePan={false} autoRotate={!lite && hover === null} autoRotateSpeed={0.6} minPolarAngle={0.55} maxPolarAngle={1.25} target={[0, 0.2, 0]} />
+      <LabelProjector anchors={spots.map((s) => s.anchor)} els={labelEls} />
     </Canvas>
+    <div className="wh-labels" aria-hidden="true">
+      {pavilions.map((data, i) => {
+        const active = hover === data.id;
+        return (
+          <div key={data.id} ref={(el) => { labelEls.current[i] = el; }} className="wh-pin">
+            <div className={active ? "wh-label is-active" : "wh-label"}>
+              <strong>{data.nome}</strong>
+              <span>{data.total.toLocaleString("pt-BR")} vol · {data.produtos} itens</span>
+              {active && data.top.length ? (
+                <ul>
+                  {data.top.slice(0, 3).map((t) => (
+                    <li key={t.nome}>
+                      <i style={{ background: t.cor }} />
+                      {t.nome}
+                      <b>{t.quantidade.toLocaleString("pt-BR")}</b>
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+    </div>
   );
 }
 
@@ -279,6 +320,12 @@ export function ProduceScene({ lite }: { lite: boolean }) {
       <PointerRig />
       {lite ? null : <Sparkles count={70} scale={[12, 7, 6]} size={2.4} speed={0.3} color="#f0c56a" opacity={0.7} />}
       <ContactShadows position={[0, -3, 0]} opacity={0.35} scale={14} blur={3} far={5} color="#04120b" />
+      {lite ? null : (
+        <EffectComposer multisampling={4}>
+          <Bloom intensity={0.7} luminanceThreshold={0.55} luminanceSmoothing={0.3} mipmapBlur />
+          <Vignette offset={0.3} darkness={0.5} />
+        </EffectComposer>
+      )}
     </Canvas>
   );
 }
