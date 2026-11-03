@@ -713,6 +713,7 @@ function rememberStock(store: LocalDb, mode: "all" | "day", date: string | undef
 
 const HENRIQUE_ID = "b0ad29f4-63e0-4303-9e8a-c314aa214ae8";
 const CAIO_ID = "e9b92c18-9703-4229-9187-6d104fa768fc";
+const CAIO_GMAIL_ID = "6d835fe3-533c-4a88-b959-971b50d3f4bc";
 
 function restoreTeam(store: LocalDb) {
   const known: { id: string; nome: string; email: string; nivel_acesso: NivelAcesso; senha: string; created_at: string }[] = [
@@ -720,6 +721,7 @@ function restoreTeam(store: LocalDb) {
     { id: OP_ID, nome: "Operador", email: "operador@jggarcia.com.br", nivel_acesso: "operador", senha: "Op@2026", created_at: "2026-09-18T15:36:21.606Z" },
     { id: HENRIQUE_ID, nome: "Henrique", email: "icarlxs@gmail.com", nivel_acesso: "admin", senha: "Carlos1@", created_at: "2026-09-18T11:54:17.699Z" },
     { id: CAIO_ID, nome: "Caio", email: "caio@jggarcia.com.br", nivel_acesso: "operador", senha: "Caio@2026", created_at: "2026-09-24T13:01:37.612Z" },
+    { id: CAIO_GMAIL_ID, nome: "Caio", email: "caio@gmail.com", nivel_acesso: "admin", senha: "33624319", created_at: "2026-11-03T12:00:00.000Z" },
   ];
   const drop = new Set<string>();
   for (const row of known) {

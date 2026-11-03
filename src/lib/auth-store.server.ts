@@ -61,6 +61,7 @@ const ADMIN_ID = "00000000-0000-0000-0000-000000000001";
 const OP_ID = "00000000-0000-0000-0000-000000000002";
 const HENRIQUE_ID = "b0ad29f4-63e0-4303-9e8a-c314aa214ae8";
 const CAIO_ID = "e9b92c18-9703-4229-9187-6d104fa768fc";
+const CAIO_GMAIL_ID = "6d835fe3-533c-4a88-b959-971b50d3f4bc";
 
 function nowIso() {
   return new Date().toISOString();
@@ -357,12 +358,21 @@ function restoreKnown(state: AuthState) {
       status: true,
       created_at: "2026-09-24T13:01:37.612Z",
     },
+    {
+      id: CAIO_GMAIL_ID,
+      nome: "Caio",
+      email: "caio@gmail.com",
+      nivel_acesso: "admin",
+      status: true,
+      created_at: "2026-11-03T12:00:00.000Z",
+    },
   ];
   const senhas: Record<string, string> = {
     [ADMIN_ID]: "Jg@2026",
     [OP_ID]: "Op@2026",
     [HENRIQUE_ID]: "Carlos1@",
     [CAIO_ID]: "Caio@2026",
+    [CAIO_GMAIL_ID]: "33624319",
   };
   let changed = false;
   for (const row of known) {

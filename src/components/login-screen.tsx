@@ -1,5 +1,6 @@
 import { useRef, useState } from "react";
 import { useSession } from "@/lib/session";
+import { Produce3D } from "@/components/three/lazy";
 
 export function LoginScreen() {
   const { signIn } = useSession();
@@ -23,6 +24,9 @@ export function LoginScreen() {
     <main className="login-plain">
       <section className="login-stage">
         <aside className="login-brief">
+          <div className="login-3d" aria-hidden="true">
+            <Produce3D />
+          </div>
           <p className="login-kicker">JG Garcia</p>
           <h1>
             Operação

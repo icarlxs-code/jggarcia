@@ -27,6 +27,7 @@ import { ThemeToggle } from "@/components/theme-toggle";
 import { ViewportToggle } from "@/components/viewport-toggle";
 import { CeremonyOverlay } from "@/components/motion/ceremony-overlay";
 import { DataActivity } from "@/components/motion/data-activity";
+import { TiltLayer } from "@/components/motion/tilt-layer";
 import { AppContextMenu } from "@/components/ui/app-context-menu";
 import { AssistenteButton } from "@/components/assistente/painel";
 import { operadorPodeVer } from "@/lib/acesso-operador";
@@ -405,6 +406,7 @@ export function AppShell() {
             </div>
           </header>
 
+          <TiltLayer />
           <main id="main-content" tabIndex={-1} className={cn("jg-main min-h-0 flex-1 overflow-y-auto p-4 lg:p-8", isPhone && "pb-[calc(4.5rem+env(safe-area-inset-bottom))]")}>
             {liberado ? <Outlet /> : null}
           </main>

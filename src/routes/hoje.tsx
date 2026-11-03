@@ -95,11 +95,10 @@ function Hoje() {
     <PageStage className="space-y-6">
       <div className="page-hero hoje-banner">
         <div className="hoje-banner-copy">
-          <p className="hoje-kicker">{eHoje ? "Operação de hoje" : "Operação"}</p>
-          <h1 className="text-lg font-semibold tracking-tight sm:text-2xl">
+          <h1 className="page-title">
             {saudacao}, {nome}
           </h1>
-          <p className="page-desc hoje-date">{periodoTxt}</p>
+          <p className="page-desc hoje-date">{eHoje ? `Operação de hoje · ${periodoTxt}` : periodoTxt}</p>
         </div>
         <div className="hoje-banner-tools page-actions" role="group" aria-label="Ações da página">
           {isAdmin ? <><Button asChild variant="outline"><Link to="/entradas">Registrar entrada</Link></Button><Button asChild><Link to="/nova-saida">Nova saída</Link></Button></> : null}
@@ -305,14 +304,16 @@ function Kpi({ kind, label, value, hint, series }: { kind: KpiKind; label: strin
 
   return (
     <Card className={cn("hoje-kpi", `is-${kind}`, live && "is-live", fresh && "is-fresh")}>
-      <CardContent className="p-5">
-        <div className="flex items-start justify-between gap-2">
-          <div className="min-w-0">
-            <p className="text-xs font-semibold uppercase leading-tight tracking-wide text-muted-foreground">{label}</p>
-            <p className="kpi-figure mt-1 font-semibold tabular-nums">
-              <CountUp value={value} />
-            </p>
-            <p className="mt-0.5 text-xs text-muted-foreground">{hint}</p>
+      <CardContent className="flex h-full flex-col p-5">
+        <p className="text-[0.8125rem] font-medium leading-tight text-muted-foreground">{label}</p>
+        <div className="mt-2 flex items-end justify-between gap-2">
+          <p className="kpi-figure leading-none">
+            <CountUp value={value} />
+          </p>
+          <Spark values={series} tone={tone} label={`${label}: o traço reparte ${value.toLocaleString("pt-BR")} ${hint} pelas horas do dia`} />
+        </div>
+        <div className="mt-auto pt-2">
+            <p className="text-xs text-muted-foreground">{hint}</p>
             {kind === "go" ? (
               <Link to="/movimentacoes" search={{ periodo: "hoje", tipo: "transferencia" }} className="mt-1 inline-block text-xs font-medium underline-offset-2 hover:underline">
                 Ver registros
@@ -322,8 +323,6 @@ function Kpi({ kind, label, value, hint, series }: { kind: KpiKind; label: strin
                 Ver registros
               </Link>
             )}
-          </div>
-          <Spark values={series} tone={tone} label={`${label}: o traço reparte ${value.toLocaleString("pt-BR")} ${hint} pelas horas do dia`} />
         </div>
       </CardContent>
     </Card>
