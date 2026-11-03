@@ -84,6 +84,34 @@ function Configuracoes() {
       </PageHeader>
 
       <SettingsGroup title="Desempenho">
+        <div className="px-4 py-3">
+          <p className="text-sm font-medium">Animações</p>
+          <p className="mt-0.5 text-xs text-muted-foreground">
+            {prefs.animacoes === "sempre"
+              ? "Sempre ligadas, mesmo que o Windows peça menos movimento."
+              : prefs.animacoes === "reduzidas"
+                ? "Reduzidas. As telas mudam sem movimento."
+                : "Seguem o Windows. Se lá os efeitos de animação estiverem desligados, aqui também ficam."}
+          </p>
+          <div className="seg-control mt-3" role="radiogroup" aria-label="Animações">
+            {([
+              ["sistema", "Seguir o Windows"],
+              ["sempre", "Sempre ligadas"],
+              ["reduzidas", "Reduzidas"],
+            ] as const).map(([id, rotulo]) => (
+              <button
+                key={id}
+                type="button"
+                role="radio"
+                aria-checked={prefs.animacoes === id}
+                data-on={prefs.animacoes === id ? "true" : undefined}
+                onClick={() => save({ animacoes: id }, `Animações: ${rotulo.toLowerCase()}.`)}
+              >
+                {rotulo}
+              </button>
+            ))}
+          </div>
+        </div>
         <SettingRow
           label="Sistema lite"
           hint={prefs.sistemaLite ? "Ligado. Sem animação, sem transição e sem foto de produto." : "Desligado. Para computador mais antigo, a tela fica imediata."}

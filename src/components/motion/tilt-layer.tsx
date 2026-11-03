@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import { prefersReducedMotion } from "@/lib/motion";
 
 const SELECTOR = ".kpi-card, .hoje-kpi, .gauge-card, .radar-card, .tilt-on";
 const MAX = 6;
@@ -7,7 +8,6 @@ const MAX = 6;
 export function TiltLayer() {
   useEffect(() => {
     const fine = window.matchMedia("(hover: hover) and (pointer: fine)");
-    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)");
     let current: HTMLElement | null = null;
     let frame = 0;
 
@@ -18,7 +18,7 @@ export function TiltLayer() {
     };
 
     const onMove = (e: PointerEvent) => {
-      if (!fine.matches || reduce.matches || document.documentElement.classList.contains("is-lite")) return;
+      if (!fine.matches || prefersReducedMotion()) return;
       const el = (e.target as Element | null)?.closest?.(SELECTOR) as HTMLElement | null;
       if (current && current !== el) reset(current);
       current = el;

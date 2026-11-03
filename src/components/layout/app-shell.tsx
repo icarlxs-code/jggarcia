@@ -126,7 +126,7 @@ function NavList({ onNavigate, collapsed }: { onNavigate?: () => void; collapsed
                     key={item.to}
                     to={item.to}
                     preload="intent"
-                    viewTransition={false}
+                    viewTransition
                     data-active={active ? "true" : "false"}
                     aria-current={active ? "page" : undefined}
                     onClick={onNavigate}
@@ -422,7 +422,7 @@ export function AppShell() {
                     key={item.to}
                     to={item.to}
                     preload="viewport"
-                    viewTransition={false}
+                    viewTransition
                     data-entrada-dock={item.to === "/entradas" ? "true" : undefined}
                     aria-current={active ? "page" : undefined}
                     className={cn("jg-tab", active && "is-active")}

@@ -87,7 +87,11 @@ export interface UserUiPrefs {
   painel: Partial<Record<PainelWidgetId, boolean>>;
   /** Sem transições nem animações. Só nesta conta. */
   sistemaLite: boolean;
+  /** Animações: seguir o sistema operacional, sempre ligadas ou reduzidas. */
+  animacoes: AnimacoesModo;
 }
+
+export type AnimacoesModo = "sistema" | "sempre" | "reduzidas";
 
 const KEY = "jg-garcia-ui-prefs-v2";
 
@@ -114,6 +118,7 @@ export function defaultUiPrefs(): UserUiPrefs {
     chartViewRev: 2,
     painel: {},
     sistemaLite: false,
+    animacoes: "sistema",
     temaId: "verde-branco",
     temaCor: "#1b5c3e",
   };
@@ -147,6 +152,7 @@ function normalize(row?: Partial<UserUiPrefs> | null): UserUiPrefs {
     chartViewRev,
     painel: sanitizePainel(row.painel),
     sistemaLite: row.sistemaLite === true,
+    animacoes: row.animacoes === "sempre" || row.animacoes === "reduzidas" ? row.animacoes : "sistema",
   };
 }
 
@@ -276,13 +282,7 @@ function installLiteRuntime() {
             ? (input as { update: () => unknown }).update
             : null;
       const root = document.documentElement;
-      let reduced = false;
-      try {
-        reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-      } catch {
-        reduced = false;
-      }
-      const skip = true;
+      const skip = !root.classList.contains("motion-on");
       if (!skip) {
         try {
           return native(input as never);
@@ -310,6 +310,35 @@ function installLiteRuntime() {
   }
 }
 
+let motionMode: AnimacoesModo = "sistema";
+let motionWatch = false;
+
+function osReducesMotion() {
+  try {
+    return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  } catch {
+    return false;
+  }
+}
+
+/** One switch for every animation: html.motion-on / html.motion-off. */
+export function applyMotionMode(mode: AnimacoesModo) {
+  if (typeof document === "undefined") return;
+  motionMode = mode;
+  const root = document.documentElement;
+  const on = !root.classList.contains("is-lite") && (mode === "sempre" || (mode === "sistema" && !osReducesMotion()));
+  root.classList.toggle("motion-on", on);
+  root.classList.toggle("motion-off", !on);
+  if (!motionWatch) {
+    motionWatch = true;
+    try {
+      window.matchMedia("(prefers-reduced-motion: reduce)").addEventListener("change", () => applyMotionMode(motionMode));
+    } catch {
+      /* navegador antigo */
+    }
+  }
+}
+
 /** Called while the session renders so the rest of the app reads this account. */
 export function applyLiteMode(on: boolean) {
   if (typeof document === "undefined") return;
@@ -322,6 +351,7 @@ export function applyLiteMode(on: boolean) {
   document.documentElement.classList.toggle("is-lite", on);
   document.body?.classList.toggle("is-lite", on);
   gsap.globalTimeline.timeScale(on ? 1000000 : 1);
+  applyMotionMode(motionMode);
   if (on) gsap.globalTimeline.getChildren(false, true, true).forEach((tween) => tween.progress(1).kill());
 }
 
@@ -338,6 +368,7 @@ export function setActiveUserId(id: string | null) {
     return;
   }
   const prefs = readUiPrefs(id);
+  motionMode = prefs.animacoes;
   applyLiteMode(prefs.sistemaLite);
   applyThemeChoice(prefs.temaId, prefs.temaCor);
 }
@@ -365,6 +396,7 @@ export function writeUiPrefs(userId: string | null | undefined, patch: Partial<U
   all[id] = next;
   writeAll(all as Record<string, UserUiPrefs>);
   if (id === (activeId || "_anon")) {
+    motionMode = next.animacoes;
     applyLiteMode(next.sistemaLite);
     const themeChanged = next.temaId !== prev.temaId || next.temaCor !== prev.temaCor;
     if (themeChanged) paintTheme(next.temaId, next.temaCor, true);
@@ -379,6 +411,7 @@ export function resetUiPrefs(userId: string | null | undefined) {
   delete all[id];
   writeAll(all as Record<string, UserUiPrefs>);
   if (id === (activeId || "_anon")) {
+    motionMode = "sistema";
     applyLiteMode(false);
     paintTheme("verde-branco", undefined, true);
   }
